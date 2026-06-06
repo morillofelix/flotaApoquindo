@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  APPOINTMENTS_STORAGE_KEY,
+  type Appointment,
+  permissionReasons,
+  type PermissionReason,
+} from "@/lib/appointments";
 import { type FormEvent, useMemo, useState } from "react";
 
 type FormValues = {
@@ -47,8 +53,11 @@ function validateField(name: FieldName, value: string, today: string) {
     return "La fecha debe ser hoy o posterior.";
   }
 
-  if (name === "appointmentReason" && trimmedValue.length < 10) {
-    return "Describe el motivo con al menos 10 caracteres.";
+  if (
+    name === "appointmentReason" &&
+    !permissionReasons.some((reason) => reason.value === trimmedValue)
+  ) {
+    return "Selecciona un motivo válido.";
   }
 
   if (name === "email" && !emailPattern.test(trimmedValue)) {
@@ -66,12 +75,45 @@ function validateField(name: FieldName, value: string, today: string) {
   return "";
 }
 
+function readStoredAppointments() {
+  try {
+    const storedValue = window.localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
+    return storedValue ? (JSON.parse(storedValue) as Appointment[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAppointment(values: FormValues) {
+  const newAppointment: Appointment = {
+    id: `${Date.now()}-${crypto.randomUUID()}`,
+    driverName: values.driverName.trim(),
+    vehicleNumber: values.vehicleNumber.trim(),
+    appointmentDate: values.appointmentDate,
+    appointmentReason: values.appointmentReason as PermissionReason,
+    email: values.email.trim(),
+    phone: values.phone.trim(),
+    createdAt: new Date().toISOString(),
+    status: "pendiente",
+  };
+
+  const currentAppointments = readStoredAppointments();
+  window.localStorage.setItem(
+    APPOINTMENTS_STORAGE_KEY,
+    JSON.stringify([newAppointment, ...currentAppointments]),
+  );
+}
+
 export default function HomePage() {
   const today = useMemo(() => getTodayValue(), []);
+  const formStartedAt = useMemo(() => Date.now(), []);
   const [values, setValues] = useState<FormValues>(initialValues);
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>(
     {},
   );
+  const [securityTouched, setSecurityTouched] = useState(false);
+  const [securityAnswer, setSecurityAnswer] = useState("");
+  const [botTrap, setBotTrap] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
 
   const errors = useMemo(() => {
@@ -97,7 +139,12 @@ export default function HomePage() {
     };
   }, [today, values]);
 
-  const isFormValid = Object.values(errors).every((error) => !error);
+  const securityError =
+    botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
+      ? "Completa la verificación de seguridad."
+      : "";
+  const isFormValid =
+    Object.values(errors).every((error) => !error) && !securityError;
 
   function updateField(name: FieldName, value: string) {
     setValues((currentValues) => ({
@@ -125,7 +172,20 @@ export default function HomePage() {
       email: true,
       phone: true,
     });
-    setShowSuccess(isFormValid);
+    setSecurityTouched(true);
+
+    const submittedTooFast = Date.now() - formStartedAt < 2000;
+    const canSubmit = isFormValid && !submittedTooFast;
+
+    if (canSubmit) {
+      saveAppointment(values);
+      setValues(initialValues);
+      setSecurityAnswer("");
+      setTouched({});
+      setSecurityTouched(false);
+    }
+
+    setShowSuccess(canSubmit);
   }
 
   function fieldStatus(name: FieldName) {
@@ -133,41 +193,50 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[#f4f7fb] px-5 py-10 text-[#0f2747] sm:px-8 lg:px-10">
-      <section className="grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-stretch">
-        <aside className="flex flex-col rounded-[28px] bg-[#062b5f] p-7 text-white shadow-xl shadow-slate-300/60 sm:p-9">
-          <div className="mb-14 inline-flex w-fit rounded-full border border-white/20 px-4 py-2 text-sm font-semibold">
-            Transportes Apoquindo
+    <main className="flex min-h-[100dvh] items-center justify-center bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
+      <section className="grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.15fr)] lg:items-stretch">
+        <aside className="flex flex-col rounded-[24px] bg-[#062b5f] p-5 text-white shadow-xl shadow-slate-300/60 sm:rounded-[28px] sm:p-8 lg:p-9">
+          <div className="mb-8 rounded-[20px] bg-white p-4 shadow-lg shadow-blue-950/20 sm:mb-12">
+            <img
+              src="/logo-apoquindo.png"
+              alt="Transportes Apoquindo"
+              className="h-auto w-full object-contain"
+            />
           </div>
 
           <div className="space-y-5">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ec5ff]">
-              Solicitud de cita
+              Solicitud de permiso
             </p>
-            <h1 className="font-heading text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Agenda la atención del móvil
+            <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+              Registra permisos de forma segura
             </h1>
             <p className="text-base leading-7 text-blue-50/85">
-              Registra los datos del conductor, el vehículo y la fecha requerida
-              para preparar la solicitud. Esta vista solo valida la información,
-              no realiza envío.
+              Completa los datos del conductor, móvil y motivo para validar la
+              solicitud antes de continuar.
             </p>
           </div>
 
-          <div className="mt-auto grid gap-4 border-t border-white/15 pt-6 text-sm text-blue-50/85">
-            <p>Servicio corporativo seguro, confiable y profesional.</p>
-            <p>Campos obligatorios con validación antes de continuar.</p>
+          <div className="mt-8 grid gap-4 border-t border-white/15 pt-6 text-sm text-blue-50/85 lg:mt-auto">
+            <p>Diseñado para usar desde computador, tablet o teléfono.</p>
+            <p>Incluye validación de campos y protección anti-spam básica.</p>
+            <a
+              href="/agendamientos"
+              className="mt-2 inline-flex w-fit rounded-2xl border border-white/25 px-4 py-2 font-semibold text-white transition hover:bg-white/10"
+            >
+              Ver vista administrable
+            </a>
           </div>
         </aside>
 
         <form
           noValidate
           onSubmit={handleSubmit}
-          className="rounded-[28px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:p-8"
+          className="rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8"
         >
           <div className="mb-7 border-b border-[#e3ebf5] pb-6">
             <h2 className="font-heading text-2xl font-semibold text-[#0f2747]">
-              Datos de la cita
+              Datos del permiso
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Completa todos los campos para validar la solicitud.
@@ -275,19 +344,24 @@ export default function HomePage() {
 
             <label className="flex flex-col gap-2 sm:col-span-2">
               <span className="text-sm font-semibold text-[#173b68]">
-                Motivos de la cita
+                Motivo del permiso
               </span>
-              <textarea
+              <select
                 name="appointmentReason"
                 value={values.appointmentReason}
                 onBlur={() => markFieldAsTouched("appointmentReason")}
                 onChange={(event) =>
                   updateField("appointmentReason", event.target.value)
                 }
-                placeholder="Describe brevemente el motivo de la solicitud"
-                rows={5}
-                className={`resize-none rounded-2xl border bg-white px-4 py-3 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("appointmentReason")}`}
-              />
+                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("appointmentReason")}`}
+              >
+                <option value="">Selecciona una opción</option>
+                {permissionReasons.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
               {touched.appointmentReason && errors.appointmentReason ? (
                 <span className="text-sm text-red-600">
                   {errors.appointmentReason}
@@ -296,22 +370,63 @@ export default function HomePage() {
             </label>
           </div>
 
+          <input
+            type="text"
+            name="companyWebsite"
+            value={botTrap}
+            onChange={(event) => setBotTrap(event.target.value)}
+            className="hidden"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
+
+          <div className="mt-6 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-[#173b68]">
+                Verificación de seguridad
+              </span>
+              <span className="text-sm leading-6 text-slate-600">
+                Para evitar spam, escribe el resultado de 3 + 4.
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={securityAnswer}
+                onBlur={() => setSecurityTouched(true)}
+                onChange={(event) => {
+                  setSecurityAnswer(event.target.value);
+                  setShowSuccess(false);
+                }}
+                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${
+                  securityTouched && securityError
+                    ? "border-red-400"
+                    : "border-[#d8e2ef]"
+                }`}
+                placeholder="Respuesta"
+              />
+              {securityTouched && securityError ? (
+                <span className="text-sm text-red-600">{securityError}</span>
+              ) : null}
+            </label>
+          </div>
+
           {showSuccess ? (
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
-              Los datos están completos y con formato válido. El envío aún no
-              está habilitado.
+              Solicitud registrada correctamente. Puedes revisarla en la vista
+              administrable.
             </div>
           ) : null}
 
           <div className="mt-8 flex flex-col gap-4 border-t border-[#e3ebf5] pt-6 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-600">
-              Este botón solo valida los campos por ahora.
+              Este botón valida los campos y la verificación de seguridad.
             </p>
             <button
               type="submit"
-              className="flex h-12 min-w-44 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px"
+              className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto sm:min-w-44"
             >
-              Validar solicitud
+              Validar permiso
             </button>
           </div>
         </form>
