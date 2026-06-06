@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Tema Custom — Variables CSS
+   ============================================================ */
+
+@theme {
+  /* Brand Colors */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  /* Surface Colors (Dark Theme) */
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface: #0a0a0f;
+  --color-surface-800: #12121a;
+  --color-surface-900: #0a0a0f;
+  --color-surface-950: #050508;
+
+  /* Typography */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-outfit), system-ui, sans-serif;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.6s ease-out forwards;
+  --animate-slide-up: slide-up 0.6s ease-out forwards;
+  --animate-float: float 6s ease-in-out infinite;
+
+  @keyframes fade-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes slide-up {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-surface-900);
+    color: var(--color-surface-200);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+}
+
+/* ============================================================
+   Utilidades Custom
+   ============================================================ */
+
+/* Gradiente de texto para headings */
+.text-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--color-brand-400) 0%,
+    var(--color-brand-300) 50%,
+    #c084fc 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Efecto glassmorphism reutilizable */
+.glass {
+  background: rgba(18, 18, 26, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Glow decorativo */
+.glow {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% -20%,
+    rgba(99, 102, 241, 0.15),
+    transparent
+  );
+}
+
+/* Focus ring accesible */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface-950);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-900);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-700);
+}
