@@ -498,12 +498,12 @@ export default function AppointmentsPage() {
                 Cuando se registre un permiso desde la primera vista, aparecerá
                 en este panel administrable.
               </p>
-              <a
+              <Link
                 href="/"
                 className="mt-5 inline-flex h-12 items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px"
               >
                 Crear solicitud
-              </a>
+              </Link>
             </div>
           )}
         </section>
