@@ -6,6 +6,7 @@ import {
   type AppointmentStatus,
   getPermissionReasonLabel,
 } from "@/lib/appointments";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 const statusLabels: Record<AppointmentStatus, string> = {
@@ -293,12 +294,12 @@ export default function AppointmentsPage() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <a
+              <Link
                 href="/"
                 className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto"
               >
                 Nueva solicitud
-              </a>
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
