@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  APPOINTMENTS_STORAGE_KEY,
   type Appointment,
   permissionReasons,
   type PermissionReason,
@@ -75,15 +74,6 @@ function validateField(name: FieldName, value: string, today: string) {
   return "";
 }
 
-function readStoredAppointments() {
-  try {
-    const storedValue = window.localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
-    return storedValue ? (JSON.parse(storedValue) as Appointment[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 function generateTicketId() {
   const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const [randomValue = 0] = crypto.getRandomValues(new Uint32Array(1));
@@ -107,12 +97,18 @@ function createAppointment(values: FormValues): Appointment {
   };
 }
 
-function saveAppointment(newAppointment: Appointment) {
-  const currentAppointments = readStoredAppointments();
-  window.localStorage.setItem(
-    APPOINTMENTS_STORAGE_KEY,
-    JSON.stringify([newAppointment, ...currentAppointments]),
-  );
+async function saveAppointment(newAppointment: Appointment) {
+  const response = await fetch("/api/appointments", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(newAppointment),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo registrar la solicitud.");
+  }
 }
 
 export default function HomePage() {
@@ -127,6 +123,7 @@ export default function HomePage() {
   const [botTrap, setBotTrap] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTicketId, setSuccessTicketId] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errors = useMemo(() => {
@@ -166,6 +163,7 @@ export default function HomePage() {
     }));
     setShowSuccess(false);
     setSuccessTicketId("");
+    setSubmitError("");
   }
 
   function markFieldAsTouched(name: FieldName) {
@@ -194,14 +192,24 @@ export default function HomePage() {
     if (canSubmit) {
       setIsSubmitting(true);
       const appointment = createAppointment(values);
-      saveAppointment(appointment);
 
-      setSuccessTicketId(appointment.id);
-      setValues(initialValues);
-      setSecurityAnswer("");
-      setTouched({});
-      setSecurityTouched(false);
-      setIsSubmitting(false);
+      try {
+        await saveAppointment(appointment);
+        setSuccessTicketId(appointment.id);
+        setValues(initialValues);
+        setSecurityAnswer("");
+        setTouched({});
+        setSecurityTouched(false);
+        setShowSuccess(true);
+      } catch {
+        setShowSuccess(false);
+        setSubmitError(
+          "No se pudo registrar la solicitud. Intenta nuevamente.",
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
     }
 
     setShowSuccess(canSubmit);
@@ -435,6 +443,12 @@ export default function HomePage() {
               Solicitud registrada correctamente. Tu número de ticket es{" "}
               <strong>{successTicketId}</strong>. Puedes usarlo para hacer
               seguimiento en la vista administrable.
+            </div>
+          ) : null}
+
+          {submitError ? (
+            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {submitError}
             </div>
           ) : null}
 

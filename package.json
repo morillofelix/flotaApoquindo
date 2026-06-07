@@ -7,14 +7,17 @@
     "dev:clean": "powershell -ExecutionPolicy Bypass -Command \"if (Test-Path .next) { Remove-Item .next -Recurse -Force }; npm run dev\"",
     "build": "next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "next lint"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@types/nodemailer": "^8.0.0",
     "clsx": "^2.1.1",
     "motion": "^12.12.1",
     "next": "^15.3.3",
     "nodemailer": "^8.0.10",
+    "prisma": "^6.19.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwind-merge": "^3.3.0"

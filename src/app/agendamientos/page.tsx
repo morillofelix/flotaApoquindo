@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  APPOINTMENTS_STORAGE_KEY,
   type Appointment,
   type AppointmentStatus,
   type PermissionReason,
@@ -30,20 +29,17 @@ type DateFilter =
   | "ultimos30"
   | "personalizado";
 
-function loadAppointments() {
-  try {
-    const storedValue = window.localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
-    return storedValue ? (JSON.parse(storedValue) as Appointment[]) : [];
-  } catch {
-    return [];
-  }
-}
+async function loadAppointments() {
+  const response = await fetch("/api/appointments", {
+    cache: "no-store",
+  });
 
-function persistAppointments(appointments: Appointment[]) {
-  window.localStorage.setItem(
-    APPOINTMENTS_STORAGE_KEY,
-    JSON.stringify(appointments),
-  );
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar las solicitudes.");
+  }
+
+  const data = (await response.json()) as { appointments?: Appointment[] };
+  return data.appointments ?? [];
 }
 
 function formatDate(value: string) {
@@ -224,13 +220,30 @@ export default function AppointmentsPage() {
   const [loginValues, setLoginValues] = useState({ user: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState("");
 
   useEffect(() => {
-    setAppointments(loadAppointments());
     setIsAuthenticated(
       window.sessionStorage.getItem("apoquindo-admin-auth") === "true",
     );
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    setIsLoadingAppointments(true);
+    setAppointmentsError("");
+
+    loadAppointments()
+      .then((loadedAppointments) => setAppointments(loadedAppointments))
+      .catch(() =>
+        setAppointmentsError("No se pudieron cargar las solicitudes."),
+      )
+      .finally(() => setIsLoadingAppointments(false));
+  }, [isAuthenticated]);
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {
@@ -254,22 +267,52 @@ export default function AppointmentsPage() {
     (appointment) => appointment.status === "pendiente",
   ).length;
 
-  function updateStatus(id: string, status: AppointmentStatus) {
+  async function updateStatus(id: string, status: AppointmentStatus) {
+    const previousAppointments = appointments;
     const updatedAppointments = appointments.map((appointment) =>
       appointment.id === id ? { ...appointment, status } : appointment,
     );
 
     setAppointments(updatedAppointments);
-    persistAppointments(updatedAppointments);
+
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo actualizar la solicitud.");
+      }
+    } catch {
+      setAppointments(previousAppointments);
+      setAppointmentsError("No se pudo actualizar el estado.");
+    }
   }
 
-  function removeAppointment(id: string) {
+  async function removeAppointment(id: string) {
+    const previousAppointments = appointments;
     const updatedAppointments = appointments.filter(
       (appointment) => appointment.id !== id,
     );
 
     setAppointments(updatedAppointments);
-    persistAppointments(updatedAppointments);
+
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo eliminar la solicitud.");
+      }
+    } catch {
+      setAppointments(previousAppointments);
+      setAppointmentsError("No se pudo eliminar la solicitud.");
+    }
   }
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
@@ -558,6 +601,18 @@ export default function AppointmentsPage() {
                   className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
                 />
               </label>
+            </div>
+          ) : null}
+
+          {isLoadingAppointments ? (
+            <div className="mb-6 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 py-3 text-sm font-medium text-[#173b68]">
+              Cargando solicitudes desde la base de datos...
+            </div>
+          ) : null}
+
+          {appointmentsError ? (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {appointmentsError}
             </div>
           ) : null}
 

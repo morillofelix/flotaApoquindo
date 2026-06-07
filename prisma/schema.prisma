@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model Appointment {
+  id                String   @id
+  driverName        String
+  vehicleNumber     String
+  appointmentDate   DateTime @db.Date
+  appointmentReason String
+  email             String
+  phone             String
+  status            String   @default("pendiente")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([appointmentReason])
+  @@index([createdAt])
+}
