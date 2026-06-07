@@ -53,7 +53,7 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
     <div style="font-family: Arial, sans-serif; color: #0f2747; line-height: 1.6;">
       <h1 style="margin: 0 0 12px;">Solicitud recibida</h1>
       <p>Hola ${driverName},</p>
-      <p>Hemos recibido tu solicitud de permiso correctamente.</p>
+      <p>Hemos recibido tu solicitud de cita correctamente.</p>
       <p style="font-size: 18px;">
         <strong>Número de ticket:</strong> ${ticketId}
       </p>
@@ -70,7 +70,7 @@ function createEmailText(appointment: AppointmentEmailPayload) {
   return [
     `Hola ${appointment.driverName},`,
     "",
-    "Hemos recibido tu solicitud de permiso correctamente.",
+    "Hemos recibido tu solicitud de cita correctamente.",
     `Número de ticket: ${appointment.id}`,
     "",
     `Móvil: ${appointment.vehicleNumber}`,

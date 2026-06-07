@@ -233,10 +233,10 @@ export default function HomePage() {
 
           <div className="space-y-5">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ec5ff]">
-              Solicitud de permiso
+              Solicitud de cita
             </p>
             <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-              Registra permisos de forma segura
+              Registra citas de forma segura
             </h1>
             <p className="text-base leading-7 text-blue-50/85">
               Completa los datos del conductor, móvil y motivo para validar la
@@ -263,7 +263,7 @@ export default function HomePage() {
         >
           <div className="mb-7 border-b border-[#e3ebf5] pb-6">
             <h2 className="font-heading text-2xl font-semibold text-[#0f2747]">
-              Datos del permiso
+              Datos de la cita
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Completa todos los campos para validar la solicitud.
@@ -371,7 +371,7 @@ export default function HomePage() {
 
             <label className="flex flex-col gap-2 sm:col-span-2">
               <span className="text-sm font-semibold text-[#173b68]">
-                Motivo del permiso
+                Motivo de la cita
               </span>
               <select
                 name="appointmentReason"
@@ -461,7 +461,7 @@ export default function HomePage() {
               disabled={isSubmitting}
               className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto sm:min-w-44"
             >
-              {isSubmitting ? "Registrando..." : "Validar permiso"}
+              {isSubmitting ? "Registrando..." : "Validar cita"}
             </button>
           </div>
         </form>

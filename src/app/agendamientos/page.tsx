@@ -738,7 +738,7 @@ export default function AppointmentsPage() {
                 No hay solicitudes para mostrar
               </h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
-                Cuando se registre un permiso desde la primera vista, aparecerá
+                Cuando se registre una cita desde la primera vista, aparecerá
                 en este panel administrable.
               </p>
               <Link
