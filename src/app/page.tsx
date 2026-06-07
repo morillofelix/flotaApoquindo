@@ -84,9 +84,18 @@ function readStoredAppointments() {
   }
 }
 
-function saveAppointment(values: FormValues) {
-  const newAppointment: Appointment = {
-    id: `${Date.now()}-${crypto.randomUUID()}`,
+function generateTicketId() {
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const [randomValue = 0] = crypto.getRandomValues(new Uint32Array(1));
+  const randomPart = randomValue % 1000000;
+  return `APQ-${datePart}-${randomPart.toString().padStart(6, "0")}`;
+}
+
+function createAppointment(values: FormValues): Appointment {
+  const ticketId = generateTicketId();
+
+  return {
+    id: ticketId,
     driverName: values.driverName.trim(),
     vehicleNumber: values.vehicleNumber.trim(),
     appointmentDate: values.appointmentDate,
@@ -96,7 +105,9 @@ function saveAppointment(values: FormValues) {
     createdAt: new Date().toISOString(),
     status: "pendiente",
   };
+}
 
+function saveAppointment(newAppointment: Appointment) {
   const currentAppointments = readStoredAppointments();
   window.localStorage.setItem(
     APPOINTMENTS_STORAGE_KEY,
@@ -115,6 +126,8 @@ export default function HomePage() {
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [botTrap, setBotTrap] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successTicketId, setSuccessTicketId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errors = useMemo(() => {
     return {
@@ -152,6 +165,7 @@ export default function HomePage() {
       [name]: value,
     }));
     setShowSuccess(false);
+    setSuccessTicketId("");
   }
 
   function markFieldAsTouched(name: FieldName) {
@@ -161,7 +175,7 @@ export default function HomePage() {
     }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setTouched({
@@ -178,11 +192,16 @@ export default function HomePage() {
     const canSubmit = isFormValid && !submittedTooFast;
 
     if (canSubmit) {
-      saveAppointment(values);
+      setIsSubmitting(true);
+      const appointment = createAppointment(values);
+      saveAppointment(appointment);
+
+      setSuccessTicketId(appointment.id);
       setValues(initialValues);
       setSecurityAnswer("");
       setTouched({});
       setSecurityTouched(false);
+      setIsSubmitting(false);
     }
 
     setShowSuccess(canSubmit);
@@ -413,8 +432,9 @@ export default function HomePage() {
 
           {showSuccess ? (
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
-              Solicitud registrada correctamente. Puedes revisarla en la vista
-              administrable.
+              Solicitud registrada correctamente. Tu número de ticket es{" "}
+              <strong>{successTicketId}</strong>. Puedes usarlo para hacer
+              seguimiento en la vista administrable.
             </div>
           ) : null}
 
@@ -424,9 +444,10 @@ export default function HomePage() {
             </p>
             <button
               type="submit"
+              disabled={isSubmitting}
               className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto sm:min-w-44"
             >
-              Validar permiso
+              {isSubmitting ? "Registrando..." : "Validar permiso"}
             </button>
           </div>
         </form>

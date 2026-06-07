@@ -4,7 +4,9 @@ import {
   APPOINTMENTS_STORAGE_KEY,
   type Appointment,
   type AppointmentStatus,
+  type PermissionReason,
   getPermissionReasonLabel,
+  permissionReasons,
 } from "@/lib/appointments";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -21,10 +23,12 @@ const statusStyles: Record<AppointmentStatus, string> = {
   rechazado: "border-red-200 bg-red-50 text-red-800",
 };
 
-const adminCredentials = {
-  user: "ejecutivo",
-  password: "Apoquindo2026",
-};
+type DateFilter =
+  | "todos"
+  | "ultimos7"
+  | "ultimos15"
+  | "ultimos30"
+  | "personalizado";
 
 function loadAppointments() {
   try {
@@ -64,6 +68,78 @@ function formatCreatedAt(value: string) {
   }).format(new Date(value));
 }
 
+function parseDateOnly(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value.includes("T")
+    ? new Date(value)
+    : new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getTodayDateOnly() {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+}
+
+function getDateDaysAgo(days: number) {
+  const date = getTodayDateOnly();
+  date.setDate(date.getDate() - (days - 1));
+  return date;
+}
+
+function isWithinDateFilter(
+  dateValue: string,
+  dateFilter: DateFilter,
+  customStartDate: string,
+  customEndDate: string,
+) {
+  if (dateFilter === "todos") {
+    return true;
+  }
+
+  const date = parseDateOnly(dateValue);
+
+  if (!date) {
+    return false;
+  }
+
+  if (dateFilter === "personalizado") {
+    const startDate = parseDateOnly(customStartDate);
+    const endDate = parseDateOnly(customEndDate);
+
+    if (startDate && date < startDate) {
+      return false;
+    }
+
+    if (endDate && date > endDate) {
+      return false;
+    }
+
+    return true;
+  }
+
+  const daysByFilter: Record<
+    Exclude<DateFilter, "todos" | "personalizado">,
+    number
+  > = {
+    ultimos7: 7,
+    ultimos15: 15,
+    ultimos30: 30,
+  };
+  const startDate = getDateDaysAgo(daysByFilter[dateFilter]);
+  const endDate = getTodayDateOnly();
+
+  return date >= startDate && date <= endDate;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -78,6 +154,7 @@ function createExcelTable(appointments: Appointment[]) {
     .map(
       (appointment) => `
         <tr>
+          <td>${escapeHtml(appointment.id)}</td>
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
@@ -99,6 +176,7 @@ function createExcelTable(appointments: Appointment[]) {
         <table border="1">
           <thead>
             <tr>
+              <th>Ticket</th>
               <th>Conductor</th>
               <th>Móvil</th>
               <th>Fecha requerida</th>
@@ -134,9 +212,18 @@ export default function AppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
     "todos",
   );
+  const [reasonFilter, setReasonFilter] = useState<"todos" | PermissionReason>(
+    "todos",
+  );
+  const [dateFilter, setDateFilter] = useState<DateFilter>("todos");
+  const [customDateRange, setCustomDateRange] = useState({
+    startDate: "",
+    endDate: "",
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginValues, setLoginValues] = useState({ user: "", password: "" });
   const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
     setAppointments(loadAppointments());
@@ -146,14 +233,22 @@ export default function AppointmentsPage() {
   }, []);
 
   const filteredAppointments = useMemo(() => {
-    if (statusFilter === "todos") {
-      return appointments;
-    }
+    return appointments.filter((appointment) => {
+      const matchesStatus =
+        statusFilter === "todos" || appointment.status === statusFilter;
+      const matchesReason =
+        reasonFilter === "todos" ||
+        appointment.appointmentReason === reasonFilter;
+      const matchesDate = isWithinDateFilter(
+        appointment.createdAt,
+        dateFilter,
+        customDateRange.startDate,
+        customDateRange.endDate,
+      );
 
-    return appointments.filter(
-      (appointment) => appointment.status === statusFilter,
-    );
-  }, [appointments, statusFilter]);
+      return matchesStatus && matchesReason && matchesDate;
+    });
+  }, [appointments, customDateRange, dateFilter, reasonFilter, statusFilter]);
 
   const pendingCount = appointments.filter(
     (appointment) => appointment.status === "pendiente",
@@ -177,21 +272,36 @@ export default function AppointmentsPage() {
     persistAppointments(updatedAppointments);
   }
 
-  function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError("");
 
-    if (
-      loginValues.user.trim() === adminCredentials.user &&
-      loginValues.password === adminCredentials.password
-    ) {
-      window.sessionStorage.setItem("apoquindo-admin-auth", "true");
-      setIsAuthenticated(true);
-      setLoginError("");
-      setLoginValues({ user: "", password: "" });
-      return;
+    try {
+      const response = await fetch("/api/admin-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user: loginValues.user.trim(),
+          password: loginValues.password,
+        }),
+      });
+
+      if (response.ok) {
+        window.sessionStorage.setItem("apoquindo-admin-auth", "true");
+        setIsAuthenticated(true);
+        setLoginValues({ user: "", password: "" });
+        return;
+      }
+
+      setLoginError("Usuario o clave incorrectos.");
+    } catch {
+      setLoginError("No se pudo validar el acceso. Intenta nuevamente.");
+    } finally {
+      setIsLoggingIn(false);
     }
-
-    setLoginError("Usuario o clave incorrectos.");
   }
 
   function handleLogout() {
@@ -260,9 +370,10 @@ export default function AppointmentsPage() {
 
             <button
               type="submit"
+              disabled={isLoggingIn}
               className="flex h-12 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px"
             >
-              Ingresar
+              {isLoggingIn ? "Validando..." : "Ingresar"}
             </button>
           </form>
 
@@ -348,8 +459,8 @@ export default function AppointmentsPage() {
             </p>
           </div>
 
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <label className="flex flex-col gap-2 sm:min-w-64">
+          <div className="mb-6 grid gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end">
+            <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">
                 Filtrar por estado
               </span>
@@ -369,10 +480,86 @@ export default function AppointmentsPage() {
               </select>
             </label>
 
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-[#173b68]">
+                Filtrar por motivo
+              </span>
+              <select
+                value={reasonFilter}
+                onChange={(event) =>
+                  setReasonFilter(event.target.value as "todos" | PermissionReason)
+                }
+                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+              >
+                <option value="todos">Todos los motivos</option>
+                {permissionReasons.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-[#173b68]">
+                Filtrar por fecha de registro
+              </span>
+              <select
+                value={dateFilter}
+                onChange={(event) =>
+                  setDateFilter(event.target.value as DateFilter)
+                }
+                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+              >
+                <option value="todos">Todas las fechas</option>
+                <option value="ultimos7">Últimos 7 días</option>
+                <option value="ultimos15">Últimos 15 días</option>
+                <option value="ultimos30">Últimos 30 días</option>
+                <option value="personalizado">Personalizado</option>
+              </select>
+            </label>
+
             <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 py-3 text-sm text-slate-600">
               Mostrando {filteredAppointments.length} de {appointments.length}
             </div>
           </div>
+
+          {dateFilter === "personalizado" ? (
+            <div className="mb-6 grid gap-3 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-[#173b68]">
+                  Desde
+                </span>
+                <input
+                  type="date"
+                  value={customDateRange.startDate}
+                  onChange={(event) =>
+                    setCustomDateRange((currentRange) => ({
+                      ...currentRange,
+                      startDate: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                />
+              </label>
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-[#173b68]">
+                  Hasta
+                </span>
+                <input
+                  type="date"
+                  value={customDateRange.endDate}
+                  onChange={(event) =>
+                    setCustomDateRange((currentRange) => ({
+                      ...currentRange,
+                      endDate: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                />
+              </label>
+            </div>
+          ) : null}
 
           <div className="mb-6 flex flex-col gap-3 border-b border-[#e3ebf5] pb-6 sm:flex-row">
             <button
@@ -401,93 +588,94 @@ export default function AppointmentsPage() {
           </div>
 
           {filteredAppointments.length > 0 ? (
-            <div className="grid gap-4">
-              {filteredAppointments.map((appointment) => (
-                <article
-                  key={appointment.id}
-                  className="rounded-2xl border border-[#d8e2ef] bg-white p-4 shadow-sm shadow-slate-100 sm:p-5"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="font-heading text-xl font-semibold text-[#0f2747]">
-                          {appointment.driverName}
-                        </h3>
-                        <span
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[appointment.status]}`}
-                        >
-                          {statusLabels[appointment.status]}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm text-slate-600">
-                        Móvil {appointment.vehicleNumber} registrado el{" "}
-                        {formatCreatedAt(appointment.createdAt)}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <select
-                        value={appointment.status}
-                        onChange={(event) =>
-                          updateStatus(
-                            appointment.id,
-                            event.target.value as AppointmentStatus,
-                          )
-                        }
-                        className="h-11 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
-                      >
-                        <option value="pendiente">Pendiente</option>
-                        <option value="revisado">Revisado</option>
-                        <option value="rechazado">Rechazado</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removeAppointment(appointment.id)}
-                        className="h-11 rounded-2xl border border-red-200 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-
-                  <dl className="mt-5 grid gap-3 border-t border-[#e3ebf5] pt-5 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-[#f8fbff] p-4">
-                      <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
+              <div className="overflow-x-auto">
+                <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+                  <thead className="bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Ticket</th>
+                      <th className="px-4 py-3 font-semibold">Conductor</th>
+                      <th className="px-4 py-3 font-semibold">Móvil</th>
+                      <th className="px-4 py-3 font-semibold">
                         Fecha requerida
-                      </dt>
-                      <dd className="mt-1 font-semibold text-[#0f2747]">
-                        {formatDate(appointment.appointmentDate)}
-                      </dd>
-                    </div>
-                    <div className="rounded-2xl bg-[#f8fbff] p-4">
-                      <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Motivo
-                      </dt>
-                      <dd className="mt-1 font-semibold text-[#0f2747]">
-                        {getPermissionReasonLabel(
-                          appointment.appointmentReason,
-                        )}
-                      </dd>
-                    </div>
-                    <div className="rounded-2xl bg-[#f8fbff] p-4">
-                      <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Correo
-                      </dt>
-                      <dd className="mt-1 break-words font-semibold text-[#0f2747]">
-                        {appointment.email}
-                      </dd>
-                    </div>
-                    <div className="rounded-2xl bg-[#f8fbff] p-4">
-                      <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Teléfono
-                      </dt>
-                      <dd className="mt-1 font-semibold text-[#0f2747]">
-                        {appointment.phone}
-                      </dd>
-                    </div>
-                  </dl>
-                </article>
-              ))}
+                      </th>
+                      <th className="px-4 py-3 font-semibold">Motivo</th>
+                      <th className="px-4 py-3 font-semibold">Correo</th>
+                      <th className="px-4 py-3 font-semibold">Teléfono</th>
+                      <th className="px-4 py-3 font-semibold">Registro</th>
+                      <th className="px-4 py-3 font-semibold">Estado</th>
+                      <th className="px-4 py-3 font-semibold">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e3ebf5]">
+                    {filteredAppointments.map((appointment) => (
+                      <tr
+                        key={appointment.id}
+                        className="align-top transition hover:bg-[#f8fbff]"
+                      >
+                        <td className="px-4 py-4 font-semibold text-[#0b5cab]">
+                          {appointment.id}
+                        </td>
+                        <td className="px-4 py-4 font-semibold text-[#0f2747]">
+                          {appointment.driverName}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {appointment.vehicleNumber}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {formatDate(appointment.appointmentDate)}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {getPermissionReasonLabel(
+                            appointment.appointmentReason,
+                          )}
+                        </td>
+                        <td className="max-w-[220px] break-words px-4 py-4 text-slate-700">
+                          {appointment.email}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {appointment.phone}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {formatCreatedAt(appointment.createdAt)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col gap-2">
+                            <span
+                              className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[appointment.status]}`}
+                            >
+                              {statusLabels[appointment.status]}
+                            </span>
+                            <select
+                              value={appointment.status}
+                              onChange={(event) =>
+                                updateStatus(
+                                  appointment.id,
+                                  event.target.value as AppointmentStatus,
+                                )
+                              }
+                              className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                            >
+                              <option value="pendiente">Pendiente</option>
+                              <option value="revisado">Revisado</option>
+                              <option value="rechazado">Rechazado</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={() => removeAppointment(appointment.id)}
+                            className="h-10 rounded-2xl border border-red-200 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-[#b9c9dd] bg-[#f8fbff] px-5 py-10 text-center">

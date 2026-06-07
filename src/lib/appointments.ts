@@ -22,6 +22,18 @@ export type Appointment = {
   status: AppointmentStatus;
 };
 
+export type AppointmentEmailPayload = Pick<
+  Appointment,
+  | "id"
+  | "driverName"
+  | "vehicleNumber"
+  | "appointmentDate"
+  | "appointmentReason"
+  | "email"
+  | "phone"
+  | "createdAt"
+>;
+
 export function getPermissionReasonLabel(value: string) {
   return (
     permissionReasons.find((reason) => reason.value === value)?.label ??
