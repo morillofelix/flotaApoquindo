@@ -16,11 +16,13 @@ model Appointment {
   appointmentReason String
   email             String
   phone             String
+  assignedExecutive String   @default("")
   status            String   @default("pendiente")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   @@index([status])
+  @@index([assignedExecutive])
   @@index([appointmentReason])
   @@index([createdAt])
 }

@@ -6,7 +6,16 @@ export const permissionReasons = [
   { value: "otros", label: "Otros" },
 ] as const;
 
+export const executives = [
+  "Verónica Díaz",
+  "Juan Pablo González",
+  "Margot Lozada",
+  "Carlos Rojas",
+  "Gonzalo Domingez",
+] as const;
+
 export type PermissionReason = (typeof permissionReasons)[number]["value"];
+export type Executive = (typeof executives)[number];
 
 export type AppointmentStatus = "pendiente" | "revisado" | "rechazado";
 
@@ -18,6 +27,7 @@ export type Appointment = {
   appointmentReason: PermissionReason;
   email: string;
   phone: string;
+  assignedExecutive: Executive | "";
   createdAt: string;
   status: AppointmentStatus;
 };

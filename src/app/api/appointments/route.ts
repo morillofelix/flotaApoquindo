@@ -1,7 +1,9 @@
 import {
   type Appointment,
   type AppointmentStatus,
+  type Executive,
   type PermissionReason,
+  executives,
   permissionReasons,
 } from "@/lib/appointments";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +22,10 @@ type AppointmentCreateBody = {
 };
 
 const validStatuses: AppointmentStatus[] = ["pendiente", "revisado", "rechazado"];
+
+function isValidExecutive(value: string): value is Executive {
+  return executives.some((executive) => executive === value);
+}
 
 function isValidAppointmentReason(value: string): value is PermissionReason {
   return permissionReasons.some((reason) => reason.value === value);
@@ -46,6 +52,7 @@ function toAppointment(value: {
   appointmentReason: string;
   email: string;
   phone: string;
+  assignedExecutive: string;
   status: string;
   createdAt: Date;
 }): Appointment {
@@ -63,6 +70,9 @@ function toAppointment(value: {
       : "otros",
     email: value.email,
     phone: value.phone,
+    assignedExecutive: isValidExecutive(value.assignedExecutive)
+      ? value.assignedExecutive
+      : "",
     status,
     createdAt: value.createdAt.toISOString(),
   };

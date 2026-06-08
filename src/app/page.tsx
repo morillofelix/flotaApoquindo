@@ -92,6 +92,7 @@ function createAppointment(values: FormValues): Appointment {
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
+    assignedExecutive: "",
     createdAt: new Date().toISOString(),
     status: "pendiente",
   };

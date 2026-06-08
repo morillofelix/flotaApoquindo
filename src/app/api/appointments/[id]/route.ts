@@ -1,4 +1,7 @@
-import { type AppointmentStatus } from "@/lib/appointments";
+import {
+  type AppointmentStatus,
+  executives,
+} from "@/lib/appointments";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -12,9 +15,14 @@ type RouteContext = {
 
 type PatchBody = {
   status?: unknown;
+  assignedExecutive?: unknown;
 };
 
 const validStatuses: AppointmentStatus[] = ["pendiente", "revisado", "rechazado"];
+
+function isValidExecutive(value: string) {
+  return executives.some((executive) => executive === value);
+}
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
@@ -29,12 +37,42 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 
-  if (
-    typeof body.status !== "string" ||
-    !validStatuses.includes(body.status as AppointmentStatus)
-  ) {
+  const data: {
+    status?: AppointmentStatus;
+    assignedExecutive?: string;
+  } = {};
+
+  if (body.status !== undefined) {
+    if (
+      typeof body.status !== "string" ||
+      !validStatuses.includes(body.status as AppointmentStatus)
+    ) {
+      return NextResponse.json(
+        { message: "Estado inválido." },
+        { status: 400 },
+      );
+    }
+
+    data.status = body.status as AppointmentStatus;
+  }
+
+  if (body.assignedExecutive !== undefined) {
+    if (
+      typeof body.assignedExecutive !== "string" ||
+      (body.assignedExecutive !== "" && !isValidExecutive(body.assignedExecutive))
+    ) {
+      return NextResponse.json(
+        { message: "Ejecutivo inválido." },
+        { status: 400 },
+      );
+    }
+
+    data.assignedExecutive = body.assignedExecutive;
+  }
+
+  if (Object.keys(data).length === 0) {
     return NextResponse.json(
-      { message: "Estado inválido." },
+      { message: "No hay datos para actualizar." },
       { status: 400 },
     );
   }
@@ -42,7 +80,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     await prisma.appointment.update({
       where: { id },
-      data: { status: body.status },
+      data,
     });
 
     return NextResponse.json({ ok: true });

@@ -3,7 +3,9 @@
 import {
   type Appointment,
   type AppointmentStatus,
+  type Executive,
   type PermissionReason,
+  executives,
   getPermissionReasonLabel,
   permissionReasons,
 } from "@/lib/appointments";
@@ -157,6 +159,7 @@ function createExcelTable(appointments: Appointment[]) {
           <td>${escapeHtml(getPermissionReasonLabel(appointment.appointmentReason))}</td>
           <td>${escapeHtml(appointment.email)}</td>
           <td>${escapeHtml(appointment.phone)}</td>
+          <td>${escapeHtml(appointment.assignedExecutive || "Sin asignar")}</td>
           <td>${escapeHtml(statusLabels[appointment.status])}</td>
           <td>${escapeHtml(formatCreatedAt(appointment.createdAt))}</td>
         </tr>`,
@@ -179,6 +182,7 @@ function createExcelTable(appointments: Appointment[]) {
               <th>Motivo</th>
               <th>Correo</th>
               <th>Teléfono</th>
+              <th>Ejecutivo</th>
               <th>Estado</th>
               <th>Fecha de registro</th>
             </tr>
@@ -218,6 +222,7 @@ export default function AppointmentsPage() {
   });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginValues, setLoginValues] = useState({ user: "", password: "" });
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
@@ -293,6 +298,35 @@ export default function AppointmentsPage() {
     }
   }
 
+  async function updateAssignedExecutive(
+    id: string,
+    assignedExecutive: Executive | "",
+  ) {
+    const previousAppointments = appointments;
+    const updatedAppointments = appointments.map((appointment) =>
+      appointment.id === id ? { ...appointment, assignedExecutive } : appointment,
+    );
+
+    setAppointments(updatedAppointments);
+
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ assignedExecutive }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo asignar el ejecutivo.");
+      }
+    } catch {
+      setAppointments(previousAppointments);
+      setAppointmentsError("No se pudo asignar el ejecutivo.");
+    }
+  }
+
   async function removeAppointment(id: string) {
     const previousAppointments = appointments;
     const updatedAppointments = appointments.filter(
@@ -336,6 +370,7 @@ export default function AppointmentsPage() {
         window.sessionStorage.setItem("apoquindo-admin-auth", "true");
         setIsAuthenticated(true);
         setLoginValues({ user: "", password: "" });
+        setIsPasswordVisible(false);
         return;
       }
 
@@ -391,18 +426,63 @@ export default function AppointmentsPage() {
               <span className="text-sm font-semibold text-[#173b68]">
                 Clave
               </span>
-              <input
-                type="password"
-                value={loginValues.password}
-                onChange={(event) =>
-                  setLoginValues((currentValues) => ({
-                    ...currentValues,
-                    password: event.target.value,
-                  }))
-                }
-                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
-                placeholder="Clave de acceso"
-              />
+              <div className="relative">
+                <input
+                  type={isPasswordVisible ? "text" : "password"}
+                  value={loginValues.password}
+                  onChange={(event) =>
+                    setLoginValues((currentValues) => ({
+                      ...currentValues,
+                      password: event.target.value,
+                    }))
+                  }
+                  className="h-12 w-full rounded-2xl border border-[#d8e2ef] bg-white px-4 pr-12 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                  placeholder="Clave de acceso"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsPasswordVisible((currentValue) => !currentValue)
+                  }
+                  aria-label={
+                    isPasswordVisible ? "Ocultar clave" : "Mostrar clave"
+                  }
+                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#f8fbff] hover:text-[#0b5cab] focus:outline-none focus:ring-4 focus:ring-blue-100"
+                >
+                  {isPasswordVisible ? (
+                    <svg
+                      aria-hidden="true"
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="m3 3 18 18" />
+                      <path d="M10.7 5.1A10.8 10.8 0 0 1 12 5c6 0 9 7 9 7a13.2 13.2 0 0 1-2.1 3.2" />
+                      <path d="M6.6 6.6C4.1 8.3 3 12 3 12s3 7 9 7a9.7 9.7 0 0 0 4.1-.9" />
+                      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+                      <path d="M14.1 9.9A3 3 0 0 0 9.9 14.1" />
+                    </svg>
+                  ) : (
+                    <svg
+                      aria-hidden="true"
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </label>
 
             {loginError ? (
@@ -645,7 +725,7 @@ export default function AppointmentsPage() {
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
               <div className="overflow-x-auto">
-                <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+                <table className="min-w-[1320px] w-full border-collapse text-left text-sm">
                   <thead className="bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Ticket</th>
@@ -658,6 +738,7 @@ export default function AppointmentsPage() {
                       <th className="px-4 py-3 font-semibold">Correo</th>
                       <th className="px-4 py-3 font-semibold">Teléfono</th>
                       <th className="px-4 py-3 font-semibold">Registro</th>
+                      <th className="px-4 py-3 font-semibold">Ejecutivo</th>
                       <th className="px-4 py-3 font-semibold">Estado</th>
                       <th className="px-4 py-3 font-semibold">Acción</th>
                     </tr>
@@ -693,6 +774,25 @@ export default function AppointmentsPage() {
                         </td>
                         <td className="px-4 py-4 text-slate-700">
                           {formatCreatedAt(appointment.createdAt)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <select
+                            value={appointment.assignedExecutive}
+                            onChange={(event) =>
+                              updateAssignedExecutive(
+                                appointment.id,
+                                event.target.value as Executive | "",
+                              )
+                            }
+                            className="h-10 min-w-44 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                          >
+                            <option value="">Sin asignar</option>
+                            {executives.map((executive) => (
+                              <option key={executive} value={executive}>
+                                {executive}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col gap-2">
