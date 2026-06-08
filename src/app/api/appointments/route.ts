@@ -36,6 +36,10 @@ function isValidAppointmentDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(date.getTime());
 }
 
+function normalizeVehicleNumber(value: string) {
+  return value.trim().padStart(3, "0");
+}
+
 function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
 }
@@ -94,7 +98,7 @@ function validateCreateBody(body: AppointmentCreateBody) {
   if (
     !id ||
     !driverName ||
-    !vehicleNumber ||
+    !/^\d{1,3}$/.test(vehicleNumber) ||
     !isValidAppointmentDate(appointmentDate) ||
     !isValidAppointmentReason(appointmentReason) ||
     !email ||
@@ -106,7 +110,7 @@ function validateCreateBody(body: AppointmentCreateBody) {
   return {
     id,
     driverName,
-    vehicleNumber,
+    vehicleNumber: normalizeVehicleNumber(vehicleNumber),
     appointmentDate,
     appointmentReason,
     email,

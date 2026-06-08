@@ -215,6 +215,7 @@ export default function AppointmentsPage() {
   const [reasonFilter, setReasonFilter] = useState<"todos" | PermissionReason>(
     "todos",
   );
+  const [vehicleFilter, setVehicleFilter] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("todos");
   const [customDateRange, setCustomDateRange] = useState({
     startDate: "",
@@ -251,12 +252,19 @@ export default function AppointmentsPage() {
   }, [isAuthenticated]);
 
   const filteredAppointments = useMemo(() => {
+    const normalizedVehicleFilter = vehicleFilter.trim().toLowerCase();
+
     return appointments.filter((appointment) => {
       const matchesStatus =
         statusFilter === "todos" || appointment.status === statusFilter;
       const matchesReason =
         reasonFilter === "todos" ||
         appointment.appointmentReason === reasonFilter;
+      const matchesVehicle =
+        normalizedVehicleFilter === "" ||
+        appointment.vehicleNumber
+          .toLowerCase()
+          .includes(normalizedVehicleFilter);
       const matchesDate = isWithinDateFilter(
         appointment.createdAt,
         dateFilter,
@@ -264,9 +272,16 @@ export default function AppointmentsPage() {
         customDateRange.endDate,
       );
 
-      return matchesStatus && matchesReason && matchesDate;
+      return matchesStatus && matchesReason && matchesVehicle && matchesDate;
     });
-  }, [appointments, customDateRange, dateFilter, reasonFilter, statusFilter]);
+  }, [
+    appointments,
+    customDateRange,
+    dateFilter,
+    reasonFilter,
+    statusFilter,
+    vehicleFilter,
+  ]);
 
   const pendingCount = appointments.filter(
     (appointment) => appointment.status === "pendiente",
@@ -582,7 +597,7 @@ export default function AppointmentsPage() {
             </p>
           </div>
 
-          <div className="mb-6 grid gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end">
+          <div className="mb-6 grid gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">
                 Filtrar por estado
@@ -621,6 +636,19 @@ export default function AppointmentsPage() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-[#173b68]">
+                Filtrar por móvil
+              </span>
+              <input
+                type="search"
+                value={vehicleFilter}
+                onChange={(event) => setVehicleFilter(event.target.value)}
+                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                placeholder="Número de móvil"
+              />
             </label>
 
             <label className="flex flex-col gap-2">
@@ -820,7 +848,15 @@ export default function AppointmentsPage() {
                         <td className="px-4 py-4">
                           <button
                             type="button"
-                            onClick={() => removeAppointment(appointment.id)}
+                            onClick={() => {
+                              const shouldDelete = window.confirm(
+                                "¿Estás seguro de que deseas eliminar esta solicitud?",
+                              );
+
+                              if (shouldDelete) {
+                                removeAppointment(appointment.id);
+                              }
+                            }}
                             className="h-10 rounded-2xl border border-red-200 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
                           >
                             Eliminar

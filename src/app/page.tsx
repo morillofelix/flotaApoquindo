@@ -44,8 +44,8 @@ function validateField(name: FieldName, value: string, today: string) {
     return "Ingresa el nombre completo del conductor.";
   }
 
-  if (name === "vehicleNumber" && !/^[a-zA-Z0-9-]{1,12}$/.test(trimmedValue)) {
-    return "Usa solo letras, números o guion. Máximo 12 caracteres.";
+  if (name === "vehicleNumber" && !/^\d{1,3}$/.test(trimmedValue)) {
+    return "Ingresa un móvil numérico de hasta 3 dígitos.";
   }
 
   if (name === "appointmentDate" && trimmedValue < today) {
@@ -74,6 +74,10 @@ function validateField(name: FieldName, value: string, today: string) {
   return "";
 }
 
+function normalizeVehicleNumber(value: string) {
+  return value.trim().padStart(3, "0");
+}
+
 function generateTicketId() {
   const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const [randomValue = 0] = crypto.getRandomValues(new Uint32Array(1));
@@ -87,7 +91,7 @@ function createAppointment(values: FormValues): Appointment {
   return {
     id: ticketId,
     driverName: values.driverName.trim(),
-    vehicleNumber: values.vehicleNumber.trim(),
+    vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
     appointmentDate: values.appointmentDate,
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
@@ -160,11 +164,21 @@ export default function HomePage() {
   function updateField(name: FieldName, value: string) {
     setValues((currentValues) => ({
       ...currentValues,
-      [name]: value,
+      [name]: name === "vehicleNumber" ? value.replace(/\D/g, "").slice(0, 3) : value,
     }));
     setShowSuccess(false);
     setSuccessTicketId("");
     setSubmitError("");
+  }
+
+  function formatVehicleNumber() {
+    setValues((currentValues) => ({
+      ...currentValues,
+      vehicleNumber: currentValues.vehicleNumber
+        ? normalizeVehicleNumber(currentValues.vehicleNumber)
+        : "",
+    }));
+    markFieldAsTouched("vehicleNumber");
   }
 
   function markFieldAsTouched(name: FieldName) {
@@ -279,6 +293,7 @@ export default function HomePage() {
               <input
                 type="text"
                 name="driverName"
+                required
                 value={values.driverName}
                 onBlur={() => markFieldAsTouched("driverName")}
                 onChange={(event) => updateField("driverName", event.target.value)}
@@ -296,13 +311,15 @@ export default function HomePage() {
               </span>
               <input
                 type="text"
+                inputMode="numeric"
                 name="vehicleNumber"
+                required
                 value={values.vehicleNumber}
-                onBlur={() => markFieldAsTouched("vehicleNumber")}
+                onBlur={formatVehicleNumber}
                 onChange={(event) =>
                   updateField("vehicleNumber", event.target.value)
                 }
-                placeholder="Ej: 128"
+                placeholder="Ej: 001"
                 className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("vehicleNumber")}`}
               />
               {touched.vehicleNumber && errors.vehicleNumber ? (
@@ -319,6 +336,7 @@ export default function HomePage() {
               <input
                 type="date"
                 name="appointmentDate"
+                required
                 value={values.appointmentDate}
                 min={today}
                 onBlur={() => markFieldAsTouched("appointmentDate")}
@@ -341,6 +359,7 @@ export default function HomePage() {
               <input
                 type="email"
                 name="email"
+                required
                 value={values.email}
                 onBlur={() => markFieldAsTouched("email")}
                 onChange={(event) => updateField("email", event.target.value)}
@@ -359,6 +378,7 @@ export default function HomePage() {
               <input
                 type="tel"
                 name="phone"
+                required
                 value={values.phone}
                 onBlur={() => markFieldAsTouched("phone")}
                 onChange={(event) => updateField("phone", event.target.value)}
@@ -376,6 +396,7 @@ export default function HomePage() {
               </span>
               <select
                 name="appointmentReason"
+                required
                 value={values.appointmentReason}
                 onBlur={() => markFieldAsTouched("appointmentReason")}
                 onChange={(event) =>
@@ -420,6 +441,7 @@ export default function HomePage() {
               <input
                 type="text"
                 inputMode="numeric"
+                required
                 value={securityAnswer}
                 onBlur={() => setSecurityTouched(true)}
                 onChange={(event) => {
