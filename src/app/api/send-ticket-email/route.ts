@@ -1,5 +1,6 @@
 import {
   type AppointmentEmailPayload,
+  appointmentReasonUsesDateRange,
   getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { NextResponse, type NextRequest } from "next/server";
@@ -52,11 +53,11 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
   const appointmentReason = escapeHtml(
     getPermissionReasonLabel(appointment.appointmentReason),
   );
-  const vacationDateRange =
-    appointment.appointmentReason === "vacaciones" &&
+  const appointmentDateRange =
+    appointmentReasonUsesDateRange(appointment.appointmentReason) &&
     appointment.vacationStartDate &&
     appointment.vacationEndDate
-      ? `<p><strong>Vacaciones:</strong> ${escapeHtml(
+      ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(
           formatDate(appointment.vacationStartDate),
         )} al ${escapeHtml(formatDate(appointment.vacationEndDate))}</p>`
       : "";
@@ -73,7 +74,7 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
       <p><strong>Móvil:</strong> ${vehicleNumber}</p>
       <p><strong>Fecha requerida:</strong> ${appointmentDate}</p>
       <p><strong>Motivo:</strong> ${appointmentReason}</p>
-      ${vacationDateRange}
+      ${appointmentDateRange}
       <p>Guarda este número para hacer seguimiento de tu solicitud.</p>
     </div>
   `;
@@ -92,12 +93,12 @@ function createEmailText(appointment: AppointmentEmailPayload) {
   ];
 
   if (
-    appointment.appointmentReason === "vacaciones" &&
+    appointmentReasonUsesDateRange(appointment.appointmentReason) &&
     appointment.vacationStartDate &&
     appointment.vacationEndDate
   ) {
     lines.push(
-      `Vacaciones: ${formatDate(appointment.vacationStartDate)} al ${formatDate(
+      `Rango de fechas: ${formatDate(appointment.vacationStartDate)} al ${formatDate(
         appointment.vacationEndDate,
       )}`,
     );

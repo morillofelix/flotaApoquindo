@@ -3,7 +3,14 @@ export const APPOINTMENTS_STORAGE_KEY = "apoquindo-permission-appointments";
 export const permissionReasons = [
   { value: "vacaciones", label: "Vacaciones" },
   { value: "licencia-medica", label: "Licencias médicas" },
+  { value: "permisos", label: "Permisos" },
   { value: "otros", label: "Otros" },
+] as const;
+
+export const dateRangePermissionReasons = [
+  "vacaciones",
+  "licencia-medica",
+  "permisos",
 ] as const;
 
 export const executives = [
@@ -52,4 +59,8 @@ export function getPermissionReasonLabel(value: string) {
     permissionReasons.find((reason) => reason.value === value)?.label ??
     "Sin motivo"
   );
+}
+
+export function appointmentReasonUsesDateRange(value: string) {
+  return dateRangePermissionReasons.some((reason) => reason === value);
 }

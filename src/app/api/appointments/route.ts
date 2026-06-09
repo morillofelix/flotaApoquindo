@@ -3,6 +3,7 @@ import {
   type AppointmentStatus,
   type Executive,
   type PermissionReason,
+  appointmentReasonUsesDateRange,
   executives,
   permissionReasons,
 } from "@/lib/appointments";
@@ -108,7 +109,7 @@ function validateCreateBody(body: AppointmentCreateBody) {
     typeof body.vacationEndDate === "string" ? body.vacationEndDate : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
-  const isVacationRequest = appointmentReason === "vacaciones";
+  const usesDateRange = appointmentReasonUsesDateRange(appointmentReason);
 
   if (
     !id ||
@@ -123,7 +124,7 @@ function validateCreateBody(body: AppointmentCreateBody) {
   }
 
   if (
-    isVacationRequest &&
+    usesDateRange &&
     (!isValidAppointmentDate(vacationStartDate) ||
       !isValidAppointmentDate(vacationEndDate) ||
       vacationEndDate < vacationStartDate)
@@ -136,8 +137,8 @@ function validateCreateBody(body: AppointmentCreateBody) {
     driverName,
     vehicleNumber: normalizeVehicleNumber(vehicleNumber),
     appointmentDate,
-    vacationStartDate: isVacationRequest ? vacationStartDate : "",
-    vacationEndDate: isVacationRequest ? vacationEndDate : "",
+    vacationStartDate: usesDateRange ? vacationStartDate : "",
+    vacationEndDate: usesDateRange ? vacationEndDate : "",
     appointmentReason,
     email,
     phone,

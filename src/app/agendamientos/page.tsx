@@ -5,6 +5,7 @@ import {
   type AppointmentStatus,
   type Executive,
   type PermissionReason,
+  appointmentReasonUsesDateRange,
   executives,
   getPermissionReasonLabel,
   permissionReasons,
@@ -66,9 +67,9 @@ function formatCreatedAt(value: string) {
   }).format(new Date(value));
 }
 
-function getVacationDateRange(appointment: Appointment) {
+function getAppointmentDateRange(appointment: Appointment) {
   if (
-    appointment.appointmentReason !== "vacaciones" ||
+    !appointmentReasonUsesDateRange(appointment.appointmentReason) ||
     !appointment.vacationStartDate ||
     !appointment.vacationEndDate
   ) {
@@ -171,7 +172,7 @@ function createExcelTable(appointments: Appointment[]) {
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
           <td>${escapeHtml(getPermissionReasonLabel(appointment.appointmentReason))}</td>
-          <td>${escapeHtml(getVacationDateRange(appointment) || "No aplica")}</td>
+          <td>${escapeHtml(getAppointmentDateRange(appointment) || "No aplica")}</td>
           <td>${escapeHtml(appointment.email)}</td>
           <td>${escapeHtml(appointment.phone)}</td>
           <td>${escapeHtml(appointment.assignedExecutive || "Sin asignar")}</td>
@@ -195,7 +196,7 @@ function createExcelTable(appointments: Appointment[]) {
               <th>Móvil</th>
               <th>Fecha requerida</th>
               <th>Motivo</th>
-              <th>Rango vacaciones</th>
+              <th>Rango de fechas</th>
               <th>Correo</th>
               <th>Teléfono</th>
               <th>Ejecutivo</th>
@@ -541,9 +542,9 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
-      <section className="mx-auto w-full max-w-6xl">
-        <header className="mb-5 rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8">
+    <main className="min-h-[100dvh] bg-[#eef3f9] px-3 py-6 text-[#0f2747] sm:px-6 sm:py-10 xl:px-10">
+      <section className="mx-auto w-full max-w-[1540px]">
+        <header className="mb-5 rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8 lg:p-9">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
@@ -603,7 +604,7 @@ export default function AppointmentsPage() {
           </div>
         </header>
 
-        <section className="rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8">
+        <section className="rounded-[24px] border border-[#d8e2ef] bg-white p-4 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-7 lg:p-8">
           <div className="mb-7 border-b border-[#e3ebf5] pb-6">
             <h2 className="font-heading text-2xl font-semibold text-[#0f2747]">
               Panel de solicitudes
@@ -686,7 +687,7 @@ export default function AppointmentsPage() {
               </select>
             </label>
 
-            <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 py-3 text-sm text-slate-600">
+            <div className="flex h-12 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 text-sm text-slate-600">
               Mostrando {filteredAppointments.length} de {appointments.length}
             </div>
           </div>
@@ -769,23 +770,23 @@ export default function AppointmentsPage() {
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
               <div className="overflow-x-auto">
-                <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
+                <table className="min-w-[1420px] w-full border-collapse text-left text-sm">
                   <thead className="bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">Ticket</th>
-                      <th className="px-4 py-3 font-semibold">Conductor</th>
-                      <th className="px-4 py-3 font-semibold">Móvil</th>
-                      <th className="px-4 py-3 font-semibold">
+                      <th className="min-w-40 px-4 py-3 font-semibold">Ticket</th>
+                      <th className="min-w-44 px-4 py-3 font-semibold">Conductor</th>
+                      <th className="min-w-20 px-4 py-3 font-semibold">Móvil</th>
+                      <th className="min-w-32 px-4 py-3 font-semibold">
                         Fecha requerida
                       </th>
-                      <th className="px-4 py-3 font-semibold">Motivo</th>
-                      <th className="px-4 py-3 font-semibold">Vacaciones</th>
-                      <th className="px-4 py-3 font-semibold">Correo</th>
-                      <th className="px-4 py-3 font-semibold">Teléfono</th>
-                      <th className="px-4 py-3 font-semibold">Registro</th>
-                      <th className="px-4 py-3 font-semibold">Ejecutivo</th>
-                      <th className="px-4 py-3 font-semibold">Estado</th>
-                      <th className="px-4 py-3 font-semibold">Acción</th>
+                      <th className="min-w-36 px-4 py-3 font-semibold">Motivo</th>
+                      <th className="min-w-64 px-4 py-3 font-semibold">Rango fechas</th>
+                      <th className="min-w-56 px-4 py-3 font-semibold">Correo</th>
+                      <th className="min-w-36 px-4 py-3 font-semibold">Teléfono</th>
+                      <th className="min-w-36 px-4 py-3 font-semibold">Registro</th>
+                      <th className="min-w-52 px-4 py-3 font-semibold">Ejecutivo</th>
+                      <th className="min-w-40 px-4 py-3 font-semibold">Estado</th>
+                      <th className="min-w-28 px-4 py-3 font-semibold">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e3ebf5]">
@@ -812,13 +813,13 @@ export default function AppointmentsPage() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-slate-700">
-                          {getVacationDateRange(appointment) ? (
-                            <div className="w-fit rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 py-2">
+                          {getAppointmentDateRange(appointment) ? (
+                            <div className="w-fit min-w-56 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 py-2">
                               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                                 Desde / hasta
                               </p>
-                              <p className="mt-1 font-semibold text-[#173b68]">
-                                {getVacationDateRange(appointment)}
+                              <p className="mt-1 whitespace-nowrap font-semibold text-[#173b68]">
+                                {getAppointmentDateRange(appointment)}
                               </p>
                             </div>
                           ) : (

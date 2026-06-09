@@ -2,6 +2,7 @@
 
 import {
   type Appointment,
+  appointmentReasonUsesDateRange,
   permissionReasons,
   type PermissionReason,
 } from "@/lib/appointments";
@@ -101,10 +102,12 @@ function createAppointment(values: FormValues): Appointment {
     driverName: values.driverName.trim(),
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
     appointmentDate: values.appointmentDate,
-    vacationStartDate:
-      values.appointmentReason === "vacaciones" ? values.vacationStartDate : "",
-    vacationEndDate:
-      values.appointmentReason === "vacaciones" ? values.vacationEndDate : "",
+    vacationStartDate: appointmentReasonUsesDateRange(values.appointmentReason)
+      ? values.vacationStartDate
+      : "",
+    vacationEndDate: appointmentReasonUsesDateRange(values.appointmentReason)
+      ? values.vacationEndDate
+      : "",
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
@@ -142,13 +145,13 @@ export default function HomePage() {
   const [successTicketId, setSuccessTicketId] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isVacationRequest = values.appointmentReason === "vacaciones";
+  const usesDateRange = appointmentReasonUsesDateRange(values.appointmentReason);
 
   const errors = useMemo(() => {
-    const vacationStartDate = isVacationRequest
+    const vacationStartDate = usesDateRange
       ? validateField("vacationStartDate", values.vacationStartDate, today)
       : "";
-    const vacationEndDate = isVacationRequest
+    const vacationEndDate = usesDateRange
       ? validateField("vacationEndDate", values.vacationEndDate, today)
       : "";
 
@@ -172,7 +175,7 @@ export default function HomePage() {
       vacationStartDate,
       vacationEndDate:
         !vacationEndDate &&
-        isVacationRequest &&
+        usesDateRange &&
         values.vacationStartDate &&
         values.vacationEndDate &&
         values.vacationEndDate < values.vacationStartDate
@@ -181,7 +184,7 @@ export default function HomePage() {
       email: validateField("email", values.email, today),
       phone: validateField("phone", values.phone, today),
     };
-  }, [isVacationRequest, today, values]);
+  }, [today, usesDateRange, values]);
 
   const securityError =
     botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
@@ -194,7 +197,7 @@ export default function HomePage() {
     setValues((currentValues) => ({
       ...currentValues,
       [name]: name === "vehicleNumber" ? value.replace(/\D/g, "").slice(0, 3) : value,
-      ...(name === "appointmentReason" && value !== "vacaciones"
+      ...(name === "appointmentReason" && !appointmentReasonUsesDateRange(value)
         ? { vacationStartDate: "", vacationEndDate: "" }
         : {}),
     }));
@@ -228,8 +231,8 @@ export default function HomePage() {
       vehicleNumber: true,
       appointmentDate: true,
       appointmentReason: true,
-      vacationStartDate: isVacationRequest,
-      vacationEndDate: isVacationRequest,
+      vacationStartDate: usesDateRange,
+      vacationEndDate: usesDateRange,
       email: true,
       phone: true,
     });
@@ -452,7 +455,7 @@ export default function HomePage() {
               ) : null}
             </label>
 
-            {isVacationRequest ? (
+            {usesDateRange ? (
               <div className="grid gap-4 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:col-span-2 sm:grid-cols-2">
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
