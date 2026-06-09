@@ -747,18 +747,18 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#eef3f9] px-3 py-6 text-[#0f2747] sm:px-6 sm:py-10 xl:px-10">
+    <main className="min-h-[100dvh] bg-[#eef3f9] px-3 py-4 text-[#0f2747] sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <header className="mb-5 rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8 lg:p-9">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-4 rounded-[24px] border border-[#d8e2ef] bg-white p-4 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-5 lg:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
                 Administración de citas
               </p>
-              <h1 className="mt-3 font-heading text-3xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-4xl">
+              <h1 className="mt-2 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
                 Agendamientos recibidos
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                 Vista para que el ejecutivo revise, atienda y actualice el
                 estado de las solicitudes enviadas desde el formulario.
               </p>
@@ -767,51 +767,51 @@ export default function AppointmentsPage() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/"
-                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto"
+                className="inline-flex h-10 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto"
               >
                 Nueva solicitud
               </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex h-12 w-full items-center justify-center rounded-2xl border border-[#d8e2ef] px-6 text-sm font-semibold text-[#173b68] transition hover:bg-[#f8fbff] active:translate-y-px sm:w-auto"
+                className="inline-flex h-10 w-full items-center justify-center rounded-2xl border border-[#d8e2ef] px-5 text-sm font-semibold text-[#173b68] transition hover:bg-[#f8fbff] active:translate-y-px sm:w-auto"
               >
                 Cerrar sesión
               </button>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 border-t border-[#e3ebf5] pt-6 sm:grid-cols-3">
-            <div className="rounded-2xl bg-[#f8fbff] p-4">
-              <p className="text-sm font-semibold text-slate-500">
+          <div className="mt-4 grid gap-3 border-t border-[#e3ebf5] pt-4 sm:grid-cols-3">
+            <div className="rounded-2xl bg-[#f8fbff] p-3">
+              <p className="text-xs font-semibold text-slate-500">
                 Total registrados
               </p>
-              <p className="mt-1 font-heading text-3xl font-semibold text-[#0f2747]">
+              <p className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
                 {appointments.length}
               </p>
             </div>
-            <div className="rounded-2xl bg-[#f8fbff] p-4">
-              <p className="text-sm font-semibold text-slate-500">
+            <div className="rounded-2xl bg-[#f8fbff] p-3">
+              <p className="text-xs font-semibold text-slate-500">
                 Pendientes
               </p>
-              <p className="mt-1 font-heading text-3xl font-semibold text-[#0f2747]">
+              <p className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
                 {pendingCount}
               </p>
             </div>
-            <div className="rounded-2xl bg-[#f8fbff] p-4">
-              <p className="text-sm font-semibold text-slate-500">
+            <div className="rounded-2xl bg-[#f8fbff] p-3">
+              <p className="text-xs font-semibold text-slate-500">
                 En pantalla
               </p>
-              <p className="mt-1 font-heading text-3xl font-semibold text-[#0f2747]">
+              <p className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
                 {filteredAppointments.length}
               </p>
             </div>
           </div>
         </header>
 
-        <section className="rounded-[24px] border border-[#d8e2ef] bg-white p-4 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-7 lg:p-8">
-          <div className="mb-7 border-b border-[#e3ebf5] pb-6">
-            <h2 className="font-heading text-2xl font-semibold text-[#0f2747]">
+        <section className="rounded-[24px] border border-[#d8e2ef] bg-white p-4 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-5 lg:p-6">
+          <div className="mb-5 border-b border-[#e3ebf5] pb-4">
+            <h2 className="font-heading text-xl font-semibold text-[#0f2747]">
               Panel de solicitudes
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -819,7 +819,7 @@ export default function AppointmentsPage() {
             </p>
           </div>
 
-          <div className="mb-6 grid gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
+          <div className="mb-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">
                 Filtrar por estado
@@ -966,7 +966,7 @@ export default function AppointmentsPage() {
             </div>
           ) : null}
 
-          <div className="mb-6 flex flex-col gap-3 border-b border-[#e3ebf5] pb-6 sm:flex-row">
+          <div className="mb-4 flex flex-col gap-3 border-b border-[#e3ebf5] pb-4 sm:flex-row">
             <button
               type="button"
               onClick={() =>
@@ -994,9 +994,9 @@ export default function AppointmentsPage() {
 
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
-              <div className="overflow-x-auto">
+              <div className="max-h-[62dvh] overflow-auto">
                 <table className="min-w-[1420px] w-full border-collapse text-left text-sm">
-                  <thead className="bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500">
+                  <thead className="sticky top-0 z-10 bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500 shadow-[0_1px_0_#e3ebf5]">
                     <tr>
                       <th className="min-w-40 px-4 py-3 font-semibold">Ticket</th>
                       <th className="min-w-44 px-4 py-3 font-semibold">Conductor</th>
