@@ -24,6 +24,8 @@ export type Appointment = {
   driverName: string;
   vehicleNumber: string;
   appointmentDate: string;
+  vacationStartDate: string;
+  vacationEndDate: string;
   appointmentReason: PermissionReason;
   email: string;
   phone: string;
@@ -42,7 +44,8 @@ export type AppointmentEmailPayload = Pick<
   | "email"
   | "phone"
   | "createdAt"
->;
+> &
+  Partial<Pick<Appointment, "vacationStartDate" | "vacationEndDate">>;
 
 export function getPermissionReasonLabel(value: string) {
   return (

@@ -13,6 +13,8 @@ model Appointment {
   driverName        String
   vehicleNumber     String
   appointmentDate   DateTime @db.Date
+  vacationStartDate DateTime? @db.Date
+  vacationEndDate   DateTime? @db.Date
   appointmentReason String
   email             String
   phone             String

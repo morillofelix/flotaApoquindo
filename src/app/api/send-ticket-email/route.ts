@@ -17,6 +17,10 @@ function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPay
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
     typeof payload.appointmentReason === "string" &&
+    (payload.vacationStartDate === undefined ||
+      typeof payload.vacationStartDate === "string") &&
+    (payload.vacationEndDate === undefined ||
+      typeof payload.vacationEndDate === "string") &&
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
     typeof payload.createdAt === "string"
@@ -48,6 +52,14 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
   const appointmentReason = escapeHtml(
     getPermissionReasonLabel(appointment.appointmentReason),
   );
+  const vacationDateRange =
+    appointment.appointmentReason === "vacaciones" &&
+    appointment.vacationStartDate &&
+    appointment.vacationEndDate
+      ? `<p><strong>Vacaciones:</strong> ${escapeHtml(
+          formatDate(appointment.vacationStartDate),
+        )} al ${escapeHtml(formatDate(appointment.vacationEndDate))}</p>`
+      : "";
 
   return `
     <div style="font-family: Arial, sans-serif; color: #0f2747; line-height: 1.6;">
@@ -61,13 +73,14 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
       <p><strong>Móvil:</strong> ${vehicleNumber}</p>
       <p><strong>Fecha requerida:</strong> ${appointmentDate}</p>
       <p><strong>Motivo:</strong> ${appointmentReason}</p>
+      ${vacationDateRange}
       <p>Guarda este número para hacer seguimiento de tu solicitud.</p>
     </div>
   `;
 }
 
 function createEmailText(appointment: AppointmentEmailPayload) {
-  return [
+  const lines = [
     `Hola ${appointment.driverName},`,
     "",
     "Hemos recibido tu solicitud de cita correctamente.",
@@ -76,9 +89,23 @@ function createEmailText(appointment: AppointmentEmailPayload) {
     `Móvil: ${appointment.vehicleNumber}`,
     `Fecha requerida: ${formatDate(appointment.appointmentDate)}`,
     `Motivo: ${getPermissionReasonLabel(appointment.appointmentReason)}`,
-    "",
-    "Guarda este número para hacer seguimiento de tu solicitud.",
-  ].join("\n");
+  ];
+
+  if (
+    appointment.appointmentReason === "vacaciones" &&
+    appointment.vacationStartDate &&
+    appointment.vacationEndDate
+  ) {
+    lines.push(
+      `Vacaciones: ${formatDate(appointment.vacationStartDate)} al ${formatDate(
+        appointment.vacationEndDate,
+      )}`,
+    );
+  }
+
+  lines.push("", "Guarda este número para hacer seguimiento de tu solicitud.");
+
+  return lines.join("\n");
 }
 
 export async function POST(request: NextRequest) {

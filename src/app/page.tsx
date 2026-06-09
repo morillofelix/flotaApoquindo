@@ -12,6 +12,8 @@ type FormValues = {
   vehicleNumber: string;
   appointmentDate: string;
   appointmentReason: string;
+  vacationStartDate: string;
+  vacationEndDate: string;
   email: string;
   phone: string;
 };
@@ -23,6 +25,8 @@ const initialValues: FormValues = {
   vehicleNumber: "",
   appointmentDate: "",
   appointmentReason: "",
+  vacationStartDate: "",
+  vacationEndDate: "",
   email: "",
   phone: "",
 };
@@ -50,6 +54,10 @@ function validateField(name: FieldName, value: string, today: string) {
 
   if (name === "appointmentDate" && trimmedValue < today) {
     return "La fecha debe ser hoy o posterior.";
+  }
+
+  if (name === "vacationStartDate" && trimmedValue < today) {
+    return "La fecha desde debe ser hoy o posterior.";
   }
 
   if (
@@ -93,6 +101,10 @@ function createAppointment(values: FormValues): Appointment {
     driverName: values.driverName.trim(),
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
     appointmentDate: values.appointmentDate,
+    vacationStartDate:
+      values.appointmentReason === "vacaciones" ? values.vacationStartDate : "",
+    vacationEndDate:
+      values.appointmentReason === "vacaciones" ? values.vacationEndDate : "",
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
@@ -130,8 +142,16 @@ export default function HomePage() {
   const [successTicketId, setSuccessTicketId] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isVacationRequest = values.appointmentReason === "vacaciones";
 
   const errors = useMemo(() => {
+    const vacationStartDate = isVacationRequest
+      ? validateField("vacationStartDate", values.vacationStartDate, today)
+      : "";
+    const vacationEndDate = isVacationRequest
+      ? validateField("vacationEndDate", values.vacationEndDate, today)
+      : "";
+
     return {
       driverName: validateField("driverName", values.driverName, today),
       vehicleNumber: validateField(
@@ -149,10 +169,19 @@ export default function HomePage() {
         values.appointmentReason,
         today,
       ),
+      vacationStartDate,
+      vacationEndDate:
+        !vacationEndDate &&
+        isVacationRequest &&
+        values.vacationStartDate &&
+        values.vacationEndDate &&
+        values.vacationEndDate < values.vacationStartDate
+          ? "La fecha hasta no puede ser anterior a la fecha desde."
+          : vacationEndDate,
       email: validateField("email", values.email, today),
       phone: validateField("phone", values.phone, today),
     };
-  }, [today, values]);
+  }, [isVacationRequest, today, values]);
 
   const securityError =
     botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
@@ -165,6 +194,9 @@ export default function HomePage() {
     setValues((currentValues) => ({
       ...currentValues,
       [name]: name === "vehicleNumber" ? value.replace(/\D/g, "").slice(0, 3) : value,
+      ...(name === "appointmentReason" && value !== "vacaciones"
+        ? { vacationStartDate: "", vacationEndDate: "" }
+        : {}),
     }));
     setShowSuccess(false);
     setSuccessTicketId("");
@@ -196,6 +228,8 @@ export default function HomePage() {
       vehicleNumber: true,
       appointmentDate: true,
       appointmentReason: true,
+      vacationStartDate: isVacationRequest,
+      vacationEndDate: isVacationRequest,
       email: true,
       phone: true,
     });
@@ -417,6 +451,56 @@ export default function HomePage() {
                 </span>
               ) : null}
             </label>
+
+            {isVacationRequest ? (
+              <div className="grid gap-4 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:col-span-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-[#173b68]">
+                    Fecha desde
+                  </span>
+                  <input
+                    type="date"
+                    name="vacationStartDate"
+                    required
+                    value={values.vacationStartDate}
+                    min={today}
+                    onBlur={() => markFieldAsTouched("vacationStartDate")}
+                    onChange={(event) =>
+                      updateField("vacationStartDate", event.target.value)
+                    }
+                    className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("vacationStartDate")}`}
+                  />
+                  {touched.vacationStartDate && errors.vacationStartDate ? (
+                    <span className="text-sm text-red-600">
+                      {errors.vacationStartDate}
+                    </span>
+                  ) : null}
+                </label>
+
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-[#173b68]">
+                    Fecha hasta
+                  </span>
+                  <input
+                    type="date"
+                    name="vacationEndDate"
+                    required
+                    value={values.vacationEndDate}
+                    min={values.vacationStartDate || today}
+                    onBlur={() => markFieldAsTouched("vacationEndDate")}
+                    onChange={(event) =>
+                      updateField("vacationEndDate", event.target.value)
+                    }
+                    className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("vacationEndDate")}`}
+                  />
+                  {touched.vacationEndDate && errors.vacationEndDate ? (
+                    <span className="text-sm text-red-600">
+                      {errors.vacationEndDate}
+                    </span>
+                  ) : null}
+                </label>
+              </div>
+            ) : null}
           </div>
 
           <input

@@ -17,6 +17,8 @@ type AppointmentCreateBody = {
   vehicleNumber?: unknown;
   appointmentDate?: unknown;
   appointmentReason?: unknown;
+  vacationStartDate?: unknown;
+  vacationEndDate?: unknown;
   email?: unknown;
   phone?: unknown;
 };
@@ -53,6 +55,8 @@ function toAppointment(value: {
   driverName: string;
   vehicleNumber: string;
   appointmentDate: Date;
+  vacationStartDate: Date | null;
+  vacationEndDate: Date | null;
   appointmentReason: string;
   email: string;
   phone: string;
@@ -69,6 +73,12 @@ function toAppointment(value: {
     driverName: value.driverName,
     vehicleNumber: value.vehicleNumber,
     appointmentDate: formatDateOnly(value.appointmentDate),
+    vacationStartDate: value.vacationStartDate
+      ? formatDateOnly(value.vacationStartDate)
+      : "",
+    vacationEndDate: value.vacationEndDate
+      ? formatDateOnly(value.vacationEndDate)
+      : "",
     appointmentReason: isValidAppointmentReason(value.appointmentReason)
       ? value.appointmentReason
       : "otros",
@@ -92,8 +102,13 @@ function validateCreateBody(body: AppointmentCreateBody) {
     typeof body.appointmentDate === "string" ? body.appointmentDate : "";
   const appointmentReason =
     typeof body.appointmentReason === "string" ? body.appointmentReason : "";
+  const vacationStartDate =
+    typeof body.vacationStartDate === "string" ? body.vacationStartDate : "";
+  const vacationEndDate =
+    typeof body.vacationEndDate === "string" ? body.vacationEndDate : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  const isVacationRequest = appointmentReason === "vacaciones";
 
   if (
     !id ||
@@ -107,11 +122,22 @@ function validateCreateBody(body: AppointmentCreateBody) {
     return null;
   }
 
+  if (
+    isVacationRequest &&
+    (!isValidAppointmentDate(vacationStartDate) ||
+      !isValidAppointmentDate(vacationEndDate) ||
+      vacationEndDate < vacationStartDate)
+  ) {
+    return null;
+  }
+
   return {
     id,
     driverName,
     vehicleNumber: normalizeVehicleNumber(vehicleNumber),
     appointmentDate,
+    vacationStartDate: isVacationRequest ? vacationStartDate : "",
+    vacationEndDate: isVacationRequest ? vacationEndDate : "",
     appointmentReason,
     email,
     phone,
@@ -154,6 +180,12 @@ export async function POST(request: NextRequest) {
       data: {
         ...appointment,
         appointmentDate: toDateOnly(appointment.appointmentDate),
+        vacationStartDate: appointment.vacationStartDate
+          ? toDateOnly(appointment.vacationStartDate)
+          : null,
+        vacationEndDate: appointment.vacationEndDate
+          ? toDateOnly(appointment.vacationEndDate)
+          : null,
       },
     });
 

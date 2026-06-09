@@ -66,6 +66,20 @@ function formatCreatedAt(value: string) {
   }).format(new Date(value));
 }
 
+function getVacationDateRange(appointment: Appointment) {
+  if (
+    appointment.appointmentReason !== "vacaciones" ||
+    !appointment.vacationStartDate ||
+    !appointment.vacationEndDate
+  ) {
+    return "";
+  }
+
+  return `${formatDate(appointment.vacationStartDate)} al ${formatDate(
+    appointment.vacationEndDate,
+  )}`;
+}
+
 function parseDateOnly(value: string) {
   if (!value) {
     return null;
@@ -157,6 +171,7 @@ function createExcelTable(appointments: Appointment[]) {
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
           <td>${escapeHtml(getPermissionReasonLabel(appointment.appointmentReason))}</td>
+          <td>${escapeHtml(getVacationDateRange(appointment) || "No aplica")}</td>
           <td>${escapeHtml(appointment.email)}</td>
           <td>${escapeHtml(appointment.phone)}</td>
           <td>${escapeHtml(appointment.assignedExecutive || "Sin asignar")}</td>
@@ -180,6 +195,7 @@ function createExcelTable(appointments: Appointment[]) {
               <th>Móvil</th>
               <th>Fecha requerida</th>
               <th>Motivo</th>
+              <th>Rango vacaciones</th>
               <th>Correo</th>
               <th>Teléfono</th>
               <th>Ejecutivo</th>
@@ -753,7 +769,7 @@ export default function AppointmentsPage() {
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
               <div className="overflow-x-auto">
-                <table className="min-w-[1320px] w-full border-collapse text-left text-sm">
+                <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
                   <thead className="bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Ticket</th>
@@ -763,6 +779,7 @@ export default function AppointmentsPage() {
                         Fecha requerida
                       </th>
                       <th className="px-4 py-3 font-semibold">Motivo</th>
+                      <th className="px-4 py-3 font-semibold">Vacaciones</th>
                       <th className="px-4 py-3 font-semibold">Correo</th>
                       <th className="px-4 py-3 font-semibold">Teléfono</th>
                       <th className="px-4 py-3 font-semibold">Registro</th>
@@ -792,6 +809,20 @@ export default function AppointmentsPage() {
                         <td className="px-4 py-4 text-slate-700">
                           {getPermissionReasonLabel(
                             appointment.appointmentReason,
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {getVacationDateRange(appointment) ? (
+                            <div className="w-fit rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 py-2">
+                              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                Desde / hasta
+                              </p>
+                              <p className="mt-1 font-semibold text-[#173b68]">
+                                {getVacationDateRange(appointment)}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">No aplica</span>
                           )}
                         </td>
                         <td className="max-w-[220px] break-words px-4 py-4 text-slate-700">
