@@ -18,7 +18,12 @@ type PatchBody = {
   assignedExecutive?: unknown;
 };
 
-const validStatuses: AppointmentStatus[] = ["pendiente", "revisado", "rechazado"];
+const validStatuses: AppointmentStatus[] = [
+  "pendiente",
+  "revisado",
+  "aprobado",
+  "rechazado",
+];
 
 function isValidExecutive(value: string) {
   return executives.some((executive) => executive === value);

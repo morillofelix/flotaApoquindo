@@ -2,6 +2,7 @@
 
 import {
   type Appointment,
+  appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
   permissionReasons,
   type PermissionReason,
@@ -15,6 +16,12 @@ type FormValues = {
   appointmentReason: string;
   vacationStartDate: string;
   vacationEndDate: string;
+  permitType: string;
+  permitStartDate: string;
+  permitEndDate: string;
+  permitDate: string;
+  permitStartTime: string;
+  permitEndTime: string;
   email: string;
   phone: string;
 };
@@ -28,6 +35,12 @@ const initialValues: FormValues = {
   appointmentReason: "",
   vacationStartDate: "",
   vacationEndDate: "",
+  permitType: "",
+  permitStartDate: "",
+  permitEndDate: "",
+  permitDate: "",
+  permitStartTime: "",
+  permitEndTime: "",
   email: "",
   phone: "",
 };
@@ -59,6 +72,17 @@ function validateField(name: FieldName, value: string, today: string) {
 
   if (name === "vacationStartDate" && trimmedValue < today) {
     return "La fecha desde debe ser hoy o posterior.";
+  }
+
+  if (
+    (name === "permitStartDate" || name === "permitDate") &&
+    trimmedValue < today
+  ) {
+    return "La fecha debe ser hoy o posterior.";
+  }
+
+  if (name === "permitType" && !["dias", "horas"].includes(trimmedValue)) {
+    return "Selecciona si el permiso es por día o por horas.";
   }
 
   if (
@@ -108,6 +132,29 @@ function createAppointment(values: FormValues): Appointment {
     vacationEndDate: appointmentReasonUsesDateRange(values.appointmentReason)
       ? values.vacationEndDate
       : "",
+    permitType: appointmentReasonUsesPermitDetails(values.appointmentReason)
+      ? (values.permitType as Appointment["permitType"])
+      : "",
+    permitStartDate:
+      values.appointmentReason === "permisos" && values.permitType === "dias"
+        ? values.permitStartDate
+        : "",
+    permitEndDate:
+      values.appointmentReason === "permisos" && values.permitType === "dias"
+        ? values.permitEndDate
+        : "",
+    permitDate:
+      values.appointmentReason === "permisos" && values.permitType === "horas"
+        ? values.permitDate
+        : "",
+    permitStartTime:
+      values.appointmentReason === "permisos" && values.permitType === "horas"
+        ? values.permitStartTime
+        : "",
+    permitEndTime:
+      values.appointmentReason === "permisos" && values.permitType === "horas"
+        ? values.permitEndTime
+        : "",
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
@@ -131,6 +178,20 @@ async function saveAppointment(newAppointment: Appointment) {
   }
 }
 
+async function sendTicketEmail(newAppointment: Appointment) {
+  const response = await fetch("/api/send-ticket-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(newAppointment),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo enviar el correo de confirmación.");
+  }
+}
+
 export default function HomePage() {
   const today = useMemo(() => getTodayValue(), []);
   const formStartedAt = useMemo(() => Date.now(), []);
@@ -143,9 +204,13 @@ export default function HomePage() {
   const [botTrap, setBotTrap] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTicketId, setSuccessTicketId] = useState("");
+  const [emailWarning, setEmailWarning] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const usesDateRange = appointmentReasonUsesDateRange(values.appointmentReason);
+  const usesPermitDetails = appointmentReasonUsesPermitDetails(
+    values.appointmentReason,
+  );
 
   const errors = useMemo(() => {
     const vacationStartDate = usesDateRange
@@ -154,6 +219,29 @@ export default function HomePage() {
     const vacationEndDate = usesDateRange
       ? validateField("vacationEndDate", values.vacationEndDate, today)
       : "";
+    const permitType = usesPermitDetails
+      ? validateField("permitType", values.permitType, today)
+      : "";
+    const permitStartDate =
+      usesPermitDetails && values.permitType === "dias"
+        ? validateField("permitStartDate", values.permitStartDate, today)
+        : "";
+    const permitEndDate =
+      usesPermitDetails && values.permitType === "dias"
+        ? validateField("permitEndDate", values.permitEndDate, today)
+        : "";
+    const permitDate =
+      usesPermitDetails && values.permitType === "horas"
+        ? validateField("permitDate", values.permitDate, today)
+        : "";
+    const permitStartTime =
+      usesPermitDetails && values.permitType === "horas"
+        ? validateField("permitStartTime", values.permitStartTime, today)
+        : "";
+    const permitEndTime =
+      usesPermitDetails && values.permitType === "horas"
+        ? validateField("permitEndTime", values.permitEndTime, today)
+        : "";
 
     return {
       driverName: validateField("driverName", values.driverName, today),
@@ -181,10 +269,32 @@ export default function HomePage() {
         values.vacationEndDate < values.vacationStartDate
           ? "La fecha hasta no puede ser anterior a la fecha desde."
           : vacationEndDate,
+      permitType,
+      permitStartDate,
+      permitEndDate:
+        !permitEndDate &&
+        usesPermitDetails &&
+        values.permitType === "dias" &&
+        values.permitStartDate &&
+        values.permitEndDate &&
+        values.permitEndDate < values.permitStartDate
+          ? "La fecha hasta no puede ser anterior a la fecha desde."
+          : permitEndDate,
+      permitDate,
+      permitStartTime,
+      permitEndTime:
+        !permitEndTime &&
+        usesPermitDetails &&
+        values.permitType === "horas" &&
+        values.permitStartTime &&
+        values.permitEndTime &&
+        values.permitEndTime <= values.permitStartTime
+          ? "La hora hasta debe ser posterior a la hora desde."
+          : permitEndTime,
       email: validateField("email", values.email, today),
       phone: validateField("phone", values.phone, today),
     };
-  }, [today, usesDateRange, values]);
+  }, [today, usesDateRange, usesPermitDetails, values]);
 
   const securityError =
     botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
@@ -200,9 +310,26 @@ export default function HomePage() {
       ...(name === "appointmentReason" && !appointmentReasonUsesDateRange(value)
         ? { vacationStartDate: "", vacationEndDate: "" }
         : {}),
+      ...(name === "appointmentReason" && !appointmentReasonUsesPermitDetails(value)
+        ? {
+            permitType: "",
+            permitStartDate: "",
+            permitEndDate: "",
+            permitDate: "",
+            permitStartTime: "",
+            permitEndTime: "",
+          }
+        : {}),
+      ...(name === "permitType" && value === "dias"
+        ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
+        : {}),
+      ...(name === "permitType" && value === "horas"
+        ? { permitStartDate: "", permitEndDate: "" }
+        : {}),
     }));
     setShowSuccess(false);
     setSuccessTicketId("");
+    setEmailWarning("");
     setSubmitError("");
   }
 
@@ -233,6 +360,12 @@ export default function HomePage() {
       appointmentReason: true,
       vacationStartDate: usesDateRange,
       vacationEndDate: usesDateRange,
+      permitType: usesPermitDetails,
+      permitStartDate: usesPermitDetails && values.permitType === "dias",
+      permitEndDate: usesPermitDetails && values.permitType === "dias",
+      permitDate: usesPermitDetails && values.permitType === "horas",
+      permitStartTime: usesPermitDetails && values.permitType === "horas",
+      permitEndTime: usesPermitDetails && values.permitType === "horas",
       email: true,
       phone: true,
     });
@@ -247,6 +380,16 @@ export default function HomePage() {
 
       try {
         await saveAppointment(appointment);
+
+        try {
+          await sendTicketEmail(appointment);
+          setEmailWarning("");
+        } catch {
+          setEmailWarning(
+            "La solicitud fue registrada, pero no se pudo enviar el correo de confirmación.",
+          );
+        }
+
         setSuccessTicketId(appointment.id);
         setValues(initialValues);
         setSecurityAnswer("");
@@ -504,6 +647,156 @@ export default function HomePage() {
                 </label>
               </div>
             ) : null}
+
+            {usesPermitDetails ? (
+              <div className="grid gap-4 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:col-span-2">
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-[#173b68]">
+                    Tipo de permiso
+                  </span>
+                  <select
+                    name="permitType"
+                    required
+                    value={values.permitType}
+                    onBlur={() => markFieldAsTouched("permitType")}
+                    onChange={(event) =>
+                      updateField("permitType", event.target.value)
+                    }
+                    className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitType")}`}
+                  >
+                    <option value="">Selecciona una opción</option>
+                    <option value="dias">Por día</option>
+                    <option value="horas">Por horas</option>
+                  </select>
+                  {touched.permitType && errors.permitType ? (
+                    <span className="text-sm text-red-600">
+                      {errors.permitType}
+                    </span>
+                  ) : null}
+                </label>
+
+                {values.permitType === "dias" ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-[#173b68]">
+                        Fecha desde
+                      </span>
+                      <input
+                        type="date"
+                        name="permitStartDate"
+                        required
+                        value={values.permitStartDate}
+                        min={today}
+                        onBlur={() => markFieldAsTouched("permitStartDate")}
+                        onChange={(event) =>
+                          updateField("permitStartDate", event.target.value)
+                        }
+                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitStartDate")}`}
+                      />
+                      {touched.permitStartDate && errors.permitStartDate ? (
+                        <span className="text-sm text-red-600">
+                          {errors.permitStartDate}
+                        </span>
+                      ) : null}
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-[#173b68]">
+                        Fecha hasta
+                      </span>
+                      <input
+                        type="date"
+                        name="permitEndDate"
+                        required
+                        value={values.permitEndDate}
+                        min={values.permitStartDate || today}
+                        onBlur={() => markFieldAsTouched("permitEndDate")}
+                        onChange={(event) =>
+                          updateField("permitEndDate", event.target.value)
+                        }
+                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitEndDate")}`}
+                      />
+                      {touched.permitEndDate && errors.permitEndDate ? (
+                        <span className="text-sm text-red-600">
+                          {errors.permitEndDate}
+                        </span>
+                      ) : null}
+                    </label>
+                  </div>
+                ) : null}
+
+                {values.permitType === "horas" ? (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-[#173b68]">
+                        Fecha del permiso
+                      </span>
+                      <input
+                        type="date"
+                        name="permitDate"
+                        required
+                        value={values.permitDate}
+                        min={today}
+                        onBlur={() => markFieldAsTouched("permitDate")}
+                        onChange={(event) =>
+                          updateField("permitDate", event.target.value)
+                        }
+                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitDate")}`}
+                      />
+                      {touched.permitDate && errors.permitDate ? (
+                        <span className="text-sm text-red-600">
+                          {errors.permitDate}
+                        </span>
+                      ) : null}
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-[#173b68]">
+                        Hora desde
+                      </span>
+                      <input
+                        type="time"
+                        name="permitStartTime"
+                        required
+                        value={values.permitStartTime}
+                        onBlur={() => markFieldAsTouched("permitStartTime")}
+                        onChange={(event) =>
+                          updateField("permitStartTime", event.target.value)
+                        }
+                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitStartTime")}`}
+                      />
+                      {touched.permitStartTime && errors.permitStartTime ? (
+                        <span className="text-sm text-red-600">
+                          {errors.permitStartTime}
+                        </span>
+                      ) : null}
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-[#173b68]">
+                        Hora hasta
+                      </span>
+                      <input
+                        type="time"
+                        name="permitEndTime"
+                        required
+                        value={values.permitEndTime}
+                        onBlur={() => markFieldAsTouched("permitEndTime")}
+                        onChange={(event) =>
+                          updateField("permitEndTime", event.target.value)
+                        }
+                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitEndTime")}`}
+                      />
+                      {touched.permitEndTime && errors.permitEndTime ? (
+                        <span className="text-sm text-red-600">
+                          {errors.permitEndTime}
+                        </span>
+                      ) : null}
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <input
@@ -553,6 +846,12 @@ export default function HomePage() {
               Solicitud registrada correctamente. Tu número de ticket es{" "}
               <strong>{successTicketId}</strong>. Puedes usarlo para hacer
               seguimiento en la vista administrable.
+            </div>
+          ) : null}
+
+          {emailWarning ? (
+            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+              {emailWarning}
             </div>
           ) : null}
 

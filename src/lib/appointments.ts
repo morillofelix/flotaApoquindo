@@ -10,10 +10,10 @@ export const permissionReasons = [
 export const dateRangePermissionReasons = [
   "vacaciones",
   "licencia-medica",
-  "permisos",
 ] as const;
 
 export const executives = [
+  "Félix Morillo",
   "Verónica Díaz",
   "Juan Pablo González",
   "Margot Lozada",
@@ -21,10 +21,19 @@ export const executives = [
   "Gonzalo Domingez",
 ] as const;
 
+export const executiveEmails: Partial<Record<Executive, string>> = {
+  "Félix Morillo": "fmorillo@transportesapoquindo.cl",
+};
+
 export type PermissionReason = (typeof permissionReasons)[number]["value"];
 export type Executive = (typeof executives)[number];
+export type PermitType = "dias" | "horas";
 
-export type AppointmentStatus = "pendiente" | "revisado" | "rechazado";
+export type AppointmentStatus =
+  | "pendiente"
+  | "revisado"
+  | "aprobado"
+  | "rechazado";
 
 export type Appointment = {
   id: string;
@@ -33,6 +42,12 @@ export type Appointment = {
   appointmentDate: string;
   vacationStartDate: string;
   vacationEndDate: string;
+  permitType: PermitType | "";
+  permitStartDate: string;
+  permitEndDate: string;
+  permitDate: string;
+  permitStartTime: string;
+  permitEndTime: string;
   appointmentReason: PermissionReason;
   email: string;
   phone: string;
@@ -52,7 +67,19 @@ export type AppointmentEmailPayload = Pick<
   | "phone"
   | "createdAt"
 > &
-  Partial<Pick<Appointment, "vacationStartDate" | "vacationEndDate">>;
+  Partial<
+    Pick<
+      Appointment,
+      | "vacationStartDate"
+      | "vacationEndDate"
+      | "permitType"
+      | "permitStartDate"
+      | "permitEndDate"
+      | "permitDate"
+      | "permitStartTime"
+      | "permitEndTime"
+    >
+  >;
 
 export function getPermissionReasonLabel(value: string) {
   return (
@@ -63,4 +90,14 @@ export function getPermissionReasonLabel(value: string) {
 
 export function appointmentReasonUsesDateRange(value: string) {
   return dateRangePermissionReasons.some((reason) => reason === value);
+}
+
+export function appointmentReasonUsesPermitDetails(value: string) {
+  return value === "permisos";
+}
+
+export function getExecutiveEmail(value: string) {
+  return executives.some((executive) => executive === value)
+    ? executiveEmails[value as Executive] ?? ""
+    : "";
 }

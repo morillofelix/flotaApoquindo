@@ -5,8 +5,10 @@ import {
   type AppointmentStatus,
   type Executive,
   type PermissionReason,
+  appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
   executives,
+  getExecutiveEmail,
   getPermissionReasonLabel,
   permissionReasons,
 } from "@/lib/appointments";
@@ -15,13 +17,15 @@ import { useEffect, useMemo, useState } from "react";
 
 const statusLabels: Record<AppointmentStatus, string> = {
   pendiente: "Pendiente",
-  revisado: "Revisado",
+  revisado: "Agendado",
+  aprobado: "Aprobado",
   rechazado: "Rechazado",
 };
 
 const statusStyles: Record<AppointmentStatus, string> = {
   pendiente: "border-amber-200 bg-amber-50 text-amber-800",
   revisado: "border-green-200 bg-green-50 text-green-800",
+  aprobado: "border-blue-200 bg-blue-50 text-blue-800",
   rechazado: "border-red-200 bg-red-50 text-red-800",
 };
 
@@ -31,6 +35,13 @@ type DateFilter =
   | "ultimos15"
   | "ultimos30"
   | "personalizado";
+
+type EmailNotice =
+  | {
+      status: "sending" | "sent";
+      message: string;
+    }
+  | null;
 
 async function loadAppointments() {
   const response = await fetch("/api/appointments", {
@@ -79,6 +90,39 @@ function getAppointmentDateRange(appointment: Appointment) {
   return `${formatDate(appointment.vacationStartDate)} al ${formatDate(
     appointment.vacationEndDate,
   )}`;
+}
+
+function getPermitDetail(appointment: Appointment) {
+  if (!appointmentReasonUsesPermitDetails(appointment.appointmentReason)) {
+    return "";
+  }
+
+  if (
+    appointment.permitType === "dias" &&
+    appointment.permitStartDate &&
+    appointment.permitEndDate
+  ) {
+    return `Por día: ${formatDate(appointment.permitStartDate)} al ${formatDate(
+      appointment.permitEndDate,
+    )}`;
+  }
+
+  if (
+    appointment.permitType === "horas" &&
+    appointment.permitDate &&
+    appointment.permitStartTime &&
+    appointment.permitEndTime
+  ) {
+    return `Por horas: ${formatDate(appointment.permitDate)}, ${
+      appointment.permitStartTime
+    } a ${appointment.permitEndTime}`;
+  }
+
+  return "";
+}
+
+function getRequestDateDetail(appointment: Appointment) {
+  return getPermitDetail(appointment) || getAppointmentDateRange(appointment);
 }
 
 function parseDateOnly(value: string) {
@@ -164,22 +208,42 @@ function escapeHtml(value: string) {
 
 function createExcelTable(appointments: Appointment[]) {
   const rows = appointments
-    .map(
-      (appointment) => `
+    .map((appointment) => {
+      const dateFrom =
+        appointment.permitType === "dias"
+          ? appointment.permitStartDate
+          : appointment.vacationStartDate;
+      const dateTo =
+        appointment.permitType === "dias"
+          ? appointment.permitEndDate
+          : appointment.vacationEndDate;
+      const permitTypeLabel =
+        appointment.permitType === "dias"
+          ? "Por día"
+          : appointment.permitType === "horas"
+            ? "Por horas"
+            : "";
+
+      return `
         <tr>
           <td>${escapeHtml(appointment.id)}</td>
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
           <td>${escapeHtml(getPermissionReasonLabel(appointment.appointmentReason))}</td>
-          <td>${escapeHtml(getAppointmentDateRange(appointment) || "No aplica")}</td>
+          <td>${escapeHtml(appointment.permitDate || "No aplica")}</td>
+          <td>${escapeHtml(permitTypeLabel || "No aplica")}</td>
+          <td>${escapeHtml(dateFrom || "No aplica")}</td>
+          <td>${escapeHtml(dateTo || "No aplica")}</td>
+          <td>${escapeHtml(appointment.permitStartTime || "No aplica")}</td>
+          <td>${escapeHtml(appointment.permitEndTime || "No aplica")}</td>
+          <td>${escapeHtml(statusLabels[appointment.status])}</td>
           <td>${escapeHtml(appointment.email)}</td>
           <td>${escapeHtml(appointment.phone)}</td>
           <td>${escapeHtml(appointment.assignedExecutive || "Sin asignar")}</td>
-          <td>${escapeHtml(statusLabels[appointment.status])}</td>
           <td>${escapeHtml(formatCreatedAt(appointment.createdAt))}</td>
-        </tr>`,
-    )
+        </tr>`;
+    })
     .join("");
 
   return `
@@ -196,11 +260,16 @@ function createExcelTable(appointments: Appointment[]) {
               <th>Móvil</th>
               <th>Fecha requerida</th>
               <th>Motivo</th>
-              <th>Rango de fechas</th>
+              <th>Fecha permiso</th>
+              <th>Tipo permiso</th>
+              <th>Fecha desde</th>
+              <th>Fecha hasta</th>
+              <th>Hora desde</th>
+              <th>Hora hasta</th>
+              <th>Estado</th>
               <th>Correo</th>
               <th>Teléfono</th>
               <th>Ejecutivo</th>
-              <th>Estado</th>
               <th>Fecha de registro</th>
             </tr>
           </thead>
@@ -224,6 +293,51 @@ function downloadExcel(appointments: Appointment[], fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+function shouldSendCalendarInvite(appointment: Appointment) {
+  return (
+    appointment.status === "revisado" &&
+    appointment.appointmentReason === "otros" &&
+    appointment.assignedExecutive !== "" &&
+    Boolean(getExecutiveEmail(appointment.assignedExecutive))
+  );
+}
+
+function shouldSendDecisionEmail(appointment: Appointment) {
+  return (
+    (appointment.status === "aprobado" || appointment.status === "rechazado") &&
+    (appointmentReasonUsesDateRange(appointment.appointmentReason) ||
+      appointmentReasonUsesPermitDetails(appointment.appointmentReason))
+  );
+}
+
+async function sendCalendarInvite(appointment: Appointment) {
+  const response = await fetch("/api/send-calendar-invite", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(appointment),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo enviar la cita al ejecutivo.");
+  }
+}
+
+async function sendDecisionEmail(appointment: Appointment) {
+  const response = await fetch("/api/send-approval-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(appointment),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo enviar el correo de respuesta.");
+  }
+}
+
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
@@ -245,6 +359,7 @@ export default function AppointmentsPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   const [appointmentsError, setAppointmentsError] = useState("");
+  const [emailNotice, setEmailNotice] = useState<EmailNotice>(null);
 
   useEffect(() => {
     setIsAuthenticated(
@@ -267,6 +382,18 @@ export default function AppointmentsPage() {
       )
       .finally(() => setIsLoadingAppointments(false));
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (emailNotice?.status !== "sent") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setEmailNotice(null);
+    }, 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [emailNotice]);
 
   const filteredAppointments = useMemo(() => {
     const normalizedVehicleFilter = vehicleFilter.trim().toLowerCase();
@@ -306,11 +433,19 @@ export default function AppointmentsPage() {
 
   async function updateStatus(id: string, status: AppointmentStatus) {
     const previousAppointments = appointments;
-    const updatedAppointments = appointments.map((appointment) =>
-      appointment.id === id ? { ...appointment, status } : appointment,
-    );
+    let appointmentToInvite: Appointment | null = null;
+    const updatedAppointments = appointments.map((appointment) => {
+      if (appointment.id !== id) {
+        return appointment;
+      }
+
+      appointmentToInvite = { ...appointment, status };
+      return appointmentToInvite;
+    });
 
     setAppointments(updatedAppointments);
+    setAppointmentsError("");
+    setEmailNotice(null);
 
     try {
       const response = await fetch(`/api/appointments/${id}`, {
@@ -324,6 +459,49 @@ export default function AppointmentsPage() {
       if (!response.ok) {
         throw new Error("No se pudo actualizar la solicitud.");
       }
+
+      if (appointmentToInvite && shouldSendCalendarInvite(appointmentToInvite)) {
+        try {
+          setEmailNotice({
+            status: "sending",
+            message: "Enviando cita Outlook al ejecutivo...",
+          });
+          await sendCalendarInvite(appointmentToInvite);
+          setEmailNotice({
+            status: "sent",
+            message: "Correo enviado.",
+          });
+        } catch {
+          setEmailNotice(null);
+          setAppointmentsError(
+            "La solicitud quedó agendada, pero no se pudo enviar la cita al ejecutivo.",
+          );
+        }
+      }
+
+      const decisionAppointment: Appointment | null = appointmentToInvite;
+
+      if (decisionAppointment && shouldSendDecisionEmail(decisionAppointment)) {
+        try {
+          setEmailNotice({
+            status: "sending",
+            message:
+              status === "aprobado"
+                ? "Enviando correo de aprobación..."
+                : "Enviando correo de rechazo...",
+          });
+          await sendDecisionEmail(decisionAppointment);
+          setEmailNotice({
+            status: "sent",
+            message: "Correo enviado.",
+          });
+        } catch {
+          setEmailNotice(null);
+          setAppointmentsError(
+            "La solicitud cambió de estado, pero no se pudo enviar el correo al solicitante.",
+          );
+        }
+      }
     } catch {
       setAppointments(previousAppointments);
       setAppointmentsError("No se pudo actualizar el estado.");
@@ -335,11 +513,19 @@ export default function AppointmentsPage() {
     assignedExecutive: Executive | "",
   ) {
     const previousAppointments = appointments;
-    const updatedAppointments = appointments.map((appointment) =>
-      appointment.id === id ? { ...appointment, assignedExecutive } : appointment,
-    );
+    let appointmentToInvite: Appointment | null = null;
+    const updatedAppointments = appointments.map((appointment) => {
+      if (appointment.id !== id) {
+        return appointment;
+      }
+
+      appointmentToInvite = { ...appointment, assignedExecutive };
+      return appointmentToInvite;
+    });
 
     setAppointments(updatedAppointments);
+    setAppointmentsError("");
+    setEmailNotice(null);
 
     try {
       const response = await fetch(`/api/appointments/${id}`, {
@@ -352,6 +538,25 @@ export default function AppointmentsPage() {
 
       if (!response.ok) {
         throw new Error("No se pudo asignar el ejecutivo.");
+      }
+
+      if (appointmentToInvite && shouldSendCalendarInvite(appointmentToInvite)) {
+        try {
+          setEmailNotice({
+            status: "sending",
+            message: "Enviando cita Outlook al ejecutivo...",
+          });
+          await sendCalendarInvite(appointmentToInvite);
+          setEmailNotice({
+            status: "sent",
+            message: "Correo enviado.",
+          });
+        } catch {
+          setEmailNotice(null);
+          setAppointmentsError(
+            "El ejecutivo quedó asignado, pero no se pudo enviar la cita.",
+          );
+        }
       }
     } catch {
       setAppointments(previousAppointments);
@@ -630,7 +835,8 @@ export default function AppointmentsPage() {
               >
                 <option value="todos">Todos</option>
                 <option value="pendiente">Pendientes</option>
-                <option value="revisado">Revisados</option>
+                <option value="revisado">Agendados</option>
+                <option value="aprobado">Aprobados</option>
                 <option value="rechazado">Rechazados</option>
               </select>
             </label>
@@ -735,6 +941,25 @@ export default function AppointmentsPage() {
             </div>
           ) : null}
 
+          {emailNotice ? (
+            <div
+              className={`mb-6 flex items-center gap-3 rounded-2xl border px-5 py-4 text-sm font-semibold shadow-lg ${
+                emailNotice.status === "sending"
+                  ? "border-blue-200 bg-blue-100 text-blue-900 shadow-blue-900/10"
+                  : "border-green-300 bg-green-100 text-green-900 shadow-green-900/10"
+              }`}
+            >
+              {emailNotice.status === "sending" ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-800" />
+              ) : (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-bold text-white">
+                  ✓
+                </span>
+              )}
+              <span>{emailNotice.message}</span>
+            </div>
+          ) : null}
+
           {appointmentsError ? (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {appointmentsError}
@@ -780,7 +1005,7 @@ export default function AppointmentsPage() {
                         Fecha requerida
                       </th>
                       <th className="min-w-36 px-4 py-3 font-semibold">Motivo</th>
-                      <th className="min-w-64 px-4 py-3 font-semibold">Rango fechas</th>
+                      <th className="min-w-72 px-4 py-3 font-semibold">Detalle fechas</th>
                       <th className="min-w-56 px-4 py-3 font-semibold">Correo</th>
                       <th className="min-w-36 px-4 py-3 font-semibold">Teléfono</th>
                       <th className="min-w-36 px-4 py-3 font-semibold">Registro</th>
@@ -813,13 +1038,13 @@ export default function AppointmentsPage() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-slate-700">
-                          {getAppointmentDateRange(appointment) ? (
+                          {getRequestDateDetail(appointment) ? (
                             <div className="w-fit min-w-56 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 py-2">
                               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Desde / hasta
+                                Detalle
                               </p>
                               <p className="mt-1 whitespace-nowrap font-semibold text-[#173b68]">
-                                {getAppointmentDateRange(appointment)}
+                                {getRequestDateDetail(appointment)}
                               </p>
                             </div>
                           ) : (
@@ -872,7 +1097,8 @@ export default function AppointmentsPage() {
                               className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
                             >
                               <option value="pendiente">Pendiente</option>
-                              <option value="revisado">Revisado</option>
+                              <option value="revisado">Agendado</option>
+                              <option value="aprobado">Aprobado</option>
                               <option value="rechazado">Rechazado</option>
                             </select>
                           </div>

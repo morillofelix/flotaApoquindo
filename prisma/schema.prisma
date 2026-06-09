@@ -15,6 +15,12 @@ model Appointment {
   appointmentDate   DateTime @db.Date
   vacationStartDate DateTime? @db.Date
   vacationEndDate   DateTime? @db.Date
+  permitType        String   @default("")
+  permitStartDate   DateTime? @db.Date
+  permitEndDate     DateTime? @db.Date
+  permitDate        DateTime? @db.Date
+  permitStartTime   String   @default("")
+  permitEndTime     String   @default("")
   appointmentReason String
   email             String
   phone             String
