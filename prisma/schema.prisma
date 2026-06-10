@@ -10,6 +10,7 @@ datasource db {
 
 model Appointment {
   id                String   @id
+  ticketNumber      Int      @unique @default(autoincrement())
   driverName        String
   vehicleNumber     String
   appointmentDate   DateTime @db.Date

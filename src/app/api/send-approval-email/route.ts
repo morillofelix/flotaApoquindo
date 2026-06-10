@@ -2,6 +2,7 @@ import {
   type Appointment,
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
+  getAppointmentTicketLabel,
   getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { NextResponse, type NextRequest } from "next/server";
@@ -10,6 +11,7 @@ import nodemailer from "nodemailer";
 type ApprovalEmailPayload = Pick<
   Appointment,
   | "id"
+  | "ticketNumber"
   | "driverName"
   | "vehicleNumber"
   | "appointmentDate"
@@ -35,6 +37,7 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
   const payload = value as Record<string, unknown>;
   return (
     typeof payload.id === "string" &&
+    typeof payload.ticketNumber === "number" &&
     typeof payload.driverName === "string" &&
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
@@ -113,7 +116,7 @@ function getPermitDetail(appointment: ApprovalEmailPayload) {
 
 function createEmailHtml(appointment: ApprovalEmailPayload) {
   const driverName = escapeHtml(appointment.driverName);
-  const ticketId = escapeHtml(appointment.id);
+  const ticketId = escapeHtml(getAppointmentTicketLabel(appointment));
   const reason = escapeHtml(getPermissionReasonLabel(appointment.appointmentReason));
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
@@ -149,7 +152,7 @@ function createEmailText(appointment: ApprovalEmailPayload) {
     `Hola ${appointment.driverName},`,
     "",
     isApproved ? "Su solicitud ha sido aprobada." : "Su solicitud fue rechazada.",
-    `Número de ticket: ${appointment.id}`,
+    `Número de ticket: ${getAppointmentTicketLabel(appointment)}`,
     "",
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
@@ -223,7 +226,7 @@ export async function POST(request: NextRequest) {
       to: body.email,
       subject: `${
         body.status === "aprobado" ? "Solicitud aprobada" : "Solicitud rechazada"
-      } - Ticket ${body.id}`,
+      } - Ticket ${getAppointmentTicketLabel(body)}`,
       html: createEmailHtml(body),
       text: createEmailText(body),
     });

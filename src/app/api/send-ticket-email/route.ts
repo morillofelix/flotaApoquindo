@@ -2,6 +2,7 @@ import {
   type AppointmentEmailPayload,
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
+  getAppointmentTicketLabel,
   getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { NextResponse, type NextRequest } from "next/server";
@@ -15,6 +16,7 @@ function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPay
   const payload = value as Record<string, unknown>;
   return (
     typeof payload.id === "string" &&
+    typeof payload.ticketNumber === "number" &&
     typeof payload.driverName === "string" &&
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
@@ -88,7 +90,7 @@ function escapeHtml(value: string) {
 
 function createEmailHtml(appointment: AppointmentEmailPayload) {
   const driverName = escapeHtml(appointment.driverName);
-  const ticketId = escapeHtml(appointment.id);
+  const ticketId = escapeHtml(getAppointmentTicketLabel(appointment));
   const vehicleNumber = escapeHtml(appointment.vehicleNumber);
   const appointmentDate = escapeHtml(formatDate(appointment.appointmentDate));
   const appointmentReason = escapeHtml(
@@ -134,7 +136,7 @@ function createEmailText(appointment: AppointmentEmailPayload) {
     `Hola ${appointment.driverName},`,
     "",
     "Hemos recibido tu requerimiento. Será revisado y atendido por el equipo correspondiente.",
-    `Número de ticket: ${appointment.id}`,
+    `Número de ticket: ${getAppointmentTicketLabel(appointment)}`,
     "",
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
@@ -215,7 +217,7 @@ export async function POST(request: NextRequest) {
     const result = await transporter.sendMail({
       from: emailFrom,
       to: body.email,
-      subject: `Solicitud recibida - Ticket ${body.id}`,
+      subject: `Solicitud recibida - Ticket ${getAppointmentTicketLabel(body)}`,
       html: createEmailHtml(body),
       text: createEmailText(body),
     });

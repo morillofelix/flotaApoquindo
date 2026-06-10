@@ -37,6 +37,7 @@ export type AppointmentStatus =
 
 export type Appointment = {
   id: string;
+  ticketNumber: number;
   driverName: string;
   vehicleNumber: string;
   appointmentDate: string;
@@ -59,6 +60,7 @@ export type Appointment = {
 export type AppointmentEmailPayload = Pick<
   Appointment,
   | "id"
+  | "ticketNumber"
   | "driverName"
   | "vehicleNumber"
   | "appointmentDate"
@@ -86,6 +88,14 @@ export function getPermissionReasonLabel(value: string) {
     permissionReasons.find((reason) => reason.value === value)?.label ??
     "Sin motivo"
   );
+}
+
+export function getAppointmentTicketLabel(
+  appointment: Pick<Appointment, "id"> & Partial<Pick<Appointment, "ticketNumber">>,
+) {
+  return typeof appointment.ticketNumber === "number" && appointment.ticketNumber > 0
+    ? `APQ-${appointment.ticketNumber.toString().padStart(6, "0")}`
+    : appointment.id;
 }
 
 export function appointmentReasonUsesDateRange(value: string) {

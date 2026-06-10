@@ -8,6 +8,7 @@ import {
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
   executives,
+  getAppointmentTicketLabel,
   getExecutiveEmail,
   getPermissionReasonLabel,
   permissionReasons,
@@ -226,7 +227,7 @@ function createExcelTable(appointments: Appointment[]) {
 
       return `
         <tr>
-          <td>${escapeHtml(appointment.id)}</td>
+          <td>${escapeHtml(getAppointmentTicketLabel(appointment))}</td>
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
@@ -1026,23 +1027,23 @@ export default function AppointmentsPage() {
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
               <div className="max-h-[62dvh] overflow-auto">
-                <table className="min-w-[1420px] w-full border-collapse text-left text-sm">
+                <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-[#d7e7f8] text-xs uppercase tracking-[0.12em] text-[#0f2747] shadow-[0_2px_0_#b7cce4]">
                     <tr>
-                      <th className="min-w-40 px-4 py-3 font-semibold">Ticket</th>
-                      <th className="min-w-44 px-4 py-3 font-semibold">Conductor</th>
-                      <th className="min-w-20 px-4 py-3 font-semibold">Móvil</th>
-                      <th className="min-w-32 px-4 py-3 font-semibold">
+                      <th className="min-w-36 px-3 py-2.5 font-semibold">Ticket</th>
+                      <th className="min-w-40 px-3 py-2.5 font-semibold">Conductor</th>
+                      <th className="min-w-16 px-3 py-2.5 font-semibold">Móvil</th>
+                      <th className="min-w-28 px-3 py-2.5 font-semibold">
                         Fecha requerida
                       </th>
-                      <th className="min-w-36 px-4 py-3 font-semibold">Motivo</th>
-                      <th className="min-w-72 px-4 py-3 font-semibold">Detalle fechas</th>
-                      <th className="min-w-56 px-4 py-3 font-semibold">Correo</th>
-                      <th className="min-w-36 px-4 py-3 font-semibold">Teléfono</th>
-                      <th className="min-w-36 px-4 py-3 font-semibold">Registro</th>
-                      <th className="min-w-52 px-4 py-3 font-semibold">Ejecutivo</th>
-                      <th className="min-w-40 px-4 py-3 font-semibold">Estado</th>
-                      <th className="min-w-28 px-4 py-3 font-semibold">Acción</th>
+                      <th className="min-w-28 px-3 py-2.5 font-semibold">Motivo</th>
+                      <th className="min-w-48 px-3 py-2.5 font-semibold">Detalle fechas</th>
+                      <th className="min-w-48 px-3 py-2.5 font-semibold">Correo</th>
+                      <th className="min-w-32 px-3 py-2.5 font-semibold">Teléfono</th>
+                      <th className="min-w-32 px-3 py-2.5 font-semibold">Registro</th>
+                      <th className="min-w-44 px-3 py-2.5 font-semibold">Ejecutivo</th>
+                      <th className="min-w-36 px-3 py-2.5 font-semibold">Estado</th>
+                      <th className="min-w-24 px-3 py-2.5 font-semibold">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e3ebf5]">
@@ -1051,30 +1052,30 @@ export default function AppointmentsPage() {
                         key={appointment.id}
                         className="align-top transition hover:bg-[#f8fbff]"
                       >
-                        <td className="px-4 py-4 font-semibold text-[#0b5cab]">
-                          {appointment.id}
+                        <td className="px-3 py-2.5 font-semibold text-[#0b5cab]">
+                          {getAppointmentTicketLabel(appointment)}
                         </td>
-                        <td className="px-4 py-4 font-semibold text-[#0f2747]">
+                        <td className="px-3 py-2.5 font-semibold text-[#0f2747]">
                           {appointment.driverName}
                         </td>
-                        <td className="px-4 py-4 text-slate-700">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {appointment.vehicleNumber}
                         </td>
-                        <td className="px-4 py-4 text-slate-700">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {formatDate(appointment.appointmentDate)}
                         </td>
-                        <td className="px-4 py-4 text-slate-700">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {getPermissionReasonLabel(
                             appointment.appointmentReason,
                           )}
                         </td>
-                        <td className="px-4 py-4 text-slate-700">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {getRequestDateDetail(appointment) ? (
-                            <div className="w-fit min-w-56 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 py-2">
-                              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                            <div className="max-w-48 rounded-xl border border-[#d8e2ef] bg-[#f8fbff] px-2.5 py-1.5">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                                 Detalle
                               </p>
-                              <p className="mt-1 whitespace-nowrap font-semibold text-[#173b68]">
+                              <p className="text-xs font-semibold leading-4 text-[#173b68]">
                                 {getRequestDateDetail(appointment)}
                               </p>
                             </div>
@@ -1082,16 +1083,16 @@ export default function AppointmentsPage() {
                             <span className="text-slate-400">No aplica</span>
                           )}
                         </td>
-                        <td className="max-w-[220px] break-words px-4 py-4 text-slate-700">
+                        <td className="max-w-[190px] break-words px-3 py-2.5 text-slate-700">
                           {appointment.email}
                         </td>
-                        <td className="px-4 py-4 text-slate-700">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {appointment.phone}
                         </td>
-                        <td className="px-4 py-4 text-slate-700">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {formatCreatedAt(appointment.createdAt)}
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-2.5">
                           {appointmentAllowsExecutive(appointment) ? (
                             <select
                               value={appointment.assignedExecutive}
@@ -1101,7 +1102,7 @@ export default function AppointmentsPage() {
                                   event.target.value as Executive | "",
                                 )
                               }
-                              className="h-10 min-w-44 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                              className="h-9 min-w-40 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
                             >
                               <option value="">Sin asignar</option>
                               {executives.map((executive) => (
@@ -1111,13 +1112,13 @@ export default function AppointmentsPage() {
                               ))}
                             </select>
                           ) : (
-                            <span className="inline-flex h-10 min-w-44 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-sm font-semibold text-slate-400">
+                            <span className="inline-flex h-9 min-w-40 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-sm font-semibold text-slate-400">
                               No aplica
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-col gap-2">
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-col gap-1.5">
                             <span
                               className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[appointment.status]}`}
                             >
@@ -1131,7 +1132,7 @@ export default function AppointmentsPage() {
                                   event.target.value as AppointmentStatus,
                                 )
                               }
-                              className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                              className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
                             >
                               <option value="pendiente">Pendiente</option>
                               <option value="revisado">Agendado</option>
@@ -1140,7 +1141,7 @@ export default function AppointmentsPage() {
                             </select>
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-2.5">
                           <button
                             type="button"
                             onClick={() => {
@@ -1152,7 +1153,7 @@ export default function AppointmentsPage() {
                                 removeAppointment(appointment.id);
                               }
                             }}
-                            className="h-10 rounded-2xl border border-red-200 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
+                            className="h-9 rounded-2xl border border-red-200 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
                           >
                             Eliminar
                           </button>

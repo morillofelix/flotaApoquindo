@@ -2,6 +2,7 @@ import {
   type Appointment,
   appointmentReasonUsesDateRange,
   getExecutiveEmail,
+  getAppointmentTicketLabel,
   getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { NextResponse, type NextRequest } from "next/server";
@@ -14,6 +15,7 @@ const calendarTimezone = "America/Santiago";
 type CalendarInvitePayload = Pick<
   Appointment,
   | "id"
+  | "ticketNumber"
   | "driverName"
   | "vehicleNumber"
   | "appointmentDate"
@@ -34,6 +36,7 @@ function isCalendarInvitePayload(value: unknown): value is CalendarInvitePayload
   const payload = value as Record<string, unknown>;
   return (
     typeof payload.id === "string" &&
+    typeof payload.ticketNumber === "number" &&
     typeof payload.driverName === "string" &&
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
@@ -110,7 +113,7 @@ function getAppointmentDateRange(appointment: CalendarInvitePayload) {
 function createInviteDescription(appointment: CalendarInvitePayload) {
   const dateRange = getAppointmentDateRange(appointment);
   return [
-    `Ticket: ${appointment.id}`,
+    `Ticket: ${getAppointmentTicketLabel(appointment)}`,
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
     `Motivo: ${getPermissionReasonLabel(appointment.appointmentReason)}`,
@@ -139,7 +142,7 @@ function createCalendarInvite(
     endTime.hour,
     endTime.minute,
   );
-  const subject = `Cita Apoquindo - Ticket ${appointment.id}`;
+  const subject = `Cita Apoquindo - Ticket ${getAppointmentTicketLabel(appointment)}`;
   const description = createInviteDescription(appointment);
 
   return [
@@ -177,7 +180,7 @@ function createEmailHtml(appointment: CalendarInvitePayload) {
       <p>Hola ${escapeHtml(appointment.assignedExecutive)},</p>
       <p>Se ha agendado una cita de 30 minutos para atender la siguiente solicitud.</p>
       <hr style="border: 0; border-top: 1px solid #d8e2ef; margin: 20px 0;" />
-      <p><strong>Ticket:</strong> ${escapeHtml(appointment.id)}</p>
+      <p><strong>Ticket:</strong> ${escapeHtml(getAppointmentTicketLabel(appointment))}</p>
       <p><strong>Conductor:</strong> ${escapeHtml(appointment.driverName)}</p>
       <p><strong>Móvil:</strong> ${escapeHtml(appointment.vehicleNumber)}</p>
       <p><strong>Fecha:</strong> ${escapeHtml(formatDisplayDate(appointment.appointmentDate))}</p>
@@ -260,11 +263,11 @@ export async function POST(request: NextRequest) {
     const result = await transporter.sendMail({
       from: emailFrom,
       to: executiveEmail,
-      subject: `Cita agendada - Ticket ${body.id}`,
+      subject: `Cita agendada - Ticket ${getAppointmentTicketLabel(body)}`,
       html: createEmailHtml(body),
       text: createEmailText(body),
       icalEvent: {
-        filename: `cita-${body.id}.ics`,
+        filename: `cita-${getAppointmentTicketLabel(body)}.ics`,
         method: "REQUEST",
         content: calendarInvite,
       },

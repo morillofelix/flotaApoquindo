@@ -10,6 +10,7 @@ import {
   permissionReasons,
 } from "@/lib/appointments";
 import { prisma } from "@/lib/prisma";
+import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,7 @@ function formatDateOnly(value: Date) {
 
 function toAppointment(value: {
   id: string;
+  ticketNumber: number;
   driverName: string;
   vehicleNumber: string;
   appointmentDate: Date;
@@ -98,6 +100,7 @@ function toAppointment(value: {
 
   return {
     id: value.id,
+    ticketNumber: value.ticketNumber,
     driverName: value.driverName,
     vehicleNumber: value.vehicleNumber,
     appointmentDate: formatDateOnly(value.appointmentDate),
@@ -129,7 +132,6 @@ function toAppointment(value: {
 }
 
 function validateCreateBody(body: AppointmentCreateBody) {
-  const id = typeof body.id === "string" ? body.id.trim() : "";
   const driverName =
     typeof body.driverName === "string" ? body.driverName.trim() : "";
   const vehicleNumber =
@@ -158,7 +160,6 @@ function validateCreateBody(body: AppointmentCreateBody) {
   const usesPermitDetails = appointmentReasonUsesPermitDetails(appointmentReason);
 
   if (
-    !id ||
     !driverName ||
     !/^\d{1,3}$/.test(vehicleNumber) ||
     !isValidAppointmentDate(appointmentDate) ||
@@ -204,7 +205,6 @@ function validateCreateBody(body: AppointmentCreateBody) {
   }
 
   return {
-    id,
     driverName,
     vehicleNumber: normalizeVehicleNumber(vehicleNumber),
     appointmentDate,
@@ -258,6 +258,7 @@ export async function POST(request: NextRequest) {
   try {
     const createdAppointment = await prisma.appointment.create({
       data: {
+        id: randomUUID(),
         ...appointment,
         appointmentDate: toDateOnly(appointment.appointmentDate),
         vacationStartDate: appointment.vacationStartDate

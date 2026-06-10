@@ -4,6 +4,7 @@ import {
   type Appointment,
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
+  getAppointmentTicketLabel,
   permissionReasons,
   type PermissionReason,
 } from "@/lib/appointments";
@@ -111,18 +112,13 @@ function normalizeVehicleNumber(value: string) {
   return value.trim().padStart(3, "0");
 }
 
-function generateTicketId() {
-  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const [randomValue = 0] = crypto.getRandomValues(new Uint32Array(1));
-  const randomPart = randomValue % 1000000;
-  return `APQ-${datePart}-${randomPart.toString().padStart(6, "0")}`;
-}
+type AppointmentSubmission = Omit<
+  Appointment,
+  "id" | "ticketNumber" | "assignedExecutive" | "createdAt" | "status"
+>;
 
-function createAppointment(values: FormValues): Appointment {
-  const ticketId = generateTicketId();
-
+function createAppointment(values: FormValues): AppointmentSubmission {
   return {
-    id: ticketId,
     driverName: values.driverName.trim(),
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
     appointmentDate: values.appointmentDate,
@@ -158,13 +154,10 @@ function createAppointment(values: FormValues): Appointment {
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
-    assignedExecutive: "",
-    createdAt: new Date().toISOString(),
-    status: "pendiente",
   };
 }
 
-async function saveAppointment(newAppointment: Appointment) {
+async function saveAppointment(newAppointment: AppointmentSubmission) {
   const response = await fetch("/api/appointments", {
     method: "POST",
     headers: {
@@ -176,6 +169,14 @@ async function saveAppointment(newAppointment: Appointment) {
   if (!response.ok) {
     throw new Error("No se pudo registrar la solicitud.");
   }
+
+  const result = (await response.json()) as { appointment?: Appointment };
+
+  if (!result.appointment) {
+    throw new Error("No se pudo obtener el ticket de la solicitud.");
+  }
+
+  return result.appointment;
 }
 
 async function sendTicketEmail(newAppointment: Appointment) {
@@ -379,10 +380,10 @@ export default function HomePage() {
       const appointment = createAppointment(values);
 
       try {
-        await saveAppointment(appointment);
+        const savedAppointment = await saveAppointment(appointment);
 
         try {
-          await sendTicketEmail(appointment);
+          await sendTicketEmail(savedAppointment);
           setEmailWarning("");
         } catch {
           setEmailWarning(
@@ -390,7 +391,7 @@ export default function HomePage() {
           );
         }
 
-        setSuccessTicketId(appointment.id);
+        setSuccessTicketId(getAppointmentTicketLabel(savedAppointment));
         setValues(initialValues);
         setSecurityAnswer("");
         setTouched({});
@@ -439,15 +440,12 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-8 grid gap-4 border-t border-white/15 pt-6 text-sm text-blue-50/85 lg:mt-auto">
-            <p>Diseñado para usar desde computador, tablet o teléfono.</p>
-            <p>Incluye validación de campos y protección anti-spam básica.</p>
-            <a
-              href="/agendamientos"
-              className="mt-2 inline-flex w-fit rounded-2xl border border-white/25 px-4 py-2 font-semibold text-white transition hover:bg-white/10"
-            >
-              Ver vista administrable
-            </a>
+          <div className="mt-8 overflow-hidden rounded-[22px] border border-white/15 bg-white/5 shadow-2xl shadow-blue-950/30 lg:mt-auto">
+            <img
+              src="/agendamiento-citas-apoquindo.png"
+              alt="Agendamiento de citas de transporte ejecutivo"
+              className="aspect-[16/10] w-full object-cover"
+            />
           </div>
         </aside>
 
@@ -845,7 +843,7 @@ export default function HomePage() {
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
               Solicitud registrada correctamente. Tu número de ticket es{" "}
               <strong>{successTicketId}</strong>. Puedes usarlo para hacer
-              seguimiento en la vista administrable.
+              seguimiento de tu solicitud.
             </div>
           ) : null}
 
