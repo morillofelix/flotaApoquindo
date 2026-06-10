@@ -302,6 +302,10 @@ function shouldSendCalendarInvite(appointment: Appointment) {
   );
 }
 
+function appointmentAllowsExecutive(appointment: Appointment) {
+  return appointment.appointmentReason === "otros";
+}
+
 function shouldSendDecisionEmail(appointment: Appointment) {
   return (
     (appointment.status === "aprobado" || appointment.status === "rechazado") &&
@@ -429,6 +433,15 @@ export default function AppointmentsPage() {
 
   const pendingCount = appointments.filter(
     (appointment) => appointment.status === "pendiente",
+  ).length;
+  const scheduledCount = appointments.filter(
+    (appointment) => appointment.status === "revisado",
+  ).length;
+  const approvedCount = appointments.filter(
+    (appointment) => appointment.status === "aprobado",
+  ).length;
+  const rejectedCount = appointments.filter(
+    (appointment) => appointment.status === "rechazado",
   ).length;
 
   async function updateStatus(id: string, status: AppointmentStatus) {
@@ -749,22 +762,61 @@ export default function AppointmentsPage() {
   return (
     <main className="min-h-[100dvh] bg-[#eef3f9] px-3 py-4 text-[#0f2747] sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <header className="mb-4 rounded-[24px] border border-[#d8e2ef] bg-white p-4 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-5 lg:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-3 rounded-[22px] border border-[#d8e2ef] bg-white p-4 shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(260px,1fr)_auto_auto] xl:items-center">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
                 Administración de citas
               </p>
-              <h1 className="mt-2 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
+              <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747]">
                 Agendamientos recibidos
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                Vista para que el ejecutivo revise, atienda y actualice el
-                estado de las solicitudes enviadas desde el formulario.
-              </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[600px]">
+              <div className="rounded-2xl bg-[#f8fbff] px-3 py-2">
+                <p className="text-[11px] font-semibold text-slate-500">
+                  Total
+                </p>
+                <p className="font-heading text-xl font-semibold text-[#0f2747]">
+                  {appointments.length}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-[11px] font-semibold text-amber-800">
+                  Pendientes
+                </p>
+                <p className="font-heading text-xl font-semibold text-amber-800">
+                  {pendingCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-green-200 bg-green-50 px-3 py-2">
+                <p className="text-[11px] font-semibold text-green-800">
+                  Agendados
+                </p>
+                <p className="font-heading text-xl font-semibold text-green-800">
+                  {scheduledCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2">
+                <p className="text-[11px] font-semibold text-blue-800">
+                  Aprobados
+                </p>
+                <p className="font-heading text-xl font-semibold text-blue-800">
+                  {approvedCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2">
+                <p className="text-[11px] font-semibold text-red-800">
+                  Rechazados
+                </p>
+                <p className="font-heading text-xl font-semibold text-red-800">
+                  {rejectedCount}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Link
                 href="/"
                 className="inline-flex h-10 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto"
@@ -774,54 +826,27 @@ export default function AppointmentsPage() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex h-10 w-full items-center justify-center rounded-2xl border border-[#d8e2ef] px-5 text-sm font-semibold text-[#173b68] transition hover:bg-[#f8fbff] active:translate-y-px sm:w-auto"
+                className="inline-flex h-10 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto"
               >
                 Cerrar sesión
               </button>
             </div>
           </div>
-
-          <div className="mt-4 grid gap-3 border-t border-[#e3ebf5] pt-4 sm:grid-cols-3">
-            <div className="rounded-2xl bg-[#f8fbff] p-3">
-              <p className="text-xs font-semibold text-slate-500">
-                Total registrados
-              </p>
-              <p className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
-                {appointments.length}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-[#f8fbff] p-3">
-              <p className="text-xs font-semibold text-slate-500">
-                Pendientes
-              </p>
-              <p className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
-                {pendingCount}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-[#f8fbff] p-3">
-              <p className="text-xs font-semibold text-slate-500">
-                En pantalla
-              </p>
-              <p className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
-                {filteredAppointments.length}
-              </p>
-            </div>
-          </div>
         </header>
 
-        <section className="rounded-[24px] border border-[#d8e2ef] bg-white p-4 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-5 lg:p-6">
-          <div className="mb-5 border-b border-[#e3ebf5] pb-4">
-            <h2 className="font-heading text-xl font-semibold text-[#0f2747]">
+        <section className="rounded-[22px] border border-[#d8e2ef] bg-white p-4 shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+          <div className="mb-4 flex flex-col gap-1 border-b border-[#e3ebf5] pb-3 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="font-heading text-lg font-semibold text-[#0f2747]">
               Panel de solicitudes
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Filtra por estado y administra cada registro recibido.
+            <p className="text-xs leading-5 text-slate-500">
+              Filtra y administra cada registro recibido.
             </p>
           </div>
 
-          <div className="mb-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
+          <div className="mb-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
+              <span className="text-xs font-semibold text-[#173b68]">
                 Filtrar por estado
               </span>
               <select
@@ -831,7 +856,7 @@ export default function AppointmentsPage() {
                     event.target.value as "todos" | AppointmentStatus,
                   )
                 }
-                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
               >
                 <option value="todos">Todos</option>
                 <option value="pendiente">Pendientes</option>
@@ -842,7 +867,7 @@ export default function AppointmentsPage() {
             </label>
 
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
+              <span className="text-xs font-semibold text-[#173b68]">
                 Filtrar por motivo
               </span>
               <select
@@ -850,7 +875,7 @@ export default function AppointmentsPage() {
                 onChange={(event) =>
                   setReasonFilter(event.target.value as "todos" | PermissionReason)
                 }
-                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
               >
                 <option value="todos">Todos los motivos</option>
                 {permissionReasons.map((reason) => (
@@ -862,20 +887,20 @@ export default function AppointmentsPage() {
             </label>
 
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
+              <span className="text-xs font-semibold text-[#173b68]">
                 Filtrar por móvil
               </span>
               <input
                 type="search"
                 value={vehicleFilter}
                 onChange={(event) => setVehicleFilter(event.target.value)}
-                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
                 placeholder="Número de móvil"
               />
             </label>
 
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
+              <span className="text-xs font-semibold text-[#173b68]">
                 Filtrar por fecha de registro
               </span>
               <select
@@ -883,7 +908,7 @@ export default function AppointmentsPage() {
                 onChange={(event) =>
                   setDateFilter(event.target.value as DateFilter)
                 }
-                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
               >
                 <option value="todos">Todas las fechas</option>
                 <option value="ultimos7">Últimos 7 días</option>
@@ -893,7 +918,7 @@ export default function AppointmentsPage() {
               </select>
             </label>
 
-            <div className="flex h-12 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 text-sm text-slate-600">
+            <div className="flex h-10 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 text-xs font-semibold text-slate-600">
               Mostrando {filteredAppointments.length} de {appointments.length}
             </div>
           </div>
@@ -976,9 +1001,12 @@ export default function AppointmentsPage() {
                 )
               }
               disabled={filteredAppointments.length === 0}
-              className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-emerald-500 bg-white px-6 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
             >
-              Descargar lo mostrado
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-emerald-500 text-[10px] font-bold leading-none text-white">
+                X
+              </span>
+              Exportar lo mostrado
             </button>
             <button
               type="button"
@@ -986,9 +1014,12 @@ export default function AppointmentsPage() {
                 downloadExcel(appointments, "agendamientos-totales.xls")
               }
               disabled={appointments.length === 0}
-              className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#d8e2ef] px-6 text-sm font-semibold text-[#173b68] transition hover:bg-[#f8fbff] active:translate-y-px disabled:cursor-not-allowed disabled:text-slate-400"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-emerald-500 bg-white px-6 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
             >
-              Descargar todo
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-emerald-500 text-[10px] font-bold leading-none text-white">
+                X
+              </span>
+              Exportar todo
             </button>
           </div>
 
@@ -996,7 +1027,7 @@ export default function AppointmentsPage() {
             <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
               <div className="max-h-[62dvh] overflow-auto">
                 <table className="min-w-[1420px] w-full border-collapse text-left text-sm">
-                  <thead className="sticky top-0 z-10 bg-[#f8fbff] text-xs uppercase tracking-[0.12em] text-slate-500 shadow-[0_1px_0_#e3ebf5]">
+                  <thead className="sticky top-0 z-10 bg-[#d7e7f8] text-xs uppercase tracking-[0.12em] text-[#0f2747] shadow-[0_2px_0_#b7cce4]">
                     <tr>
                       <th className="min-w-40 px-4 py-3 font-semibold">Ticket</th>
                       <th className="min-w-44 px-4 py-3 font-semibold">Conductor</th>
@@ -1061,23 +1092,29 @@ export default function AppointmentsPage() {
                           {formatCreatedAt(appointment.createdAt)}
                         </td>
                         <td className="px-4 py-4">
-                          <select
-                            value={appointment.assignedExecutive}
-                            onChange={(event) =>
-                              updateAssignedExecutive(
-                                appointment.id,
-                                event.target.value as Executive | "",
-                              )
-                            }
-                            className="h-10 min-w-44 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
-                          >
-                            <option value="">Sin asignar</option>
-                            {executives.map((executive) => (
-                              <option key={executive} value={executive}>
-                                {executive}
-                              </option>
-                            ))}
-                          </select>
+                          {appointmentAllowsExecutive(appointment) ? (
+                            <select
+                              value={appointment.assignedExecutive}
+                              onChange={(event) =>
+                                updateAssignedExecutive(
+                                  appointment.id,
+                                  event.target.value as Executive | "",
+                                )
+                              }
+                              className="h-10 min-w-44 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                            >
+                              <option value="">Sin asignar</option>
+                              {executives.map((executive) => (
+                                <option key={executive} value={executive}>
+                                  {executive}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="inline-flex h-10 min-w-44 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-sm font-semibold text-slate-400">
+                              No aplica
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col gap-2">
