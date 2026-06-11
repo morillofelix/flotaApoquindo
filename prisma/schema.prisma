@@ -35,3 +35,32 @@ model Appointment {
   @@index([appointmentReason])
   @@index([createdAt])
 }
+
+model AppointmentReason {
+  id                         String   @id @default(uuid())
+  value                      String   @unique
+  label                      String
+  allowsExecutiveAssignment  Boolean  @default(false)
+  usesDateRange              Boolean  @default(false)
+  usesPermitDetails          Boolean  @default(false)
+  isActive                   Boolean  @default(true)
+  sortOrder                  Int      @default(0)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model Executive {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  email     String   @default("")
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}

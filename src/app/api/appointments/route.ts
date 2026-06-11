@@ -1,13 +1,10 @@
 import {
   type Appointment,
   type AppointmentStatus,
-  type Executive,
+  type AppointmentReasonConfig,
   type PermitType,
-  type PermissionReason,
-  appointmentReasonUsesPermitDetails,
-  appointmentReasonUsesDateRange,
-  executives,
-  permissionReasons,
+  defaultAppointmentReasons,
+  getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
@@ -40,14 +37,6 @@ const validStatuses: AppointmentStatus[] = [
   "rechazado",
 ];
 
-function isValidExecutive(value: string): value is Executive {
-  return executives.some((executive) => executive === value);
-}
-
-function isValidAppointmentReason(value: string): value is PermissionReason {
-  return permissionReasons.some((reason) => reason.value === value);
-}
-
 function isValidAppointmentDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(date.getTime());
@@ -73,7 +62,8 @@ function formatDateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-function toAppointment(value: {
+function toAppointment(
+  value: {
   id: string;
   ticketNumber: number;
   driverName: string;
@@ -93,7 +83,9 @@ function toAppointment(value: {
   assignedExecutive: string;
   status: string;
   createdAt: Date;
-}): Appointment {
+  },
+  reasonConfig?: AppointmentReasonConfig,
+): Appointment {
   const status = validStatuses.includes(value.status as AppointmentStatus)
     ? (value.status as AppointmentStatus)
     : "pendiente";
@@ -118,20 +110,32 @@ function toAppointment(value: {
     permitDate: value.permitDate ? formatDateOnly(value.permitDate) : "",
     permitStartTime: value.permitStartTime,
     permitEndTime: value.permitEndTime,
-    appointmentReason: isValidAppointmentReason(value.appointmentReason)
-      ? value.appointmentReason
-      : "otros",
+    appointmentReason: value.appointmentReason,
+    appointmentReasonLabel: getPermissionReasonLabel(value.appointmentReason, reasonConfig ? [reasonConfig] : undefined),
+    reasonAllowsExecutiveAssignment: Boolean(
+      reasonConfig?.allowsExecutiveAssignment,
+    ),
+    reasonUsesDateRange: Boolean(reasonConfig?.usesDateRange),
+    reasonUsesPermitDetails: Boolean(reasonConfig?.usesPermitDetails),
     email: value.email,
     phone: value.phone,
-    assignedExecutive: isValidExecutive(value.assignedExecutive)
-      ? value.assignedExecutive
-      : "",
+    assignedExecutive: value.assignedExecutive,
     status,
     createdAt: value.createdAt.toISOString(),
   };
 }
 
-function validateCreateBody(body: AppointmentCreateBody) {
+async function ensureDefaultReasons() {
+  await prisma.appointmentReason.createMany({
+    data: defaultAppointmentReasons,
+    skipDuplicates: true,
+  });
+}
+
+function validateCreateBody(
+  body: AppointmentCreateBody,
+  reasonConfig: AppointmentReasonConfig | null,
+) {
   const driverName =
     typeof body.driverName === "string" ? body.driverName.trim() : "";
   const vehicleNumber =
@@ -156,14 +160,15 @@ function validateCreateBody(body: AppointmentCreateBody) {
     typeof body.permitEndTime === "string" ? body.permitEndTime : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
-  const usesDateRange = appointmentReasonUsesDateRange(appointmentReason);
-  const usesPermitDetails = appointmentReasonUsesPermitDetails(appointmentReason);
+  const usesDateRange = Boolean(reasonConfig?.usesDateRange);
+  const usesPermitDetails = Boolean(reasonConfig?.usesPermitDetails);
 
   if (
     !driverName ||
     !/^\d{1,3}$/.test(vehicleNumber) ||
     !isValidAppointmentDate(appointmentDate) ||
-    !isValidAppointmentReason(appointmentReason) ||
+    !reasonConfig ||
+    !reasonConfig.isActive ||
     !email ||
     !phone
   ) {
@@ -225,12 +230,17 @@ function validateCreateBody(body: AppointmentCreateBody) {
 }
 
 export async function GET() {
+  await ensureDefaultReasons();
+  const reasons = await prisma.appointmentReason.findMany();
+  const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));
   const appointments = await prisma.appointment.findMany({
     orderBy: { createdAt: "desc" },
   });
 
   return NextResponse.json({
-    appointments: appointments.map(toAppointment),
+    appointments: appointments.map((appointment) =>
+      toAppointment(appointment, reasonByValue.get(appointment.appointmentReason)),
+    ),
   });
 }
 
@@ -246,7 +256,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const appointment = validateCreateBody(body);
+  await ensureDefaultReasons();
+  const appointmentReason =
+    typeof body.appointmentReason === "string" ? body.appointmentReason : "";
+  const reasonConfig = await prisma.appointmentReason.findUnique({
+    where: { value: appointmentReason },
+  });
+  const appointment = validateCreateBody(body, reasonConfig);
 
   if (!appointment) {
     return NextResponse.json(
@@ -278,7 +294,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { appointment: toAppointment(createdAppointment) },
+      { appointment: toAppointment(createdAppointment, reasonConfig ?? undefined) },
       { status: 201 },
     );
   } catch {

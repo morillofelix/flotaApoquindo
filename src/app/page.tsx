@@ -2,13 +2,14 @@
 
 import {
   type Appointment,
+  type AppointmentReasonConfig,
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
+  defaultAppointmentReasons,
   getAppointmentTicketLabel,
-  permissionReasons,
   type PermissionReason,
 } from "@/lib/appointments";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 type FormValues = {
   driverName: string;
@@ -52,7 +53,12 @@ function getTodayValue() {
   return new Date().toISOString().split("T")[0] ?? "";
 }
 
-function validateField(name: FieldName, value: string, today: string) {
+function validateField(
+  name: FieldName,
+  value: string,
+  today: string,
+  reasons: AppointmentReasonConfig[],
+) {
   const trimmedValue = value.trim();
 
   if (!trimmedValue) {
@@ -88,7 +94,7 @@ function validateField(name: FieldName, value: string, today: string) {
 
   if (
     name === "appointmentReason" &&
-    !permissionReasons.some((reason) => reason.value === trimmedValue)
+    !reasons.some((reason) => reason.value === trimmedValue && reason.isActive)
   ) {
     return "Selecciona un motivo válido.";
   }
@@ -114,41 +120,57 @@ function normalizeVehicleNumber(value: string) {
 
 type AppointmentSubmission = Omit<
   Appointment,
-  "id" | "ticketNumber" | "assignedExecutive" | "createdAt" | "status"
+  | "id"
+  | "ticketNumber"
+  | "appointmentReasonLabel"
+  | "reasonAllowsExecutiveAssignment"
+  | "reasonUsesDateRange"
+  | "reasonUsesPermitDetails"
+  | "assignedExecutive"
+  | "createdAt"
+  | "status"
 >;
 
-function createAppointment(values: FormValues): AppointmentSubmission {
+function createAppointment(
+  values: FormValues,
+  reasons: AppointmentReasonConfig[],
+): AppointmentSubmission {
+  const usesDateRange = appointmentReasonUsesDateRange(
+    values.appointmentReason,
+    reasons,
+  );
+  const usesPermitDetails = appointmentReasonUsesPermitDetails(
+    values.appointmentReason,
+    reasons,
+  );
+
   return {
     driverName: values.driverName.trim(),
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
     appointmentDate: values.appointmentDate,
-    vacationStartDate: appointmentReasonUsesDateRange(values.appointmentReason)
-      ? values.vacationStartDate
-      : "",
-    vacationEndDate: appointmentReasonUsesDateRange(values.appointmentReason)
-      ? values.vacationEndDate
-      : "",
-    permitType: appointmentReasonUsesPermitDetails(values.appointmentReason)
+    vacationStartDate: usesDateRange ? values.vacationStartDate : "",
+    vacationEndDate: usesDateRange ? values.vacationEndDate : "",
+    permitType: usesPermitDetails
       ? (values.permitType as Appointment["permitType"])
       : "",
     permitStartDate:
-      values.appointmentReason === "permisos" && values.permitType === "dias"
+      usesPermitDetails && values.permitType === "dias"
         ? values.permitStartDate
         : "",
     permitEndDate:
-      values.appointmentReason === "permisos" && values.permitType === "dias"
+      usesPermitDetails && values.permitType === "dias"
         ? values.permitEndDate
         : "",
     permitDate:
-      values.appointmentReason === "permisos" && values.permitType === "horas"
+      usesPermitDetails && values.permitType === "horas"
         ? values.permitDate
         : "",
     permitStartTime:
-      values.appointmentReason === "permisos" && values.permitType === "horas"
+      usesPermitDetails && values.permitType === "horas"
         ? values.permitStartTime
         : "",
     permitEndTime:
-      values.appointmentReason === "permisos" && values.permitType === "horas"
+      usesPermitDetails && values.permitType === "horas"
         ? values.permitEndTime
         : "",
     appointmentReason: values.appointmentReason as PermissionReason,
@@ -208,58 +230,91 @@ export default function HomePage() {
   const [emailWarning, setEmailWarning] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const usesDateRange = appointmentReasonUsesDateRange(values.appointmentReason);
+  const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
+    defaultAppointmentReasons,
+  );
+  const activeReasons = useMemo(
+    () => reasons.filter((reason) => reason.isActive),
+    [reasons],
+  );
+  const usesDateRange = appointmentReasonUsesDateRange(
+    values.appointmentReason,
+    reasons,
+  );
   const usesPermitDetails = appointmentReasonUsesPermitDetails(
     values.appointmentReason,
+    reasons,
   );
+
+  useEffect(() => {
+    fetch("/api/appointment-reasons", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los motivos.");
+        }
+
+        return response.json() as Promise<{ reasons?: AppointmentReasonConfig[] }>;
+      })
+      .then((data) => {
+        if (data.reasons?.length) {
+          setReasons(data.reasons);
+        }
+      })
+      .catch(() => {
+        setReasons(defaultAppointmentReasons);
+      });
+  }, []);
 
   const errors = useMemo(() => {
     const vacationStartDate = usesDateRange
-      ? validateField("vacationStartDate", values.vacationStartDate, today)
+      ? validateField("vacationStartDate", values.vacationStartDate, today, reasons)
       : "";
     const vacationEndDate = usesDateRange
-      ? validateField("vacationEndDate", values.vacationEndDate, today)
+      ? validateField("vacationEndDate", values.vacationEndDate, today, reasons)
       : "";
     const permitType = usesPermitDetails
-      ? validateField("permitType", values.permitType, today)
+      ? validateField("permitType", values.permitType, today, reasons)
       : "";
     const permitStartDate =
       usesPermitDetails && values.permitType === "dias"
-        ? validateField("permitStartDate", values.permitStartDate, today)
+        ? validateField("permitStartDate", values.permitStartDate, today, reasons)
         : "";
     const permitEndDate =
       usesPermitDetails && values.permitType === "dias"
-        ? validateField("permitEndDate", values.permitEndDate, today)
+        ? validateField("permitEndDate", values.permitEndDate, today, reasons)
         : "";
     const permitDate =
       usesPermitDetails && values.permitType === "horas"
-        ? validateField("permitDate", values.permitDate, today)
+        ? validateField("permitDate", values.permitDate, today, reasons)
         : "";
     const permitStartTime =
       usesPermitDetails && values.permitType === "horas"
-        ? validateField("permitStartTime", values.permitStartTime, today)
+        ? validateField("permitStartTime", values.permitStartTime, today, reasons)
         : "";
     const permitEndTime =
       usesPermitDetails && values.permitType === "horas"
-        ? validateField("permitEndTime", values.permitEndTime, today)
+        ? validateField("permitEndTime", values.permitEndTime, today, reasons)
         : "";
 
     return {
-      driverName: validateField("driverName", values.driverName, today),
+      driverName: validateField("driverName", values.driverName, today, reasons),
       vehicleNumber: validateField(
         "vehicleNumber",
         values.vehicleNumber,
         today,
+        reasons,
       ),
       appointmentDate: validateField(
         "appointmentDate",
         values.appointmentDate,
         today,
+        reasons,
       ),
       appointmentReason: validateField(
         "appointmentReason",
         values.appointmentReason,
         today,
+        reasons,
       ),
       vacationStartDate,
       vacationEndDate:
@@ -292,10 +347,10 @@ export default function HomePage() {
         values.permitEndTime <= values.permitStartTime
           ? "La hora hasta debe ser posterior a la hora desde."
           : permitEndTime,
-      email: validateField("email", values.email, today),
-      phone: validateField("phone", values.phone, today),
+      email: validateField("email", values.email, today, reasons),
+      phone: validateField("phone", values.phone, today, reasons),
     };
-  }, [today, usesDateRange, usesPermitDetails, values]);
+  }, [today, usesDateRange, usesPermitDetails, values, reasons]);
 
   const securityError =
     botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
@@ -308,10 +363,12 @@ export default function HomePage() {
     setValues((currentValues) => ({
       ...currentValues,
       [name]: name === "vehicleNumber" ? value.replace(/\D/g, "").slice(0, 3) : value,
-      ...(name === "appointmentReason" && !appointmentReasonUsesDateRange(value)
+      ...(name === "appointmentReason" &&
+      !appointmentReasonUsesDateRange(value, reasons)
         ? { vacationStartDate: "", vacationEndDate: "" }
         : {}),
-      ...(name === "appointmentReason" && !appointmentReasonUsesPermitDetails(value)
+      ...(name === "appointmentReason" &&
+      !appointmentReasonUsesPermitDetails(value, reasons)
         ? {
             permitType: "",
             permitStartDate: "",
@@ -377,7 +434,7 @@ export default function HomePage() {
 
     if (canSubmit) {
       setIsSubmitting(true);
-      const appointment = createAppointment(values);
+      const appointment = createAppointment(values, reasons);
 
       try {
         const savedAppointment = await saveAppointment(appointment);
@@ -583,7 +640,7 @@ export default function HomePage() {
                 className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("appointmentReason")}`}
               >
                 <option value="">Selecciona una opción</option>
-                {permissionReasons.map((reason) => (
+                {activeReasons.map((reason) => (
                   <option key={reason.value} value={reason.value}>
                     {reason.label}
                   </option>

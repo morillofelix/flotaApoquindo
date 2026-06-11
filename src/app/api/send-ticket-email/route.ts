@@ -1,9 +1,6 @@
 import {
   type AppointmentEmailPayload,
-  appointmentReasonUsesPermitDetails,
-  appointmentReasonUsesDateRange,
   getAppointmentTicketLabel,
-  getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { NextResponse, type NextRequest } from "next/server";
 import nodemailer from "nodemailer";
@@ -21,6 +18,9 @@ function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPay
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
     typeof payload.appointmentReason === "string" &&
+    typeof payload.appointmentReasonLabel === "string" &&
+    typeof payload.reasonUsesDateRange === "boolean" &&
+    typeof payload.reasonUsesPermitDetails === "boolean" &&
     (payload.vacationStartDate === undefined ||
       typeof payload.vacationStartDate === "string") &&
     (payload.vacationEndDate === undefined ||
@@ -43,7 +43,7 @@ function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPay
 }
 
 function getPermitDetail(appointment: AppointmentEmailPayload) {
-  if (!appointmentReasonUsesPermitDetails(appointment.appointmentReason)) {
+  if (!appointment.reasonUsesPermitDetails) {
     return "";
   }
 
@@ -93,11 +93,9 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
   const ticketId = escapeHtml(getAppointmentTicketLabel(appointment));
   const vehicleNumber = escapeHtml(appointment.vehicleNumber);
   const appointmentDate = escapeHtml(formatDate(appointment.appointmentDate));
-  const appointmentReason = escapeHtml(
-    getPermissionReasonLabel(appointment.appointmentReason),
-  );
+  const appointmentReason = escapeHtml(appointment.appointmentReasonLabel);
   const appointmentDateRange =
-    appointmentReasonUsesDateRange(appointment.appointmentReason) &&
+    appointment.reasonUsesDateRange &&
     appointment.vacationStartDate &&
     appointment.vacationEndDate
       ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(
@@ -141,11 +139,11 @@ function createEmailText(appointment: AppointmentEmailPayload) {
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
     `Fecha requerida: ${formatDate(appointment.appointmentDate)}`,
-    `Motivo: ${getPermissionReasonLabel(appointment.appointmentReason)}`,
+    `Motivo: ${appointment.appointmentReasonLabel}`,
   ];
 
   if (
-    appointmentReasonUsesDateRange(appointment.appointmentReason) &&
+    appointment.reasonUsesDateRange &&
     appointment.vacationStartDate &&
     appointment.vacationEndDate
   ) {

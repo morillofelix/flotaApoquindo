@@ -1,10 +1,9 @@
 import {
   type Appointment,
-  appointmentReasonUsesDateRange,
-  getExecutiveEmail,
+  defaultExecutives,
   getAppointmentTicketLabel,
-  getPermissionReasonLabel,
 } from "@/lib/appointments";
+import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 import nodemailer from "nodemailer";
 
@@ -20,6 +19,9 @@ type CalendarInvitePayload = Pick<
   | "vehicleNumber"
   | "appointmentDate"
   | "appointmentReason"
+  | "appointmentReasonLabel"
+  | "reasonAllowsExecutiveAssignment"
+  | "reasonUsesDateRange"
   | "vacationStartDate"
   | "vacationEndDate"
   | "email"
@@ -41,6 +43,9 @@ function isCalendarInvitePayload(value: unknown): value is CalendarInvitePayload
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
     typeof payload.appointmentReason === "string" &&
+    typeof payload.appointmentReasonLabel === "string" &&
+    typeof payload.reasonAllowsExecutiveAssignment === "boolean" &&
+    typeof payload.reasonUsesDateRange === "boolean" &&
     typeof payload.vacationStartDate === "string" &&
     typeof payload.vacationEndDate === "string" &&
     typeof payload.email === "string" &&
@@ -48,7 +53,7 @@ function isCalendarInvitePayload(value: unknown): value is CalendarInvitePayload
     typeof payload.assignedExecutive === "string" &&
     payload.assignedExecutive.length > 0 &&
     payload.status === "revisado" &&
-    payload.appointmentReason === "otros"
+    payload.reasonAllowsExecutiveAssignment
   );
 }
 
@@ -98,7 +103,7 @@ function getInviteEndTime() {
 
 function getAppointmentDateRange(appointment: CalendarInvitePayload) {
   if (
-    !appointmentReasonUsesDateRange(appointment.appointmentReason) ||
+    !appointment.reasonUsesDateRange ||
     !appointment.vacationStartDate ||
     !appointment.vacationEndDate
   ) {
@@ -116,7 +121,7 @@ function createInviteDescription(appointment: CalendarInvitePayload) {
     `Ticket: ${getAppointmentTicketLabel(appointment)}`,
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
-    `Motivo: ${getPermissionReasonLabel(appointment.appointmentReason)}`,
+    `Motivo: ${appointment.appointmentReasonLabel}`,
     `Fecha requerida: ${formatDisplayDate(appointment.appointmentDate)}`,
     dateRange ? `Rango de fechas: ${dateRange}` : "",
     `Correo solicitante: ${appointment.email}`,
@@ -171,7 +176,7 @@ function createCalendarInvite(
 }
 
 function createEmailHtml(appointment: CalendarInvitePayload) {
-  const reason = escapeHtml(getPermissionReasonLabel(appointment.appointmentReason));
+  const reason = escapeHtml(appointment.appointmentReasonLabel);
   const dateRange = getAppointmentDateRange(appointment);
 
   return `
@@ -239,7 +244,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const executiveEmail = getExecutiveEmail(body.assignedExecutive);
+  await prisma.executive.createMany({
+    data: defaultExecutives,
+    skipDuplicates: true,
+  });
+  const executive = await prisma.executive.findUnique({
+    where: { name: body.assignedExecutive },
+  });
+  const executiveEmail = executive?.isActive ? executive.email : "";
 
   if (!executiveEmail) {
     return NextResponse.json(

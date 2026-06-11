@@ -1,32 +1,108 @@
 export const APPOINTMENTS_STORAGE_KEY = "apoquindo-permission-appointments";
 
-export const permissionReasons = [
-  { value: "vacaciones", label: "Vacaciones" },
-  { value: "licencia-medica", label: "Licencias médicas" },
-  { value: "permisos", label: "Permisos" },
-  { value: "otros", label: "Otros" },
-] as const;
-
-export const dateRangePermissionReasons = [
-  "vacaciones",
-  "licencia-medica",
-] as const;
-
-export const executives = [
-  "Félix Morillo",
-  "Verónica Díaz",
-  "Juan Pablo González",
-  "Margot Lozada",
-  "Carlos Rojas",
-  "Gonzalo Domingez",
-] as const;
-
-export const executiveEmails: Partial<Record<Executive, string>> = {
-  "Félix Morillo": "fmorillo@transportesapoquindo.cl",
+export type AppointmentReasonConfig = {
+  id?: string;
+  value: string;
+  label: string;
+  allowsExecutiveAssignment: boolean;
+  usesDateRange: boolean;
+  usesPermitDetails: boolean;
+  isActive: boolean;
+  sortOrder: number;
 };
 
-export type PermissionReason = (typeof permissionReasons)[number]["value"];
-export type Executive = (typeof executives)[number];
+export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
+  {
+    value: "vacaciones",
+    label: "Vacaciones",
+    allowsExecutiveAssignment: false,
+    usesDateRange: true,
+    usesPermitDetails: false,
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    value: "licencia-medica",
+    label: "Licencias médicas",
+    allowsExecutiveAssignment: false,
+    usesDateRange: true,
+    usesPermitDetails: false,
+    isActive: true,
+    sortOrder: 20,
+  },
+  {
+    value: "permisos",
+    label: "Permisos",
+    allowsExecutiveAssignment: false,
+    usesDateRange: false,
+    usesPermitDetails: true,
+    isActive: true,
+    sortOrder: 30,
+  },
+  {
+    value: "otros",
+    label: "Otros",
+    allowsExecutiveAssignment: true,
+    usesDateRange: false,
+    usesPermitDetails: false,
+    isActive: true,
+    sortOrder: 40,
+  },
+];
+
+export const permissionReasons = defaultAppointmentReasons.map(
+  ({ value, label }) => ({ value, label }),
+);
+
+export type ExecutiveConfig = {
+  id?: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export const defaultExecutives: ExecutiveConfig[] = [
+  {
+    name: "Félix Morillo",
+    email: "fmorillo@transportesapoquindo.cl",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    name: "Verónica Díaz",
+    email: "",
+    isActive: true,
+    sortOrder: 20,
+  },
+  {
+    name: "Juan Pablo González",
+    email: "",
+    isActive: true,
+    sortOrder: 30,
+  },
+  {
+    name: "Margot Lozada",
+    email: "",
+    isActive: true,
+    sortOrder: 40,
+  },
+  {
+    name: "Carlos Rojas",
+    email: "",
+    isActive: true,
+    sortOrder: 50,
+  },
+  {
+    name: "Gonzalo Domingez",
+    email: "",
+    isActive: true,
+    sortOrder: 60,
+  },
+];
+
+export type PermissionReason = string;
+export type Executive = string;
 export type PermitType = "dias" | "horas";
 
 export type AppointmentStatus =
@@ -50,6 +126,10 @@ export type Appointment = {
   permitStartTime: string;
   permitEndTime: string;
   appointmentReason: PermissionReason;
+  appointmentReasonLabel: string;
+  reasonAllowsExecutiveAssignment: boolean;
+  reasonUsesDateRange: boolean;
+  reasonUsesPermitDetails: boolean;
   email: string;
   phone: string;
   assignedExecutive: Executive | "";
@@ -65,6 +145,9 @@ export type AppointmentEmailPayload = Pick<
   | "vehicleNumber"
   | "appointmentDate"
   | "appointmentReason"
+  | "appointmentReasonLabel"
+  | "reasonUsesDateRange"
+  | "reasonUsesPermitDetails"
   | "email"
   | "phone"
   | "createdAt"
@@ -83,9 +166,16 @@ export type AppointmentEmailPayload = Pick<
     >
   >;
 
-export function getPermissionReasonLabel(value: string) {
+function getReasonConfig(value: string, reasons = defaultAppointmentReasons) {
+  return reasons.find((reason) => reason.value === value);
+}
+
+export function getPermissionReasonLabel(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
   return (
-    permissionReasons.find((reason) => reason.value === value)?.label ??
+    getReasonConfig(value, reasons)?.label ??
     "Sin motivo"
   );
 }
@@ -98,16 +188,23 @@ export function getAppointmentTicketLabel(
     : appointment.id;
 }
 
-export function appointmentReasonUsesDateRange(value: string) {
-  return dateRangePermissionReasons.some((reason) => reason === value);
+export function appointmentReasonAllowsExecutive(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  return Boolean(getReasonConfig(value, reasons)?.allowsExecutiveAssignment);
 }
 
-export function appointmentReasonUsesPermitDetails(value: string) {
-  return value === "permisos";
+export function appointmentReasonUsesDateRange(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  return Boolean(getReasonConfig(value, reasons)?.usesDateRange);
 }
 
-export function getExecutiveEmail(value: string) {
-  return executives.some((executive) => executive === value)
-    ? executiveEmails[value as Executive] ?? ""
-    : "";
+export function appointmentReasonUsesPermitDetails(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  return Boolean(getReasonConfig(value, reasons)?.usesPermitDetails);
 }

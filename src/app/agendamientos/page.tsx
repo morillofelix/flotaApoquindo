@@ -2,16 +2,14 @@
 
 import {
   type Appointment,
+  type ExecutiveConfig,
+  type AppointmentReasonConfig,
   type AppointmentStatus,
   type Executive,
   type PermissionReason,
-  appointmentReasonUsesPermitDetails,
-  appointmentReasonUsesDateRange,
-  executives,
+  defaultAppointmentReasons,
+  defaultExecutives,
   getAppointmentTicketLabel,
-  getExecutiveEmail,
-  getPermissionReasonLabel,
-  permissionReasons,
 } from "@/lib/appointments";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -44,6 +42,51 @@ type EmailNotice =
     }
   | null;
 
+type ReasonForm = {
+  id: string;
+  label: string;
+  allowsExecutiveAssignment: boolean;
+  usesDateRange: boolean;
+  usesPermitDetails: boolean;
+  isActive: boolean;
+};
+
+type ExecutiveForm = {
+  id: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+};
+
+type ReasonBooleanField =
+  | "allowsExecutiveAssignment"
+  | "usesDateRange"
+  | "usesPermitDetails"
+  | "isActive";
+
+const reasonFeatureFields: Array<[ReasonBooleanField, string]> = [
+  ["allowsExecutiveAssignment", "Derivar"],
+  ["usesDateRange", "Rango fechas"],
+  ["usesPermitDetails", "Permiso horas/días"],
+  ["isActive", "Activo"],
+];
+
+const emptyReasonForm: ReasonForm = {
+  id: "",
+  label: "",
+  allowsExecutiveAssignment: false,
+  usesDateRange: false,
+  usesPermitDetails: false,
+  isActive: true,
+};
+
+const emptyExecutiveForm: ExecutiveForm = {
+  id: "",
+  name: "",
+  email: "",
+  isActive: true,
+};
+
 async function loadAppointments() {
   const response = await fetch("/api/appointments", {
     cache: "no-store",
@@ -55,6 +98,38 @@ async function loadAppointments() {
 
   const data = (await response.json()) as { appointments?: Appointment[] };
   return data.appointments ?? [];
+}
+
+async function loadAppointmentReasons() {
+  const response = await fetch("/api/appointment-reasons", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar los motivos.");
+  }
+
+  const data = (await response.json()) as {
+    reasons?: AppointmentReasonConfig[];
+  };
+
+  return data.reasons ?? defaultAppointmentReasons;
+}
+
+async function loadExecutives() {
+  const response = await fetch("/api/executives", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar los ejecutivos.");
+  }
+
+  const data = (await response.json()) as {
+    executives?: ExecutiveConfig[];
+  };
+
+  return data.executives ?? defaultExecutives;
 }
 
 function formatDate(value: string) {
@@ -81,7 +156,7 @@ function formatCreatedAt(value: string) {
 
 function getAppointmentDateRange(appointment: Appointment) {
   if (
-    !appointmentReasonUsesDateRange(appointment.appointmentReason) ||
+    !appointment.reasonUsesDateRange ||
     !appointment.vacationStartDate ||
     !appointment.vacationEndDate
   ) {
@@ -94,7 +169,7 @@ function getAppointmentDateRange(appointment: Appointment) {
 }
 
 function getPermitDetail(appointment: Appointment) {
-  if (!appointmentReasonUsesPermitDetails(appointment.appointmentReason)) {
+  if (!appointment.reasonUsesPermitDetails) {
     return "";
   }
 
@@ -231,7 +306,7 @@ function createExcelTable(appointments: Appointment[]) {
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
-          <td>${escapeHtml(getPermissionReasonLabel(appointment.appointmentReason))}</td>
+          <td>${escapeHtml(appointment.appointmentReasonLabel)}</td>
           <td>${escapeHtml(appointment.permitDate || "No aplica")}</td>
           <td>${escapeHtml(permitTypeLabel || "No aplica")}</td>
           <td>${escapeHtml(dateFrom || "No aplica")}</td>
@@ -297,21 +372,20 @@ function downloadExcel(appointments: Appointment[], fileName: string) {
 function shouldSendCalendarInvite(appointment: Appointment) {
   return (
     appointment.status === "revisado" &&
-    appointment.appointmentReason === "otros" &&
+    appointment.reasonAllowsExecutiveAssignment &&
     appointment.assignedExecutive !== "" &&
-    Boolean(getExecutiveEmail(appointment.assignedExecutive))
+    true
   );
 }
 
 function appointmentAllowsExecutive(appointment: Appointment) {
-  return appointment.appointmentReason === "otros";
+  return appointment.reasonAllowsExecutiveAssignment;
 }
 
 function shouldSendDecisionEmail(appointment: Appointment) {
   return (
     (appointment.status === "aprobado" || appointment.status === "rechazado") &&
-    (appointmentReasonUsesDateRange(appointment.appointmentReason) ||
-      appointmentReasonUsesPermitDetails(appointment.appointmentReason))
+    (appointment.reasonUsesDateRange || appointment.reasonUsesPermitDetails)
   );
 }
 
@@ -345,6 +419,11 @@ async function sendDecisionEmail(appointment: Appointment) {
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
+    defaultAppointmentReasons,
+  );
+  const [executiveOptions, setExecutiveOptions] =
+    useState<ExecutiveConfig[]>(defaultExecutives);
   const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
     "todos",
   );
@@ -365,11 +444,35 @@ export default function AppointmentsPage() {
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   const [appointmentsError, setAppointmentsError] = useState("");
   const [emailNotice, setEmailNotice] = useState<EmailNotice>(null);
+  const [isMaintainersMenuOpen, setIsMaintainersMenuOpen] = useState(false);
+  const [activeMaintainer, setActiveMaintainer] = useState<
+    "motivos" | "ejecutivos" | null
+  >(null);
+  const [reasonForm, setReasonForm] = useState<ReasonForm>(emptyReasonForm);
+  const [reasonSearch, setReasonSearch] = useState("");
+  const [reasonMessage, setReasonMessage] = useState("");
+  const [reasonError, setReasonError] = useState("");
+  const [isSavingReason, setIsSavingReason] = useState(false);
+  const [executiveForm, setExecutiveForm] =
+    useState<ExecutiveForm>(emptyExecutiveForm);
+  const [executiveSearch, setExecutiveSearch] = useState("");
+  const [executiveMessage, setExecutiveMessage] = useState("");
+  const [executiveError, setExecutiveError] = useState("");
+  const [isSavingExecutive, setIsSavingExecutive] = useState(false);
 
   useEffect(() => {
     setIsAuthenticated(
       window.sessionStorage.getItem("apoquindo-admin-auth") === "true",
     );
+  }, []);
+
+  useEffect(() => {
+    loadAppointmentReasons()
+      .then((loadedReasons) => setReasons(loadedReasons))
+      .catch(() => setReasonError("No se pudieron cargar los motivos."));
+    loadExecutives()
+      .then((loadedExecutives) => setExecutiveOptions(loadedExecutives))
+      .catch(() => setExecutiveError("No se pudieron cargar los ejecutivos."));
   }, []);
 
   useEffect(() => {
@@ -387,6 +490,52 @@ export default function AppointmentsPage() {
       )
       .finally(() => setIsLoadingAppointments(false));
   }, [isAuthenticated]);
+
+  const activeReasons = useMemo(
+    () => reasons.filter((reason) => reason.isActive),
+    [reasons],
+  );
+  const activeExecutives = useMemo(
+    () =>
+      executiveOptions.filter(
+        (executive) => executive.isActive && executive.email.trim().length > 0,
+      ),
+    [executiveOptions],
+  );
+  const filteredReasons = useMemo(() => {
+    const normalizedSearch = reasonSearch.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return reasons;
+    }
+
+    return reasons.filter(
+      (reason) =>
+        reason.label.toLowerCase().includes(normalizedSearch) ||
+        reason.value.toLowerCase().includes(normalizedSearch),
+    );
+  }, [reasonSearch, reasons]);
+  const filteredExecutives = useMemo(() => {
+    const normalizedSearch = executiveSearch.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return executiveOptions;
+    }
+
+    return executiveOptions.filter(
+      (executive) =>
+        executive.name.toLowerCase().includes(normalizedSearch) ||
+        executive.email.toLowerCase().includes(normalizedSearch),
+    );
+  }, [executiveOptions, executiveSearch]);
+  const selectedExecutiveId =
+    executiveForm.id ||
+    executiveOptions.find(
+      (executive) =>
+        executive.name.trim().toLowerCase() ===
+        executiveForm.name.trim().toLowerCase(),
+    )?.id ||
+    "";
 
   useEffect(() => {
     if (emailNotice?.status !== "sent") {
@@ -597,6 +746,122 @@ export default function AppointmentsPage() {
     } catch {
       setAppointments(previousAppointments);
       setAppointmentsError("No se pudo eliminar la solicitud.");
+    }
+  }
+
+  function editReason(reason: AppointmentReasonConfig) {
+    setReasonForm({
+      id: reason.id ?? "",
+      label: reason.label,
+      allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+      usesDateRange: reason.usesDateRange,
+      usesPermitDetails: reason.usesPermitDetails,
+      isActive: reason.isActive,
+    });
+    setReasonMessage("");
+    setReasonError("");
+  }
+
+  function resetReasonForm() {
+    setReasonForm(emptyReasonForm);
+    setReasonMessage("");
+    setReasonError("");
+  }
+
+  async function saveReason(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setReasonMessage("");
+    setReasonError("");
+
+    if (reasonForm.label.trim().length < 3) {
+      setReasonError("Ingresa un nombre de motivo válido.");
+      return;
+    }
+
+    setIsSavingReason(true);
+
+    try {
+      const response = await fetch("/api/appointment-reasons", {
+        method: reasonForm.id ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reasonForm),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo guardar el motivo.");
+      }
+
+      const loadedReasons = await loadAppointmentReasons();
+      setReasons(loadedReasons);
+      const loadedAppointments = await loadAppointments();
+      setAppointments(loadedAppointments);
+      setReasonForm(emptyReasonForm);
+      setReasonMessage("Motivo guardado correctamente.");
+    } catch {
+      setReasonError("No se pudo guardar el motivo.");
+    } finally {
+      setIsSavingReason(false);
+    }
+  }
+
+  function editExecutive(executive: ExecutiveConfig) {
+    setExecutiveForm({
+      id: executive.id ?? "",
+      name: executive.name,
+      email: executive.email,
+      isActive: executive.isActive,
+    });
+    setExecutiveMessage("");
+    setExecutiveError("");
+  }
+
+  function resetExecutiveForm() {
+    setExecutiveForm(emptyExecutiveForm);
+    setExecutiveMessage("");
+    setExecutiveError("");
+  }
+
+  async function saveExecutive(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setExecutiveMessage("");
+    setExecutiveError("");
+
+    if (
+      executiveForm.name.trim().length < 3 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(executiveForm.email.trim())
+    ) {
+      setExecutiveError("Ingresa nombre y correo válido.");
+      return;
+    }
+
+    setIsSavingExecutive(true);
+
+    try {
+      const response = await fetch("/api/executives", {
+        method: selectedExecutiveId ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...executiveForm,
+          id: selectedExecutiveId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo guardar el ejecutivo.");
+      }
+
+      const loadedExecutives = await loadExecutives();
+      setExecutiveOptions(loadedExecutives);
+      setExecutiveForm(emptyExecutiveForm);
+      setExecutiveMessage("Ejecutivo guardado correctamente.");
+    } catch {
+      setExecutiveError("No se pudo guardar el ejecutivo.");
+    } finally {
+      setIsSavingExecutive(false);
     }
   }
 
@@ -836,14 +1101,431 @@ export default function AppointmentsPage() {
         </header>
 
         <section className="rounded-[22px] border border-[#d8e2ef] bg-white p-4 shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
-          <div className="mb-4 flex flex-col gap-1 border-b border-[#e3ebf5] pb-3 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="font-heading text-lg font-semibold text-[#0f2747]">
+          <div className="-m-4 mb-3 flex flex-col gap-1 rounded-t-[22px] border-b border-[#b7cce4] bg-[#d7e7f8] px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:rounded-t-[24px]">
+            <h2 className="font-heading text-base font-semibold text-[#0f2747]">
               Panel de solicitudes
             </h2>
-            <p className="text-xs leading-5 text-slate-500">
-              Filtra y administra cada registro recibido.
-            </p>
+            <div className="flex flex-row items-center justify-between gap-2 sm:justify-end">
+              <p className="hidden text-[11px] leading-4 text-[#173b68] sm:block">
+                Filtra y administra cada registro recibido.
+              </p>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsMaintainersMenuOpen((currentValue) => !currentValue)
+                  }
+                  aria-label="Abrir configuraciones"
+                  title="Configuraciones"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#b9cce3] bg-[#eef6ff] text-[#0b5cab] transition hover:bg-[#dcecff] active:translate-y-px"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="currentColor"
+                  >
+                    <path d="M19.43 12.98c.04-.32.07-.65.07-.98s-.02-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.3 7.3 0 0 0-1.69-.98L14.5 2.42A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42L9.13 5.07c-.61.24-1.18.56-1.69.98l-2.49-1a.5.5 0 0 0-.61.22l-2 3.46a.5.5 0 0 0 .12.64l2.11 1.65c-.04.32-.07.65-.07.98s.02.66.07.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46c.13.22.39.31.61.22l2.49-1c.51.4 1.08.73 1.69.98l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.61-.24 1.18-.56 1.69-.98l2.49 1c.23.08.48 0 .61-.22l2-3.46a.5.5 0 0 0-.12-.64l-2.11-1.65ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z" />
+                  </svg>
+                </button>
+
+                {isMaintainersMenuOpen ? (
+                  <div className="absolute right-0 top-10 z-20 w-48 rounded-2xl border border-[#d8e2ef] bg-white p-2 text-left shadow-xl shadow-slate-200/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveMaintainer("motivos");
+                        setIsMaintainersMenuOpen(false);
+                      }}
+                      className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#173b68] transition hover:bg-[#f8fbff]"
+                    >
+                      Motivos de cita
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveMaintainer("ejecutivos");
+                        setIsMaintainersMenuOpen(false);
+                      }}
+                      className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#173b68] transition hover:bg-[#f8fbff]"
+                    >
+                      Ejecutivos
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
+
+          {activeMaintainer === "motivos" ? (
+            <div className="mb-4 overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white shadow-lg shadow-slate-200/60">
+              <div className="flex flex-col gap-1.5 border-b border-[#b7cce4] bg-[#d7e7f8] px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0b5cab]">
+                    Mantenedores
+                  </p>
+                  <h3 className="font-heading text-base font-semibold text-[#0f2747]">
+                    Motivos de cita
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveMaintainer(null)}
+                  className="inline-flex h-8 items-center justify-center rounded-full bg-[#0b5cab] px-3 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+                <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
+                  <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-[#173b68]">
+                        Buscar motivo
+                      </span>
+                      <input
+                        type="search"
+                        value={reasonSearch}
+                        onChange={(event) => setReasonSearch(event.target.value)}
+                        className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                        placeholder="Nombre o código"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setReasonSearch("")}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetReasonForm}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                    >
+                      Nuevo
+                    </button>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">
+                    <div className="grid grid-cols-[1.2fr_1fr_0.7fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+                      <span>Nombre</span>
+                      <span>Características</span>
+                      <span>Estado</span>
+                    </div>
+                    <div className="max-h-72 overflow-auto divide-y divide-[#e3ebf5]">
+                      {filteredReasons.map((reason) => (
+                        <button
+                          key={reason.value}
+                          type="button"
+                          onClick={() => editReason(reason)}
+                          className={`grid w-full grid-cols-[1.2fr_1fr_0.7fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f8fbff] ${
+                            reasonForm.id === reason.id ? "bg-blue-50/70" : ""
+                          }`}
+                        >
+                          <span>
+                            <strong className="block text-[#0f2747]">
+                              {reason.label}
+                            </strong>
+                            <span className="text-slate-500">{reason.value}</span>
+                          </span>
+                          <span className="text-slate-600">
+                            {[
+                              reason.allowsExecutiveAssignment ? "Deriva" : "",
+                              reason.usesDateRange ? "Fechas" : "",
+                              reason.usesPermitDetails ? "Horas/días" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "Sin campos"}
+                          </span>
+                          <span
+                            className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              reason.isActive
+                                ? "bg-green-50 text-green-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {reason.isActive ? "Activo" : "Inactivo"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <form
+                  noValidate
+                  onSubmit={saveReason}
+                  className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4"
+                >
+                  <div className="mb-4 border-b border-[#e3ebf5] pb-3">
+                    <h4 className="font-heading text-base font-semibold text-[#0f2747]">
+                      Datos generales
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Configura cómo se comporta este motivo en el formulario.
+                    </p>
+                  </div>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      Nombre motivo
+                    </span>
+                    <input
+                      type="text"
+                      value={reasonForm.label}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => ({
+                          ...currentForm,
+                          label: event.target.value,
+                        }))
+                      }
+                      className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                      placeholder="Ej: Capacitación"
+                    />
+                  </label>
+
+                  <div className="mt-4 grid gap-2">
+                    {reasonFeatureFields.map(([field, label]) => (
+                      <label
+                        key={field}
+                        className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]"
+                      >
+                        {label}
+                        <input
+                          type="checkbox"
+                          checked={reasonForm[field]}
+                          onChange={(event) =>
+                            setReasonForm((currentForm) => ({
+                              ...currentForm,
+                              [field]: event.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 accent-[#0b5cab]"
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  {reasonMessage ? (
+                    <p className="mt-3 text-xs font-semibold text-green-700">
+                      {reasonMessage}
+                    </p>
+                  ) : null}
+                  {reasonError ? (
+                    <p className="mt-3 text-xs font-semibold text-red-600">
+                      {reasonError}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={resetReasonForm}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingReason}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {reasonForm.id ? "Guardar cambios" : "Crear"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : null}
+
+          {activeMaintainer === "ejecutivos" ? (
+            <div className="mb-4 overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white shadow-lg shadow-slate-200/60">
+              <div className="flex flex-col gap-1.5 border-b border-[#b7cce4] bg-[#d7e7f8] px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0b5cab]">
+                    Mantenedores
+                  </p>
+                  <h3 className="font-heading text-base font-semibold text-[#0f2747]">
+                    Ejecutivos
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveMaintainer(null)}
+                  className="inline-flex h-8 items-center justify-center rounded-full bg-[#0b5cab] px-3 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+                <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
+                  <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-[#173b68]">
+                        Buscar ejecutivo
+                      </span>
+                      <input
+                        type="search"
+                        value={executiveSearch}
+                        onChange={(event) => setExecutiveSearch(event.target.value)}
+                        className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                        placeholder="Nombre o correo"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setExecutiveSearch("")}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetExecutiveForm}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                    >
+                      Nuevo
+                    </button>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">
+                    <div className="grid grid-cols-[1fr_1.2fr_0.6fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+                      <span>Nombre</span>
+                      <span>Correo</span>
+                      <span>Estado</span>
+                    </div>
+                    <div className="max-h-72 overflow-auto divide-y divide-[#e3ebf5]">
+                      {filteredExecutives.map((executive) => (
+                        <button
+                          key={executive.name}
+                          type="button"
+                          onClick={() => editExecutive(executive)}
+                          className={`grid w-full grid-cols-[1fr_1.2fr_0.6fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f8fbff] ${
+                            executiveForm.id === executive.id ? "bg-blue-50/70" : ""
+                          }`}
+                        >
+                          <strong className="text-[#0f2747]">
+                            {executive.name}
+                          </strong>
+                          <span className="break-words text-slate-600">
+                            {executive.email || "Sin correo"}
+                          </span>
+                          <span
+                            className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              executive.isActive
+                                ? "bg-green-50 text-green-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {executive.isActive ? "Activo" : "Inactivo"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <form
+                  noValidate
+                  onSubmit={saveExecutive}
+                  className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4"
+                >
+                  <div className="mb-4 border-b border-[#e3ebf5] pb-3">
+                    <h4 className="font-heading text-base font-semibold text-[#0f2747]">
+                      Datos generales
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Define quién puede recibir derivaciones y correos Outlook.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-[#173b68]">
+                        Nombre ejecutivo
+                      </span>
+                      <input
+                        type="text"
+                        value={executiveForm.name}
+                        onChange={(event) =>
+                          setExecutiveForm((currentForm) => ({
+                            ...currentForm,
+                            name: event.target.value,
+                          }))
+                        }
+                        className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                        placeholder="Ej: Félix Morillo"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-[#173b68]">
+                        Correo ejecutivo
+                      </span>
+                      <input
+                        type="email"
+                        value={executiveForm.email}
+                        onChange={(event) =>
+                          setExecutiveForm((currentForm) => ({
+                            ...currentForm,
+                            email: event.target.value,
+                          }))
+                        }
+                        className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                        placeholder="correo@transportesapoquindo.cl"
+                      />
+                    </label>
+
+                    <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]">
+                      Activo
+                      <input
+                        type="checkbox"
+                        checked={executiveForm.isActive}
+                        onChange={(event) =>
+                          setExecutiveForm((currentForm) => ({
+                            ...currentForm,
+                            isActive: event.target.checked,
+                          }))
+                        }
+                        className="h-4 w-4 accent-[#0b5cab]"
+                      />
+                    </label>
+                  </div>
+
+                  {executiveMessage ? (
+                    <p className="mt-3 text-xs font-semibold text-green-700">
+                      {executiveMessage}
+                    </p>
+                  ) : null}
+                  {executiveError ? (
+                    <p className="mt-3 text-xs font-semibold text-red-600">
+                      {executiveError}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={resetExecutiveForm}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingExecutive}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {selectedExecutiveId ? "Actualizar" : "Crear"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mb-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
             <label className="flex flex-col gap-2">
@@ -879,7 +1561,7 @@ export default function AppointmentsPage() {
                 className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
               >
                 <option value="todos">Todos los motivos</option>
-                {permissionReasons.map((reason) => (
+                {activeReasons.map((reason) => (
                   <option key={reason.value} value={reason.value}>
                     {reason.label}
                   </option>
@@ -1065,9 +1747,7 @@ export default function AppointmentsPage() {
                           {formatDate(appointment.appointmentDate)}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
-                          {getPermissionReasonLabel(
-                            appointment.appointmentReason,
-                          )}
+                          {appointment.appointmentReasonLabel}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {getRequestDateDetail(appointment) ? (
@@ -1105,9 +1785,9 @@ export default function AppointmentsPage() {
                               className="h-8 min-w-32 rounded-2xl border border-[#d8e2ef] bg-white px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
                             >
                               <option value="">Sin asignar</option>
-                              {executives.map((executive) => (
-                                <option key={executive} value={executive}>
-                                  {executive}
+                              {activeExecutives.map((executive) => (
+                                <option key={executive.name} value={executive.name}>
+                                  {executive.name}
                                 </option>
                               ))}
                             </select>

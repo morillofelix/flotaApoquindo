@@ -1,7 +1,4 @@
-import {
-  type AppointmentStatus,
-  executives,
-} from "@/lib/appointments";
+import { type AppointmentStatus, defaultExecutives } from "@/lib/appointments";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -25,8 +22,11 @@ const validStatuses: AppointmentStatus[] = [
   "rechazado",
 ];
 
-function isValidExecutive(value: string) {
-  return executives.some((executive) => executive === value);
+async function ensureDefaultExecutives() {
+  await prisma.executive.createMany({
+    data: defaultExecutives,
+    skipDuplicates: true,
+  });
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -64,12 +64,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (body.assignedExecutive !== undefined) {
     if (
       typeof body.assignedExecutive !== "string" ||
-      (body.assignedExecutive !== "" && !isValidExecutive(body.assignedExecutive))
+      body.assignedExecutive.length > 120
     ) {
       return NextResponse.json(
         { message: "Ejecutivo inválido." },
         { status: 400 },
       );
+    }
+
+    if (body.assignedExecutive !== "") {
+      await ensureDefaultExecutives();
+      const executive = await prisma.executive.findUnique({
+        where: { name: body.assignedExecutive },
+      });
+
+      if (!executive?.isActive) {
+        return NextResponse.json(
+          { message: "Ejecutivo inválido." },
+          { status: 400 },
+        );
+      }
     }
 
     data.assignedExecutive = body.assignedExecutive;

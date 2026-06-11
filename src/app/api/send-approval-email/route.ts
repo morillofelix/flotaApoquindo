@@ -1,9 +1,6 @@
 import {
   type Appointment,
-  appointmentReasonUsesPermitDetails,
-  appointmentReasonUsesDateRange,
   getAppointmentTicketLabel,
-  getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { NextResponse, type NextRequest } from "next/server";
 import nodemailer from "nodemailer";
@@ -16,6 +13,9 @@ type ApprovalEmailPayload = Pick<
   | "vehicleNumber"
   | "appointmentDate"
   | "appointmentReason"
+  | "appointmentReasonLabel"
+  | "reasonUsesDateRange"
+  | "reasonUsesPermitDetails"
   | "vacationStartDate"
   | "vacationEndDate"
   | "permitType"
@@ -42,6 +42,9 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
     typeof payload.vehicleNumber === "string" &&
     typeof payload.appointmentDate === "string" &&
     typeof payload.appointmentReason === "string" &&
+    typeof payload.appointmentReasonLabel === "string" &&
+    typeof payload.reasonUsesDateRange === "boolean" &&
+    typeof payload.reasonUsesPermitDetails === "boolean" &&
     typeof payload.vacationStartDate === "string" &&
     typeof payload.vacationEndDate === "string" &&
     typeof payload.permitType === "string" &&
@@ -53,8 +56,7 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
     (payload.status === "aprobado" || payload.status === "rechazado") &&
-    (appointmentReasonUsesDateRange(payload.appointmentReason) ||
-      appointmentReasonUsesPermitDetails(payload.appointmentReason))
+    (payload.reasonUsesDateRange || payload.reasonUsesPermitDetails)
   );
 }
 
@@ -76,7 +78,11 @@ function escapeHtml(value: string) {
 }
 
 function getDateRange(appointment: ApprovalEmailPayload) {
-  if (!appointment.vacationStartDate || !appointment.vacationEndDate) {
+  if (
+    !appointment.reasonUsesDateRange ||
+    !appointment.vacationStartDate ||
+    !appointment.vacationEndDate
+  ) {
     return "";
   }
 
@@ -86,7 +92,7 @@ function getDateRange(appointment: ApprovalEmailPayload) {
 }
 
 function getPermitDetail(appointment: ApprovalEmailPayload) {
-  if (!appointmentReasonUsesPermitDetails(appointment.appointmentReason)) {
+  if (!appointment.reasonUsesPermitDetails) {
     return "";
   }
 
@@ -117,7 +123,7 @@ function getPermitDetail(appointment: ApprovalEmailPayload) {
 function createEmailHtml(appointment: ApprovalEmailPayload) {
   const driverName = escapeHtml(appointment.driverName);
   const ticketId = escapeHtml(getAppointmentTicketLabel(appointment));
-  const reason = escapeHtml(getPermissionReasonLabel(appointment.appointmentReason));
+  const reason = escapeHtml(appointment.appointmentReasonLabel);
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
   const isApproved = appointment.status === "aprobado";
@@ -156,7 +162,7 @@ function createEmailText(appointment: ApprovalEmailPayload) {
     "",
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
-    `Motivo: ${getPermissionReasonLabel(appointment.appointmentReason)}`,
+    `Motivo: ${appointment.appointmentReasonLabel}`,
   ];
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
