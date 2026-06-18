@@ -67,3 +67,117 @@ export async function loadDriverOwners() {
 
   return data.driverOwners ?? [];
 }
+
+function escapeExcelHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatExcelBoolean(value: boolean) {
+  return value ? "Sí" : "No";
+}
+
+function formatExcelActiveStatus(value: boolean) {
+  return value ? "Activo" : "Inactivo";
+}
+
+function downloadExcelHtmlTable(htmlTable: string, fileName: string) {
+  const blob = new Blob([htmlTable], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadAppointmentReasonsExcel(
+  reasons: AppointmentReasonConfig[],
+  fileName: string,
+) {
+  const tableRows = reasons
+    .map(
+      (reason) => `
+        <tr>
+          <td>${escapeExcelHtml(reason.label)}</td>
+          <td>${escapeExcelHtml(reason.value)}</td>
+          <td>${escapeExcelHtml(formatExcelBoolean(reason.allowsExecutiveAssignment))}</td>
+          <td>${escapeExcelHtml(formatExcelBoolean(reason.usesDateRange))}</td>
+          <td>${escapeExcelHtml(formatExcelBoolean(reason.usesPermitDetails))}</td>
+          <td>${escapeExcelHtml(formatExcelActiveStatus(reason.isActive))}</td>
+          <td>${escapeExcelHtml(String(reason.sortOrder))}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const htmlTable = `
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+      </head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Código</th>
+              <th>Deriva</th>
+              <th>Rango fechas</th>
+              <th>Permiso horas/días</th>
+              <th>Estado</th>
+              <th>Orden</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </body>
+    </html>`;
+
+  downloadExcelHtmlTable(htmlTable, fileName);
+}
+
+export function downloadExecutivesExcel(
+  executives: ExecutiveConfig[],
+  fileName: string,
+) {
+  const tableRows = executives
+    .map(
+      (executive) => `
+        <tr>
+          <td>${escapeExcelHtml(executive.name)}</td>
+          <td>${escapeExcelHtml(executive.email)}</td>
+          <td>${escapeExcelHtml(formatExcelActiveStatus(executive.isActive))}</td>
+          <td>${escapeExcelHtml(String(executive.sortOrder))}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const htmlTable = `
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+      </head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Correo</th>
+              <th>Estado</th>
+              <th>Orden</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </body>
+    </html>`;
+
+  downloadExcelHtmlTable(htmlTable, fileName);
+}

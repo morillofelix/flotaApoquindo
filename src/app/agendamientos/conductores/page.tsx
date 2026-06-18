@@ -4,7 +4,7 @@ import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeade
 import { loadDriverOwners } from "@/lib/agendamientos-admin";
 import {
   countImportCategories,
-  driverOwnerCsvTemplate,
+  downloadDriverOwnersExcel,
   filterDriverOwnerImportRows,
   formatFileSize,
   formatPersonTypes,
@@ -119,6 +119,16 @@ export default function ConductoresPage() {
   const [driverOwnerForm, setDriverOwnerForm] =
     useState<DriverOwnerForm>(emptyDriverOwnerForm);
   const [driverOwnerSearch, setDriverOwnerSearch] = useState("");
+  const [activeStatusFilter, setActiveStatusFilter] = useState<
+    "todos" | "activo" | "inactivo"
+  >("todos");
+  const [shiftFilters, setShiftFilters] = useState<
+    Record<ShiftType, boolean>
+  >({
+    diurno: false,
+    nocturno: false,
+    intermedio: false,
+  });
   const [driverOwnerMessage, setDriverOwnerMessage] = useState("");
   const [driverOwnerError, setDriverOwnerError] = useState("");
   const [isSavingDriverOwner, setIsSavingDriverOwner] = useState(false);
@@ -136,13 +146,14 @@ export default function ConductoresPage() {
 
   const filteredDriverOwners = useMemo(() => {
     const normalizedSearch = driverOwnerSearch.trim().toLowerCase();
+    const selectedShifts = shiftOptions
+      .map((option) => option.value)
+      .filter((shift) => shiftFilters[shift]);
+    const hasShiftFilter = selectedShifts.length > 0;
 
-    if (!normalizedSearch) {
-      return driverOwners;
-    }
-
-    return driverOwners.filter(
-      (driverOwner) =>
+    return driverOwners.filter((driverOwner) => {
+      const matchesSearch =
+        !normalizedSearch ||
         driverOwner.vehicleNumber.toLowerCase().includes(normalizedSearch) ||
         driverOwner.fullName.toLowerCase().includes(normalizedSearch) ||
         driverOwner.email.toLowerCase().includes(normalizedSearch) ||
@@ -156,9 +167,25 @@ export default function ConductoresPage() {
           .includes(normalizedSearch) ||
         formatShifts(driverOwner.shifts)
           .toLowerCase()
-          .includes(normalizedSearch),
-    );
-  }, [driverOwnerSearch, driverOwners]);
+          .includes(normalizedSearch);
+
+      const matchesActiveStatus =
+        activeStatusFilter === "todos" ||
+        (activeStatusFilter === "activo" && driverOwner.isActive) ||
+        (activeStatusFilter === "inactivo" && !driverOwner.isActive);
+
+      const matchesShift =
+        !hasShiftFilter ||
+        selectedShifts.some((shift) => driverOwner.shifts.includes(shift));
+
+      return matchesSearch && matchesActiveStatus && matchesShift;
+    });
+  }, [activeStatusFilter, driverOwnerSearch, driverOwners, shiftFilters]);
+
+  const hasListFilters =
+    driverOwnerSearch.trim().length > 0 ||
+    activeStatusFilter !== "todos" ||
+    shiftOptions.some((option) => shiftFilters[option.value]);
 
   const filteredBulkRows = useMemo(() => {
     if (!bulkUpload.parsedRows.length) {
@@ -204,16 +231,29 @@ export default function ConductoresPage() {
     setDriverOwnerError("");
   }
 
-  function downloadDriverOwnerTemplate() {
-    const blob = new Blob([driverOwnerCsvTemplate], {
-      type: "text/csv;charset=utf-8;",
+  function clearListFilters() {
+    setDriverOwnerSearch("");
+    setActiveStatusFilter("todos");
+    setShiftFilters({
+      diurno: false,
+      nocturno: false,
+      intermedio: false,
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "plantilla-conductores-propietarios.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+  }
+
+  function toggleShiftFilter(shift: ShiftType) {
+    setShiftFilters((currentFilters) => ({
+      ...currentFilters,
+      [shift]: !currentFilters[shift],
+    }));
+  }
+
+  function downloadVisibleDriverOwners() {
+    const fileName = hasListFilters
+      ? "conductores-propietarios-filtrados.xls"
+      : "conductores-propietarios.xls";
+
+    downloadDriverOwnersExcel(filteredDriverOwners, fileName);
   }
 
   async function handleBulkFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
@@ -542,10 +582,14 @@ export default function ConductoresPage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={downloadDriverOwnerTemplate}
-                        className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                        onClick={downloadVisibleDriverOwners}
+                        disabled={filteredDriverOwners.length === 0}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-emerald-500 bg-white px-4 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
                       >
-                        Plantilla CSV
+                        <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm bg-emerald-500 text-[9px] font-bold leading-none text-white">
+                          X
+                        </span>
+                        Exportar a Excel
                       </button>
                       <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
                         {bulkUpload.phase === "reading" ||
@@ -743,35 +787,84 @@ export default function ConductoresPage() {
                 </div>
               </div>
 
-              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-[#173b68]">
-                    Buscar registro
-                  </span>
-                  <input
-                    type="search"
-                    value={driverOwnerSearch}
-                    onChange={(event) =>
-                      setDriverOwnerSearch(event.target.value)
-                    }
-                    className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
-                    placeholder="Móvil, nombre, correo o tipo"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setDriverOwnerSearch("")}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
-                >
-                  Limpiar
-                </button>
-                <button
-                  type="button"
-                  onClick={resetDriverOwnerForm}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
-                >
-                  Nuevo
-                </button>
+              <div className="mb-3 grid gap-2">
+                <div className="grid gap-2 lg:grid-cols-[1.4fr_0.7fr_auto_auto] lg:items-end">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      Buscar registro
+                    </span>
+                    <input
+                      type="search"
+                      value={driverOwnerSearch}
+                      onChange={(event) =>
+                        setDriverOwnerSearch(event.target.value)
+                      }
+                      className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                      placeholder="Móvil, nombre, correo o tipo"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      Estado
+                    </span>
+                    <select
+                      value={activeStatusFilter}
+                      onChange={(event) =>
+                        setActiveStatusFilter(
+                          event.target.value as "todos" | "activo" | "inactivo",
+                        )
+                      }
+                      className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    >
+                      <option value="todos">Todos</option>
+                      <option value="activo">Activo</option>
+                      <option value="inactivo">Inactivo</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={clearListFilters}
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                  >
+                    Limpiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetDriverOwnerForm}
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                  >
+                    Nuevo
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-[#d8e2ef] bg-white px-3 py-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      Filtrar por turno
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {shiftOptions.map((shift) => (
+                        <label
+                          key={shift.value}
+                          className="flex h-8 items-center gap-2 rounded-full border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]"
+                        >
+                          {shift.label}
+                          <input
+                            type="checkbox"
+                            checked={shiftFilters[shift.value]}
+                            onChange={() => toggleShiftFilter(shift.value)}
+                            className="h-4 w-4 accent-[#0b5cab]"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] font-semibold text-slate-500">
+                  Mostrando {filteredDriverOwners.length} de {driverOwners.length}{" "}
+                  registros
+                </p>
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">

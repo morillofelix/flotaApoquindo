@@ -779,3 +779,92 @@ export function toDriverOwnerCreateData(
     isActive: row.isActive,
   };
 }
+
+function escapeExcelHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export function downloadDriverOwnersExcel(
+  rows: DriverOwnerConfig[],
+  fileName: string,
+) {
+  const tableRows = rows
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeExcelHtml(row.vehicleNumber)}</td>
+          <td>${escapeExcelHtml(row.fullName)}</td>
+          <td>${escapeExcelHtml(formatPersonTypes(row.isConductor, row.isPropietario))}</td>
+          <td>${escapeExcelHtml(formatShifts(row.shifts))}</td>
+          <td>${escapeExcelHtml(row.isActive ? "Activo" : "Inactivo")}</td>
+          <td>${escapeExcelHtml(row.email)}</td>
+          <td>${escapeExcelHtml(row.rut)}</td>
+          <td>${escapeExcelHtml(row.landlinePhone)}</td>
+          <td>${escapeExcelHtml(row.mobilePhone)}</td>
+          <td>${escapeExcelHtml(row.address)}</td>
+          <td>${escapeExcelHtml(row.municipalLicense)}</td>
+          <td>${escapeExcelHtml(row.licensePlate)}</td>
+          <td>${escapeExcelHtml(row.vehicleType)}</td>
+          <td>${escapeExcelHtml(row.licenseExpiryDate)}</td>
+          <td>${escapeExcelHtml(row.birthDate)}</td>
+          <td>${escapeExcelHtml(row.inspectionExpiryDate)}</td>
+          <td>${escapeExcelHtml(row.subscriptionDate)}</td>
+          <td>${escapeExcelHtml(row.emergencyContactName)}</td>
+          <td>${escapeExcelHtml(row.emergencyContactEmail)}</td>
+          <td>${escapeExcelHtml(row.emergencyContactPhone)}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const htmlTable = `
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+      </head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Móvil</th>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Turnos</th>
+              <th>Estado</th>
+              <th>Correo</th>
+              <th>RUT</th>
+              <th>Teléfono fijo</th>
+              <th>Teléfono móvil</th>
+              <th>Dirección</th>
+              <th>Licencia municipal</th>
+              <th>Patente</th>
+              <th>Tipo vehículo</th>
+              <th>Fecha venc. carnet</th>
+              <th>Fecha nacimiento</th>
+              <th>Fecha venc. revisión</th>
+              <th>Fecha suscripción</th>
+              <th>Contacto emergencia</th>
+              <th>Correo emergencia</th>
+              <th>Teléfono emergencia</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </body>
+    </html>`;
+
+  const blob = new Blob([htmlTable], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}

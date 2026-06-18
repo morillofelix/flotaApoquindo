@@ -2,7 +2,10 @@
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { type AppointmentReasonConfig } from "@/lib/appointments";
-import { loadAppointmentReasons } from "@/lib/agendamientos-admin";
+import {
+  downloadAppointmentReasonsExcel,
+  loadAppointmentReasons,
+} from "@/lib/agendamientos-admin";
 import { useEffect, useMemo, useState } from "react";
 
 type ReasonForm = {
@@ -63,6 +66,16 @@ export default function MotivosPage() {
         reason.value.toLowerCase().includes(normalizedSearch),
     );
   }, [reasonSearch, reasons]);
+
+  const hasListFilters = reasonSearch.trim().length > 0;
+
+  function downloadVisibleReasons() {
+    const fileName = hasListFilters
+      ? "motivos-cita-filtrados.xls"
+      : "motivos-cita.xls";
+
+    downloadAppointmentReasonsExcel(filteredReasons, fileName);
+  }
 
   function editReason(reason: AppointmentReasonConfig) {
     setReasonForm({
@@ -127,7 +140,7 @@ export default function MotivosPage() {
         <div className="overflow-hidden rounded-[22px] border border-[#d8e2ef] bg-white shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
             <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
-              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end lg:grid-cols-[1fr_auto_auto_auto]">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Buscar motivo
@@ -140,20 +153,33 @@ export default function MotivosPage() {
                     placeholder="Nombre o código"
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setReasonSearch("")}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
-                >
-                  Limpiar
-                </button>
-                <button
-                  type="button"
-                  onClick={resetReasonForm}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
-                >
-                  Nuevo
-                </button>
+                <div className="flex flex-wrap gap-2 sm:col-span-1 lg:col-span-3 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={downloadVisibleReasons}
+                    disabled={filteredReasons.length === 0}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-emerald-500 bg-white px-4 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                  >
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm bg-emerald-500 text-[9px] font-bold leading-none text-white">
+                      X
+                    </span>
+                    Exportar a Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReasonSearch("")}
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                  >
+                    Limpiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetReasonForm}
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                  >
+                    Nuevo
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">

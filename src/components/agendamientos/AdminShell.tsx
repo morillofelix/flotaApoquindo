@@ -199,7 +199,7 @@ export default function AdminShell({
 
   return (
     <div className="min-h-[100dvh] bg-[#eef3f9] text-[#0f2747]">
-      <nav className="border-b border-[#d8e2ef] bg-white shadow-sm shadow-slate-200/60">
+      <nav className="border-b border-[#b7cce4] bg-[#d7e7f8] shadow-sm shadow-slate-200/40">
         <div className="mx-auto flex w-full max-w-[1540px] flex-col gap-3 px-3 py-3 sm:px-6 xl:px-10">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-1">
@@ -213,7 +213,7 @@ export default function AdminShell({
                     className={`inline-flex h-9 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
                       active
                         ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
-                        : "text-[#173b68] hover:bg-[#d7e7f8]"
+                        : "text-[#173b68] hover:bg-white/75"
                     }`}
                   >
                     {item.label}
