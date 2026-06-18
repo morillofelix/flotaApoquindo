@@ -109,7 +109,8 @@ export type AppointmentStatus =
   | "pendiente"
   | "revisado"
   | "aprobado"
-  | "rechazado";
+  | "rechazado"
+  | "cancelado";
 
 export type Appointment = {
   id: string;

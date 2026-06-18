@@ -1,0 +1,29 @@
+import { prisma } from "@/lib/prisma";
+import { NextResponse, type NextRequest } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+
+  if (!id) {
+    return NextResponse.json({ message: "Registro no encontrado." }, { status: 404 });
+  }
+
+  try {
+    await prisma.driverOwner.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ message: "Registro eliminado." });
+  } catch {
+    return NextResponse.json(
+      { message: "No se pudo eliminar el registro." },
+      { status: 500 },
+    );
+  }
+}

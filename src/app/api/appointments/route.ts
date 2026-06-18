@@ -35,6 +35,7 @@ const validStatuses: AppointmentStatus[] = [
   "revisado",
   "aprobado",
   "rechazado",
+  "cancelado",
 ];
 
 function isValidAppointmentDate(value: string) {

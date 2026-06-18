@@ -20,6 +20,7 @@ const validStatuses: AppointmentStatus[] = [
   "revisado",
   "aprobado",
   "rechazado",
+  "cancelado",
 ];
 
 async function ensureDefaultExecutives() {

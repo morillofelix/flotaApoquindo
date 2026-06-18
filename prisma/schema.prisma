@@ -64,3 +64,36 @@ model Executive {
   @@index([isActive])
   @@index([sortOrder])
 }
+
+model DriverOwner {
+  id                     String    @id @default(uuid())
+  vehicleNumber          String    @unique
+  fullName               String
+  email                  String    @default("")
+  rut                    String    @default("")
+  licenseExpiryDate      DateTime? @db.Date
+  birthDate              DateTime? @db.Date
+  landlinePhone          String    @default("")
+  mobilePhone            String    @default("")
+  address                String    @default("")
+  recordStatus           String    @default("V")
+  isConductor            Boolean   @default(false)
+  isPropietario          Boolean   @default(false)
+  municipalLicense       String    @default("")
+  shifts                 String    @default("")
+  emergencyContactName   String    @default("")
+  emergencyContactEmail  String    @default("")
+  emergencyContactPhone  String    @default("")
+  licensePlate           String    @default("")
+  inspectionExpiryDate   DateTime? @db.Date
+  vehicleType            String    @default("")
+  subscriptionDate       DateTime? @db.Date
+  isActive               Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([fullName])
+  @@index([recordStatus])
+  @@index([licensePlate])
+}
