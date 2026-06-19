@@ -3,12 +3,15 @@ import {
   defaultExecutives,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
+import {
+  DEFAULT_APPOINTMENT_START_HOUR,
+  DEFAULT_APPOINTMENT_START_MINUTE,
+  resolveAppointmentSchedule,
+} from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 import nodemailer from "nodemailer";
 
-const inviteStartHour = 9;
-const inviteDurationMinutes = 30;
 const calendarTimezone = "America/Santiago";
 
 type CalendarInvitePayload = Pick<
@@ -21,6 +24,8 @@ type CalendarInvitePayload = Pick<
   | "appointmentReason"
   | "appointmentReasonLabel"
   | "reasonAllowsExecutiveAssignment"
+  | "reasonUsesAppointmentDuration"
+  | "reasonAppointmentDurationMinutes"
   | "reasonUsesDateRange"
   | "vacationStartDate"
   | "vacationEndDate"
@@ -45,6 +50,8 @@ function isCalendarInvitePayload(value: unknown): value is CalendarInvitePayload
     typeof payload.appointmentReason === "string" &&
     typeof payload.appointmentReasonLabel === "string" &&
     typeof payload.reasonAllowsExecutiveAssignment === "boolean" &&
+    typeof payload.reasonUsesAppointmentDuration === "boolean" &&
+    typeof payload.reasonAppointmentDurationMinutes === "number" &&
     typeof payload.reasonUsesDateRange === "boolean" &&
     typeof payload.vacationStartDate === "string" &&
     typeof payload.vacationEndDate === "string" &&
@@ -93,12 +100,16 @@ function formatUtcDateTime(value: Date) {
   return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
-function getInviteEndTime() {
-  const endDate = new Date(2026, 0, 1, inviteStartHour, inviteDurationMinutes);
-  return {
-    hour: endDate.getHours(),
-    minute: endDate.getMinutes(),
-  };
+function getAppointmentSchedule(appointment: CalendarInvitePayload) {
+  return resolveAppointmentSchedule({
+    appointmentDate: appointment.appointmentDate,
+    reasonAllowsExecutiveAssignment: appointment.reasonAllowsExecutiveAssignment,
+    reasonUsesAppointmentDuration: appointment.reasonUsesAppointmentDuration,
+    reasonAppointmentDurationMinutes:
+      appointment.reasonAppointmentDurationMinutes,
+    startHour: DEFAULT_APPOINTMENT_START_HOUR,
+    startMinute: DEFAULT_APPOINTMENT_START_MINUTE,
+  });
 }
 
 function getAppointmentDateRange(appointment: CalendarInvitePayload) {
@@ -136,16 +147,21 @@ function createCalendarInvite(
   executiveEmail: string,
   emailFrom: string,
 ) {
-  const endTime = getInviteEndTime();
+  const schedule = getAppointmentSchedule(appointment);
+
+  if (!schedule) {
+    throw new Error("No se pudo calcular la duración de la cita.");
+  }
+
   const startDateTime = formatCalendarDateTime(
     appointment.appointmentDate,
-    inviteStartHour,
-    0,
+    schedule.startHour,
+    schedule.startMinute,
   );
   const endDateTime = formatCalendarDateTime(
     appointment.appointmentDate,
-    endTime.hour,
-    endTime.minute,
+    schedule.endHour,
+    schedule.endMinute,
   );
   const subject = `Cita Apoquindo - Ticket ${getAppointmentTicketLabel(appointment)}`;
   const description = createInviteDescription(appointment);
@@ -178,18 +194,23 @@ function createCalendarInvite(
 function createEmailHtml(appointment: CalendarInvitePayload) {
   const reason = escapeHtml(appointment.appointmentReasonLabel);
   const dateRange = getAppointmentDateRange(appointment);
+  const schedule = getAppointmentSchedule(appointment);
+
+  if (!schedule) {
+    return "";
+  }
 
   return `
     <div style="font-family: Arial, sans-serif; color: #0f2747; line-height: 1.6;">
       <h1 style="margin: 0 0 12px;">Cita agendada</h1>
       <p>Hola ${escapeHtml(appointment.assignedExecutive)},</p>
-      <p>Se ha agendado una cita de 30 minutos para atender la siguiente solicitud.</p>
+      <p>Se ha agendado una cita de ${schedule.durationMinutes} minutos para atender la siguiente solicitud.</p>
       <hr style="border: 0; border-top: 1px solid #d8e2ef; margin: 20px 0;" />
       <p><strong>Ticket:</strong> ${escapeHtml(getAppointmentTicketLabel(appointment))}</p>
       <p><strong>Conductor:</strong> ${escapeHtml(appointment.driverName)}</p>
       <p><strong>Móvil:</strong> ${escapeHtml(appointment.vehicleNumber)}</p>
-      <p><strong>Fecha:</strong> ${escapeHtml(formatDisplayDate(appointment.appointmentDate))}</p>
-      <p><strong>Hora:</strong> ${inviteStartHour.toString().padStart(2, "0")}:00 (${inviteDurationMinutes} min)</p>
+      <p><strong>Fecha:</strong> ${escapeHtml(schedule.dateLabel)}</p>
+      <p><strong>Hora:</strong> ${escapeHtml(schedule.timeRangeLabel)} (${schedule.durationMinutes} min)</p>
       <p><strong>Motivo:</strong> ${reason}</p>
       ${dateRange ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(dateRange)}</p>` : ""}
       <p><strong>Correo solicitante:</strong> ${escapeHtml(appointment.email)}</p>
@@ -200,13 +221,19 @@ function createEmailHtml(appointment: CalendarInvitePayload) {
 }
 
 function createEmailText(appointment: CalendarInvitePayload) {
+  const schedule = getAppointmentSchedule(appointment);
+
+  if (!schedule) {
+    return "";
+  }
+
   return [
     `Hola ${appointment.assignedExecutive},`,
     "",
-    "Se ha agendado una cita de 30 minutos para atender la siguiente solicitud.",
+    `Se ha agendado una cita de ${schedule.durationMinutes} minutos para atender la siguiente solicitud.`,
     "",
     createInviteDescription(appointment),
-    `Hora: ${inviteStartHour.toString().padStart(2, "0")}:00 (${inviteDurationMinutes} min)`,
+    `Hora: ${schedule.timeRangeLabel} (${schedule.durationMinutes} min)`,
     "",
     "La invitación de calendario viene adjunta para Outlook.",
   ].join("\n");

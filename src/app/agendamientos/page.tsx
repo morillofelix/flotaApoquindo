@@ -16,6 +16,7 @@ import {
   loadAppointments,
   loadExecutives,
 } from "@/lib/agendamientos-admin";
+import { matchesVehicleNumberSearch } from "@/lib/maintainer-search";
 import {
   type DateFilter,
   type EmailNotice,
@@ -25,7 +26,7 @@ import {
   formatDate,
   getRequestDateDetail,
   isWithinDateFilter,
-  sendCalendarInvite,
+  sendExecutiveAssignmentEmails,
   sendCalendarCancelToExecutive,
   sendCancellationToRequester,
   sendDecisionEmail,
@@ -114,7 +115,7 @@ export default function AppointmentsPage() {
   }, [emailNotice]);
 
   const filteredAppointments = useMemo(() => {
-    const normalizedVehicleFilter = vehicleFilter.trim().toLowerCase();
+    const normalizedVehicleFilter = vehicleFilter.trim();
 
     return appointments.filter((appointment) => {
       const matchesStatus =
@@ -124,9 +125,10 @@ export default function AppointmentsPage() {
         appointment.appointmentReason === reasonFilter;
       const matchesVehicle =
         normalizedVehicleFilter === "" ||
-        appointment.vehicleNumber
-          .toLowerCase()
-          .includes(normalizedVehicleFilter);
+        matchesVehicleNumberSearch(
+          appointment.vehicleNumber,
+          normalizedVehicleFilter,
+        );
       const matchesDate = isWithinDateFilter(
         appointment.createdAt,
         dateFilter,
@@ -208,17 +210,17 @@ export default function AppointmentsPage() {
         try {
           setEmailNotice({
             status: "sending",
-            message: "Enviando cita Outlook al ejecutivo...",
+            message: "Enviando cita y confirmación...",
           });
-          await sendCalendarInvite(updatedAppointment);
+          await sendExecutiveAssignmentEmails(updatedAppointment);
           setEmailNotice({
             status: "sent",
-            message: "Correo enviado.",
+            message: "Correos enviados.",
           });
         } catch {
           setEmailNotice(null);
           setAppointmentsError(
-            "La solicitud quedó agendada, pero no se pudo enviar la cita al ejecutivo.",
+            "La solicitud quedó agendada, pero no se pudieron enviar todos los correos.",
           );
         }
       }
@@ -376,17 +378,17 @@ export default function AppointmentsPage() {
         try {
           setEmailNotice({
             status: "sending",
-            message: "Enviando cita Outlook al ejecutivo...",
+            message: "Enviando cita y confirmación...",
           });
-          await sendCalendarInvite(appointmentToInvite);
+          await sendExecutiveAssignmentEmails(appointmentToInvite);
           setEmailNotice({
             status: "sent",
-            message: "Correo enviado.",
+            message: "Correos enviados.",
           });
         } catch {
           setEmailNotice(null);
           setAppointmentsError(
-            "El ejecutivo quedó asignado, pero no se pudo enviar la cita.",
+            "El ejecutivo quedó asignado, pero no se pudieron enviar todos los correos.",
           );
         }
       }
@@ -423,7 +425,7 @@ export default function AppointmentsPage() {
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <header className="mb-3 rounded-[22px] border border-[#d8e2ef] bg-white p-4 shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+        <header className="mb-3 rounded-[22px] border border-[#b7cce4] bg-white p-4 shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
@@ -517,7 +519,7 @@ export default function AppointmentsPage() {
           </div>
         </header>
 
-        <section className="rounded-[22px] border border-[#d8e2ef] bg-white p-4 shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+        <section className="rounded-[22px] border border-[#b7cce4] bg-white p-4 shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="-m-4 mb-3 flex flex-col gap-1 rounded-t-[22px] border-b border-[#b7cce4] bg-[#d7e7f8] px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:rounded-t-[24px]">
             <h2 className="font-heading text-base font-semibold text-[#0f2747]">
               Panel de solicitudes
@@ -539,7 +541,7 @@ export default function AppointmentsPage() {
                     event.target.value as "todos" | AppointmentStatus,
                   )
                 }
-                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todos</option>
                 <option value="pendiente">Pendientes</option>
@@ -559,7 +561,7 @@ export default function AppointmentsPage() {
                 onChange={(event) =>
                   setReasonFilter(event.target.value as "todos" | PermissionReason)
                 }
-                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todos los motivos</option>
                 {activeReasons.map((reason) => (
@@ -578,7 +580,7 @@ export default function AppointmentsPage() {
                 type="search"
                 value={vehicleFilter}
                 onChange={(event) => setVehicleFilter(event.target.value)}
-                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                 placeholder="Número de móvil"
               />
             </label>
@@ -592,7 +594,7 @@ export default function AppointmentsPage() {
                 onChange={(event) =>
                   setDateFilter(event.target.value as DateFilter)
                 }
-                className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todas las fechas</option>
                 <option value="hoy">Hoy</option>
@@ -603,13 +605,13 @@ export default function AppointmentsPage() {
               </select>
             </label>
 
-            <div className="flex h-10 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 text-xs font-semibold text-slate-600">
+            <div className="flex h-10 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-4 text-xs font-semibold text-slate-600">
               Mostrando {filteredAppointments.length} de {appointments.length}
             </div>
           </div>
 
           {dateFilter === "personalizado" ? (
-            <div className="mb-6 grid gap-3 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:grid-cols-2">
+            <div className="mb-6 grid gap-3 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4 sm:grid-cols-2">
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold text-[#173b68]">
                   Desde
@@ -623,7 +625,7 @@ export default function AppointmentsPage() {
                       startDate: event.target.value,
                     }))
                   }
-                  className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                  className="h-12 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                 />
               </label>
               <label className="flex flex-col gap-2">
@@ -639,14 +641,14 @@ export default function AppointmentsPage() {
                       endDate: event.target.value,
                     }))
                   }
-                  className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                  className="h-12 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                 />
               </label>
             </div>
           ) : null}
 
           {isLoadingAppointments ? (
-            <div className="mb-6 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-4 py-3 text-sm font-medium text-[#173b68]">
+            <div className="mb-6 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-4 py-3 text-sm font-medium text-[#173b68]">
               Cargando solicitudes desde la base de datos...
             </div>
           ) : null}
@@ -676,7 +678,7 @@ export default function AppointmentsPage() {
             </div>
           ) : null}
 
-          <div className="mb-3 flex flex-col gap-2 border-b border-[#e3ebf5] pb-3 sm:flex-row">
+          <div className="mb-3 flex flex-col gap-2 border-b border-[#c5d8eb] pb-3 sm:flex-row">
             <button
               type="button"
               onClick={() =>
@@ -709,7 +711,7 @@ export default function AppointmentsPage() {
           </div>
 
           {filteredAppointments.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl border border-[#d8e2ef]">
+            <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
               <div className="max-h-[62dvh] overflow-auto">
                 <table className="min-w-[1040px] w-full border-collapse text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[#d7e7f8] text-[10px] uppercase tracking-[0.12em] text-[#0f2747] shadow-[0_2px_0_#b7cce4]">
@@ -730,7 +732,7 @@ export default function AppointmentsPage() {
                       <th className="min-w-20 px-2.5 py-2 font-semibold">Acción</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e3ebf5]">
+                  <tbody className="divide-y divide-[#c5d8eb]">
                     {filteredAppointments.map((appointment) => (
                       <tr
                         key={appointment.id}
@@ -753,7 +755,7 @@ export default function AppointmentsPage() {
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {getRequestDateDetail(appointment) ? (
-                            <div className="max-w-40 rounded-xl border border-[#d8e2ef] bg-[#f8fbff] px-2 py-1">
+                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                                 Detalle
                               </p>
@@ -785,7 +787,7 @@ export default function AppointmentsPage() {
                                     event.target.value as Executive | "",
                                   )
                                 }
-                                className="h-8 w-full rounded-2xl border border-[#d8e2ef] bg-white px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                                className="h-8 w-full rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               >
                                 <option value="">Sin asignar</option>
                                 {activeExecutives.map((executive) => (
@@ -797,7 +799,7 @@ export default function AppointmentsPage() {
 
                               {executiveAssignmentPrompt?.appointmentId ===
                               appointment.id ? (
-                                <div className="rounded-2xl border border-[#b7cce4] bg-white p-3 shadow-lg shadow-slate-200/70">
+                                <div className="rounded-2xl border border-[#b7cce4] bg-white p-3 shadow-lg shadow-slate-300/25">
                                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0b5cab]">
                                     Confirmar ejecutivo
                                   </p>
@@ -833,7 +835,7 @@ export default function AppointmentsPage() {
                                       type="button"
                                       onClick={cancelExecutiveAssignment}
                                       disabled={isConfirmingExecutive}
-                                      className="inline-flex h-8 items-center justify-center rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
+                                      className="inline-flex h-8 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                       Cancelar
                                     </button>
@@ -852,7 +854,7 @@ export default function AppointmentsPage() {
                               ) : null}
                             </div>
                           ) : (
-                            <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-2.5 text-xs font-semibold text-slate-400">
+                            <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-slate-400">
                               No aplica
                             </span>
                           )}
@@ -878,7 +880,7 @@ export default function AppointmentsPage() {
                                   updateStatus(appointment.id, nextStatus);
                                   event.target.value = "";
                                 }}
-                                className="h-8 rounded-full border border-[#d8e2ef] bg-white px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                                className="h-8 rounded-full border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               >
                                 <option value="">Cambiar estado</option>
                                 {appointmentAllowsExecutive(appointment) ? (
@@ -907,7 +909,7 @@ export default function AppointmentsPage() {
                                   event.target.value as AppointmentStatus,
                                 )
                               }
-                              className={`h-8 min-w-28 rounded-full border px-2.5 text-xs font-semibold outline-none transition focus:ring-4 focus:ring-blue-100 ${statusStyles[appointment.status]}`}
+                              className={`h-8 min-w-28 rounded-full border px-2.5 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-[#0b5cab]/15 ${statusStyles[appointment.status]}`}
                             >
                               <option value="pendiente">Pendiente</option>
                               <option value="aprobado">Aprobado</option>
@@ -939,7 +941,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-[#b9c9dd] bg-[#f8fbff] px-5 py-10 text-center">
+            <div className="rounded-2xl border border-dashed border-[#a8bdd6] bg-[#f8fbff] px-5 py-10 text-center">
               <h3 className="font-heading text-xl font-semibold text-[#0f2747]">
                 No hay solicitudes para mostrar
               </h3>

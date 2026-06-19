@@ -344,6 +344,25 @@ export async function sendCalendarInvite(appointment: Appointment) {
   }
 }
 
+export async function sendScheduledEmailToRequester(appointment: Appointment) {
+  const response = await fetch("/api/send-scheduled-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(appointment),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo enviar el correo de cita al solicitante.");
+  }
+}
+
+export async function sendExecutiveAssignmentEmails(appointment: Appointment) {
+  await sendCalendarInvite(appointment);
+  await sendScheduledEmailToRequester(appointment);
+}
+
 export async function sendDecisionEmail(appointment: Appointment) {
   const response = await fetch("/api/send-approval-email", {
     method: "POST",

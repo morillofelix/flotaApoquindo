@@ -114,6 +114,8 @@ export function downloadAppointmentReasonsExcel(
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesPermitDetails))}</td>
           <td>${escapeExcelHtml(formatExcelActiveStatus(reason.isActive))}</td>
           <td>${escapeExcelHtml(formatRestrictedWeekdays(reason.restrictedWeekdays))}</td>
+          <td>${escapeExcelHtml(reason.requiresBusinessDayAdvance ? "Sí" : "No")}</td>
+          <td>${escapeExcelHtml(reason.requiresBusinessDayAdvance ? String(reason.businessDaysAdvance) : "0")}</td>
           <td>${escapeExcelHtml(String(reason.sortOrder))}</td>
         </tr>`,
     )
@@ -135,6 +137,8 @@ export function downloadAppointmentReasonsExcel(
               <th>Permiso horas/días</th>
               <th>Estado</th>
               <th>Días restringidos</th>
+              <th>Anticip. activa</th>
+              <th>Días háb. anticip.</th>
               <th>Orden</th>
             </tr>
           </thead>

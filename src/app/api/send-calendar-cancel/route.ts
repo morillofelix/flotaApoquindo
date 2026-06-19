@@ -3,12 +3,15 @@ import {
   defaultExecutives,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
+import {
+  DEFAULT_APPOINTMENT_START_HOUR,
+  DEFAULT_APPOINTMENT_START_MINUTE,
+  resolveAppointmentSchedule,
+} from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 import nodemailer from "nodemailer";
 
-const inviteStartHour = 9;
-const inviteDurationMinutes = 30;
 const calendarTimezone = "America/Santiago";
 
 type CalendarCancelPayload = Pick<
@@ -20,6 +23,8 @@ type CalendarCancelPayload = Pick<
   | "appointmentDate"
   | "appointmentReasonLabel"
   | "reasonAllowsExecutiveAssignment"
+  | "reasonUsesAppointmentDuration"
+  | "reasonAppointmentDurationMinutes"
   | "email"
   | "phone"
   | "assignedExecutive"
@@ -41,6 +46,8 @@ function isCalendarCancelPayload(value: unknown): value is CalendarCancelPayload
     typeof payload.appointmentDate === "string" &&
     typeof payload.appointmentReasonLabel === "string" &&
     payload.reasonAllowsExecutiveAssignment === true &&
+    typeof payload.reasonUsesAppointmentDuration === "boolean" &&
+    typeof payload.reasonAppointmentDurationMinutes === "number" &&
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
     typeof payload.assignedExecutive === "string" &&
@@ -85,24 +92,16 @@ function formatUtcDateTime(value: Date) {
   return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
-function getInviteEndTime() {
-  const endDate = new Date(2026, 0, 1, inviteStartHour, inviteDurationMinutes);
-  return {
-    hour: endDate.getHours(),
-    minute: endDate.getMinutes(),
-  };
-}
-
-function createInviteDescription(appointment: CalendarCancelPayload) {
-  return [
-    `Ticket: ${getAppointmentTicketLabel(appointment)}`,
-    `Conductor: ${appointment.driverName}`,
-    `Móvil: ${appointment.vehicleNumber}`,
-    `Motivo: ${appointment.appointmentReasonLabel}`,
-    `Fecha requerida: ${formatDisplayDate(appointment.appointmentDate)}`,
-    `Correo solicitante: ${appointment.email}`,
-    `Teléfono: ${appointment.phone}`,
-  ].join("\n");
+function getAppointmentSchedule(appointment: CalendarCancelPayload) {
+  return resolveAppointmentSchedule({
+    appointmentDate: appointment.appointmentDate,
+    reasonAllowsExecutiveAssignment: appointment.reasonAllowsExecutiveAssignment,
+    reasonUsesAppointmentDuration: appointment.reasonUsesAppointmentDuration,
+    reasonAppointmentDurationMinutes:
+      appointment.reasonAppointmentDurationMinutes,
+    startHour: DEFAULT_APPOINTMENT_START_HOUR,
+    startMinute: DEFAULT_APPOINTMENT_START_MINUTE,
+  });
 }
 
 function createCalendarCancel(
@@ -110,16 +109,21 @@ function createCalendarCancel(
   executiveEmail: string,
   emailFrom: string,
 ) {
-  const endTime = getInviteEndTime();
+  const schedule = getAppointmentSchedule(appointment);
+
+  if (!schedule) {
+    throw new Error("No se pudo calcular la duración de la cita.");
+  }
+
   const startDateTime = formatCalendarDateTime(
     appointment.appointmentDate,
-    inviteStartHour,
-    0,
+    schedule.startHour,
+    schedule.startMinute,
   );
   const endDateTime = formatCalendarDateTime(
     appointment.appointmentDate,
-    endTime.hour,
-    endTime.minute,
+    schedule.endHour,
+    schedule.endMinute,
   );
   const subject = `Cita cancelada - Ticket ${getAppointmentTicketLabel(appointment)}`;
   const description = createInviteDescription(appointment);
@@ -147,6 +151,18 @@ function createCalendarCancel(
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
+}
+
+function createInviteDescription(appointment: CalendarCancelPayload) {
+  return [
+    `Ticket: ${getAppointmentTicketLabel(appointment)}`,
+    `Conductor: ${appointment.driverName}`,
+    `Móvil: ${appointment.vehicleNumber}`,
+    `Motivo: ${appointment.appointmentReasonLabel}`,
+    `Fecha requerida: ${formatDisplayDate(appointment.appointmentDate)}`,
+    `Correo solicitante: ${appointment.email}`,
+    `Teléfono: ${appointment.phone}`,
+  ].join("\n");
 }
 
 function createEmailHtml(appointment: CalendarCancelPayload) {

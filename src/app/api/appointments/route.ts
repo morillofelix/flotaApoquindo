@@ -12,6 +12,7 @@ import {
   isReasonRestrictedToday,
   parseRestrictedWeekdays,
   serializeRestrictedWeekdays,
+  checkBusinessDayAdvance,
 } from "@/lib/appointment-reason-weekdays";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
@@ -123,6 +124,11 @@ function toAppointment(
     reasonAllowsExecutiveAssignment: Boolean(
       reasonConfig?.allowsExecutiveAssignment,
     ),
+    reasonUsesAppointmentDuration: Boolean(
+      reasonConfig?.usesAppointmentDuration,
+    ),
+    reasonAppointmentDurationMinutes:
+      reasonConfig?.appointmentDurationMinutes ?? 30,
     reasonUsesDateRange: Boolean(reasonConfig?.usesDateRange),
     reasonUsesPermitDetails: Boolean(reasonConfig?.usesPermitDetails),
     email: value.email,
@@ -136,8 +142,16 @@ function toAppointment(
 async function ensureDefaultReasons() {
   await prisma.appointmentReason.createMany({
     data: defaultAppointmentReasons.map((reason) => ({
-      ...reason,
+      value: reason.value,
+      label: reason.label,
+      allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+      usesDateRange: reason.usesDateRange,
+      usesPermitDetails: reason.usesPermitDetails,
+      isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
+      requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
+      businessDaysAdvance: reason.businessDaysAdvance,
+      sortOrder: reason.sortOrder,
     })),
     skipDuplicates: true,
   });
@@ -148,10 +162,14 @@ function toReasonConfig(
     value: string;
     label: string;
     allowsExecutiveAssignment: boolean;
+    usesAppointmentDuration: boolean;
+    appointmentDurationMinutes: number;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
+    requiresBusinessDayAdvance: boolean;
+    businessDaysAdvance: number;
     sortOrder: number;
   } | null,
 ): AppointmentReasonConfig | null {
@@ -163,10 +181,14 @@ function toReasonConfig(
     value: reason.value,
     label: reason.label,
     allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+    usesAppointmentDuration: reason.usesAppointmentDuration,
+    appointmentDurationMinutes: reason.appointmentDurationMinutes,
     usesDateRange: reason.usesDateRange,
     usesPermitDetails: reason.usesPermitDetails,
     isActive: reason.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
+    requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
+    businessDaysAdvance: reason.businessDaysAdvance,
     sortOrder: reason.sortOrder,
   };
 }
@@ -324,6 +346,24 @@ export async function POST(request: NextRequest) {
       { message: "Datos de solicitud incompletos." },
       { status: 400 },
     );
+  }
+
+  if (reason) {
+    const advanceCheck = checkBusinessDayAdvance(reason, today.date, {
+      usesDateRange: reason.usesDateRange,
+      usesPermitDetails: reason.usesPermitDetails,
+      vacationStartDate: appointment.vacationStartDate,
+      permitType: appointment.permitType,
+      permitStartDate: appointment.permitStartDate,
+      permitDate: appointment.permitDate,
+    });
+
+    if (advanceCheck.blocked) {
+      return NextResponse.json(
+        { message: advanceCheck.message },
+        { status: 403 },
+      );
+    }
   }
 
   try {

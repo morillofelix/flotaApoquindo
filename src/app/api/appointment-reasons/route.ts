@@ -17,10 +17,14 @@ type ReasonBody = {
   id?: unknown;
   label?: unknown;
   allowsExecutiveAssignment?: unknown;
+  usesAppointmentDuration?: unknown;
+  appointmentDurationMinutes?: unknown;
   usesDateRange?: unknown;
   usesPermitDetails?: unknown;
   isActive?: unknown;
   restrictedWeekdays?: unknown;
+  requiresBusinessDayAdvance?: unknown;
+  businessDaysAdvance?: unknown;
 };
 
 function slugify(value: string) {
@@ -39,10 +43,14 @@ function toReason(
     value: string;
     label: string;
     allowsExecutiveAssignment: boolean;
+    usesAppointmentDuration: boolean;
+    appointmentDurationMinutes: number;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
+    requiresBusinessDayAdvance: boolean;
+    businessDaysAdvance: number;
     sortOrder: number;
   },
 ): AppointmentReasonConfig {
@@ -51,10 +59,14 @@ function toReason(
     value: value.value,
     label: value.label,
     allowsExecutiveAssignment: value.allowsExecutiveAssignment,
+    usesAppointmentDuration: value.usesAppointmentDuration,
+    appointmentDurationMinutes: value.appointmentDurationMinutes,
     usesDateRange: value.usesDateRange,
     usesPermitDetails: value.usesPermitDetails,
     isActive: value.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(value.restrictedWeekdays),
+    requiresBusinessDayAdvance: value.requiresBusinessDayAdvance,
+    businessDaysAdvance: value.businessDaysAdvance,
     sortOrder: value.sortOrder,
   };
 }
@@ -75,10 +87,14 @@ async function ensureDefaultReasons() {
       value: reason.value,
       label: reason.label,
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+      usesAppointmentDuration: reason.usesAppointmentDuration,
+      appointmentDurationMinutes: reason.appointmentDurationMinutes,
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
+      requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
+      businessDaysAdvance: reason.businessDaysAdvance,
       sortOrder: reason.sortOrder,
     })),
     skipDuplicates: true,
@@ -95,6 +111,51 @@ async function loadReasons() {
 
 function getBoolean(value: unknown) {
   return value === true;
+}
+
+function parseBusinessDaysAdvance(value: unknown) {
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+    return 0;
+  }
+
+  return Math.min(parsedValue, 365);
+}
+
+function parseAppointmentDurationMinutes(value: unknown) {
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 5) {
+    return 30;
+  }
+
+  return Math.min(parsedValue, 480);
+}
+
+function normalizeReasonDurationFields(body: ReasonBody) {
+  const allowsExecutiveAssignment = getBoolean(body.allowsExecutiveAssignment);
+  const usesAppointmentDuration =
+    allowsExecutiveAssignment && getBoolean(body.usesAppointmentDuration);
+  const appointmentDurationMinutes = usesAppointmentDuration
+    ? parseAppointmentDurationMinutes(body.appointmentDurationMinutes)
+    : 30;
+
+  return {
+    allowsExecutiveAssignment,
+    usesAppointmentDuration,
+    appointmentDurationMinutes,
+  };
 }
 
 export async function GET() {
@@ -146,16 +207,37 @@ export async function POST(request: NextRequest) {
   }
 
   const restrictedWeekdays = parseRestrictedWeekdaysBody(body.restrictedWeekdays);
+  const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
+  const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
+  const durationFields = normalizeReasonDurationFields(body);
+
+  if (requiresBusinessDayAdvance && businessDaysAdvance < 1) {
+    return NextResponse.json(
+      { message: "Ingresa un número válido de días hábiles." },
+      { status: 400 },
+    );
+  }
+
+  if (durationFields.usesAppointmentDuration && durationFields.appointmentDurationMinutes < 5) {
+    return NextResponse.json(
+      { message: "Ingresa una duración válida en minutos." },
+      { status: 400 },
+    );
+  }
 
   const reason = await prisma.appointmentReason.create({
     data: {
       value,
       label,
-      allowsExecutiveAssignment: getBoolean(body.allowsExecutiveAssignment),
+      allowsExecutiveAssignment: durationFields.allowsExecutiveAssignment,
+      usesAppointmentDuration: durationFields.usesAppointmentDuration,
+      appointmentDurationMinutes: durationFields.appointmentDurationMinutes,
       usesDateRange: getBoolean(body.usesDateRange),
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
       restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
+      requiresBusinessDayAdvance,
+      businessDaysAdvance,
       sortOrder: (existingCount + 1) * 10,
     },
   });
@@ -186,17 +268,38 @@ export async function PATCH(request: NextRequest) {
   }
 
   const restrictedWeekdays = parseRestrictedWeekdaysBody(body.restrictedWeekdays);
+  const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
+  const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
+  const durationFields = normalizeReasonDurationFields(body);
+
+  if (requiresBusinessDayAdvance && businessDaysAdvance < 1) {
+    return NextResponse.json(
+      { message: "Ingresa un número válido de días hábiles." },
+      { status: 400 },
+    );
+  }
+
+  if (durationFields.usesAppointmentDuration && durationFields.appointmentDurationMinutes < 5) {
+    return NextResponse.json(
+      { message: "Ingresa una duración válida en minutos." },
+      { status: 400 },
+    );
+  }
 
   try {
     const reason = await prisma.appointmentReason.update({
       where: { id },
       data: {
         label,
-        allowsExecutiveAssignment: getBoolean(body.allowsExecutiveAssignment),
+        allowsExecutiveAssignment: durationFields.allowsExecutiveAssignment,
+        usesAppointmentDuration: durationFields.usesAppointmentDuration,
+        appointmentDurationMinutes: durationFields.appointmentDurationMinutes,
         usesDateRange: getBoolean(body.usesDateRange),
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         isActive: getBoolean(body.isActive),
         restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
+        requiresBusinessDayAdvance,
+        businessDaysAdvance,
       },
     });
 

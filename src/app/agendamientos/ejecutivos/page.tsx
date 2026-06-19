@@ -6,6 +6,7 @@ import {
   downloadExecutivesExcel,
   loadExecutives,
 } from "@/lib/agendamientos-admin";
+import { uiListRowClass } from "@/lib/ui-borders";
 import { useEffect, useMemo, useState } from "react";
 
 type ExecutiveForm = {
@@ -71,6 +72,17 @@ export default function EjecutivosPage() {
     )?.id ||
     "";
 
+  function isSelectedExecutive(executive: ExecutiveConfig) {
+    if (executiveForm.id && executive.id) {
+      return executiveForm.id === executive.id;
+    }
+
+    return (
+      executiveForm.name.trim().toLowerCase() ===
+      executive.name.trim().toLowerCase()
+    );
+  }
+
   function editExecutive(executive: ExecutiveConfig) {
     setExecutiveForm({
       id: executive.id ?? "",
@@ -135,9 +147,9 @@ export default function EjecutivosPage() {
       <section className="mx-auto w-full max-w-[1540px]">
         <MaintainerPageHeader title="Ejecutivos" />
 
-        <div className="overflow-hidden rounded-[22px] border border-[#d8e2ef] bg-white shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+        <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
+            <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
               <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end lg:grid-cols-[1fr_auto_auto_auto]">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-semibold text-[#173b68]">
@@ -147,7 +159,7 @@ export default function EjecutivosPage() {
                     type="search"
                     value={executiveSearch}
                     onChange={(event) => setExecutiveSearch(event.target.value)}
-                    className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-9 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                     placeholder="Nombre o correo"
                   />
                 </label>
@@ -180,21 +192,23 @@ export default function EjecutivosPage() {
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">
+              <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
                 <div className="grid grid-cols-[1fr_1.2fr_0.6fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
                   <span>Nombre</span>
                   <span>Correo</span>
                   <span>Estado</span>
                 </div>
-                <div className="max-h-[70dvh] overflow-auto divide-y divide-[#e3ebf5]">
+                <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
                   {filteredExecutives.map((executive) => (
                     <button
                       key={executive.name}
                       type="button"
+                      aria-selected={isSelectedExecutive(executive)}
                       onClick={() => editExecutive(executive)}
-                      className={`grid w-full grid-cols-[1fr_1.2fr_0.6fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f8fbff] ${
-                        executiveForm.id === executive.id ? "bg-blue-50/70" : ""
-                      }`}
+                      className={uiListRowClass(
+                        isSelectedExecutive(executive),
+                        "grid w-full grid-cols-[1fr_1.2fr_0.6fr] gap-2 px-3 py-2 text-left text-xs",
+                      )}
                     >
                       <strong className="text-[#0f2747]">{executive.name}</strong>
                       <span className="break-words text-slate-600">
@@ -218,9 +232,9 @@ export default function EjecutivosPage() {
             <form
               noValidate
               onSubmit={saveExecutive}
-              className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4"
+              className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
-              <div className="mb-4 border-b border-[#e3ebf5] pb-3">
+              <div className="mb-4 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-base font-semibold text-[#0f2747]">
                   Datos generales
                 </h4>
@@ -243,7 +257,7 @@ export default function EjecutivosPage() {
                         name: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                     placeholder="Ej: Félix Morillo"
                   />
                 </label>
@@ -261,12 +275,12 @@ export default function EjecutivosPage() {
                         email: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                     placeholder="correo@transportesapoquindo.cl"
                   />
                 </label>
 
-                <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]">
+                <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]">
                   Activo
                   <input
                     type="checkbox"

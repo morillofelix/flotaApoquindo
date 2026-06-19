@@ -18,6 +18,12 @@ import {
   type ParsedDriverOwnerRow,
   type ShiftType,
 } from "@/lib/driver-owners";
+import {
+  isDigitOnlySearch,
+  matchesTextSearch,
+  matchesVehicleNumberSearch,
+} from "@/lib/maintainer-search";
+import { uiListRowClass } from "@/lib/ui-borders";
 import { useEffect, useMemo, useState } from "react";
 
 type DriverOwnerForm = DriverOwnerConfig & {
@@ -145,7 +151,9 @@ export default function ConductoresPage() {
   }, []);
 
   const filteredDriverOwners = useMemo(() => {
-    const normalizedSearch = driverOwnerSearch.trim().toLowerCase();
+    const normalizedSearch = driverOwnerSearch.trim();
+    const normalizedSearchLower = normalizedSearch.toLowerCase();
+    const digitOnlySearch = isDigitOnlySearch(normalizedSearch);
     const selectedShifts = shiftOptions
       .map((option) => option.value)
       .filter((shift) => shiftFilters[shift]);
@@ -154,20 +162,28 @@ export default function ConductoresPage() {
     return driverOwners.filter((driverOwner) => {
       const matchesSearch =
         !normalizedSearch ||
-        driverOwner.vehicleNumber.toLowerCase().includes(normalizedSearch) ||
-        driverOwner.fullName.toLowerCase().includes(normalizedSearch) ||
-        driverOwner.email.toLowerCase().includes(normalizedSearch) ||
-        driverOwner.mobilePhone.includes(normalizedSearch) ||
-        driverOwner.licensePlate.toLowerCase().includes(normalizedSearch) ||
-        formatPersonTypes(
-          driverOwner.isConductor,
-          driverOwner.isPropietario,
-        )
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        formatShifts(driverOwner.shifts)
-          .toLowerCase()
-          .includes(normalizedSearch);
+        (digitOnlySearch
+          ? matchesVehicleNumberSearch(
+              driverOwner.vehicleNumber,
+              normalizedSearch,
+            )
+          : matchesTextSearch(driverOwner.vehicleNumber, normalizedSearchLower) ||
+            matchesTextSearch(driverOwner.fullName, normalizedSearchLower) ||
+            matchesTextSearch(driverOwner.email, normalizedSearchLower) ||
+            matchesTextSearch(driverOwner.rut, normalizedSearchLower) ||
+            matchesTextSearch(driverOwner.mobilePhone, normalizedSearchLower) ||
+            matchesTextSearch(driverOwner.licensePlate, normalizedSearchLower) ||
+            matchesTextSearch(
+              formatPersonTypes(
+                driverOwner.isConductor,
+                driverOwner.isPropietario,
+              ),
+              normalizedSearchLower,
+            ) ||
+            matchesTextSearch(
+              formatShifts(driverOwner.shifts),
+              normalizedSearchLower,
+            ));
 
       const matchesActiveStatus =
         activeStatusFilter === "todos" ||
@@ -194,6 +210,17 @@ export default function ConductoresPage() {
 
     return filterDriverOwnerImportRows(bulkUpload.parsedRows, bulkImportFilters);
   }, [bulkImportFilters, bulkUpload.parsedRows]);
+
+  function isSelectedDriverOwner(driverOwner: DriverOwnerConfig) {
+    if (driverOwnerForm.id && driverOwner.id) {
+      return driverOwnerForm.id === driverOwner.id;
+    }
+
+    return (
+      driverOwnerForm.vehicleNumber.trim() !== "" &&
+      driverOwnerForm.vehicleNumber === driverOwner.vehicleNumber
+    );
+  }
 
   function editDriverOwner(driverOwner: DriverOwnerConfig) {
     setDriverOwnerForm({
@@ -564,10 +591,10 @@ export default function ConductoresPage() {
       <section className="mx-auto w-full max-w-[1540px]">
         <MaintainerPageHeader title="Conductores y propietarios" />
 
-        <div className="overflow-hidden rounded-[22px] border border-[#d8e2ef] bg-white shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+        <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
-              <div className="mb-3 rounded-2xl border border-[#d8e2ef] bg-white p-3">
+            <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+              <div className="mb-3 rounded-2xl border border-[#b7cce4] bg-white p-3">
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -611,7 +638,7 @@ export default function ConductoresPage() {
                   </div>
 
                   {bulkUpload.phase !== "idle" ? (
-                    <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
+                    <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-xs font-semibold text-[#0f2747]">
@@ -637,7 +664,7 @@ export default function ConductoresPage() {
                       </div>
 
                       {bulkUpload.phase === "ready" ? (
-                        <div className="mt-3 rounded-2xl border border-[#d8e2ef] bg-white p-3">
+                        <div className="mt-3 rounded-2xl border border-[#b7cce4] bg-white p-3">
                           <p className="text-xs font-semibold text-[#173b68]">
                             ¿Qué deseas importar?
                           </p>
@@ -649,7 +676,7 @@ export default function ConductoresPage() {
                             tus selecciones.
                           </p>
                           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                            <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
+                            <label className="flex h-10 items-center justify-between rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
                               Móviles / Conductor (
                               {bulkUpload.categoryCounts.moviles})
                               <input
@@ -659,7 +686,7 @@ export default function ConductoresPage() {
                                 className="h-4 w-4 accent-[#0b5cab]"
                               />
                             </label>
-                            <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
+                            <label className="flex h-10 items-center justify-between rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
                               Propietarios (
                               {bulkUpload.categoryCounts.propietario})
                               <input
@@ -671,7 +698,7 @@ export default function ConductoresPage() {
                                 className="h-4 w-4 accent-[#0b5cab]"
                               />
                             </label>
-                            <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
+                            <label className="flex h-10 items-center justify-between rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
                               Titulares ({bulkUpload.categoryCounts.titular})
                               <input
                                 type="checkbox"
@@ -709,7 +736,7 @@ export default function ConductoresPage() {
                       {bulkUpload.phase === "uploading" ||
                       bulkUpload.phase === "success" ||
                       bulkUpload.phase === "error" ? (
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e3ebf5]">
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#c5d8eb]">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               bulkUpload.phase === "error"
@@ -740,7 +767,7 @@ export default function ConductoresPage() {
                                       ? "border-blue-200 bg-blue-50 text-[#0b5cab]"
                                       : status === "error"
                                         ? "border-red-200 bg-red-50 text-red-700"
-                                        : "border-[#e3ebf5] bg-white text-slate-400"
+                                        : "border-[#c5d8eb] bg-white text-slate-400"
                                 }`}
                               >
                                 {status === "active" ? "● " : null}
@@ -799,8 +826,8 @@ export default function ConductoresPage() {
                       onChange={(event) =>
                         setDriverOwnerSearch(event.target.value)
                       }
-                      className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
-                      placeholder="Móvil, nombre, correo o tipo"
+                      className="h-9 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                      placeholder="Ej: 999 o nombre"
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
@@ -814,7 +841,7 @@ export default function ConductoresPage() {
                           event.target.value as "todos" | "activo" | "inactivo",
                         )
                       }
-                      className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                      className="h-9 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                     >
                       <option value="todos">Todos</option>
                       <option value="activo">Activo</option>
@@ -837,7 +864,7 @@ export default function ConductoresPage() {
                   </button>
                 </div>
 
-                <div className="rounded-2xl border border-[#d8e2ef] bg-white px-3 py-2">
+                <div className="rounded-2xl border border-[#b7cce4] bg-white px-3 py-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-xs font-semibold text-[#173b68]">
                       Filtrar por turno
@@ -846,7 +873,7 @@ export default function ConductoresPage() {
                       {shiftOptions.map((shift) => (
                         <label
                           key={shift.value}
-                          className="flex h-8 items-center gap-2 rounded-full border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]"
+                          className="flex h-8 items-center gap-2 rounded-full border border-[#b7cce4] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]"
                         >
                           {shift.label}
                           <input
@@ -867,7 +894,7 @@ export default function ConductoresPage() {
                 </p>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">
+              <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
                 <div className="grid grid-cols-[0.55fr_1fr_0.9fr_0.8fr_0.55fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
                   <span>Móvil</span>
                   <span>Nombre</span>
@@ -875,17 +902,17 @@ export default function ConductoresPage() {
                   <span>Turnos</span>
                   <span>Estado</span>
                 </div>
-                <div className="max-h-[50dvh] overflow-auto divide-y divide-[#e3ebf5]">
+                <div className="max-h-[50dvh] overflow-auto divide-y divide-[#c5d8eb]">
                   {filteredDriverOwners.map((driverOwner) => (
                     <button
                       key={driverOwner.id ?? driverOwner.vehicleNumber}
                       type="button"
+                      aria-selected={isSelectedDriverOwner(driverOwner)}
                       onClick={() => editDriverOwner(driverOwner)}
-                      className={`grid w-full grid-cols-[0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f8fbff] ${
-                        driverOwnerForm.id === driverOwner.id
-                          ? "bg-blue-50/70"
-                          : ""
-                      }`}
+                      className={uiListRowClass(
+                        isSelectedDriverOwner(driverOwner),
+                        "grid w-full grid-cols-[0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 px-3 py-2 text-left text-xs",
+                      )}
                     >
                       <strong className="text-[#0f2747]">
                         {driverOwner.vehicleNumber}
@@ -920,9 +947,9 @@ export default function ConductoresPage() {
             <form
               noValidate
               onSubmit={saveDriverOwner}
-              className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4"
+              className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
-              <div className="mb-4 border-b border-[#e3ebf5] pb-3">
+              <div className="mb-4 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-base font-semibold text-[#0f2747]">
                   Datos generales
                 </h4>
@@ -947,7 +974,7 @@ export default function ConductoresPage() {
                         vehicleNumber: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                     placeholder="Ej: 001"
                   />
                 </label>
@@ -964,7 +991,7 @@ export default function ConductoresPage() {
                         isActive: event.target.value === "activo",
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   >
                     <option value="activo">Activo</option>
                     <option value="inactivo">Inactivo</option>
@@ -984,7 +1011,7 @@ export default function ConductoresPage() {
                         fullName: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1001,7 +1028,7 @@ export default function ConductoresPage() {
                         email: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1018,7 +1045,7 @@ export default function ConductoresPage() {
                         rut: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1035,7 +1062,7 @@ export default function ConductoresPage() {
                         licenseExpiryDate: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1052,7 +1079,7 @@ export default function ConductoresPage() {
                         birthDate: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1069,7 +1096,7 @@ export default function ConductoresPage() {
                         landlinePhone: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1086,7 +1113,7 @@ export default function ConductoresPage() {
                         mobilePhone: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1103,7 +1130,7 @@ export default function ConductoresPage() {
                         address: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1112,7 +1139,7 @@ export default function ConductoresPage() {
                     Tipo (doble selección)
                   </span>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]">
+                    <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]">
                       Conductor
                       <input
                         type="checkbox"
@@ -1126,7 +1153,7 @@ export default function ConductoresPage() {
                         className="h-4 w-4 accent-[#0b5cab]"
                       />
                     </label>
-                    <label className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]">
+                    <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]">
                       Propietario
                       <input
                         type="checkbox"
@@ -1156,7 +1183,7 @@ export default function ConductoresPage() {
                         municipalLicense: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1168,7 +1195,7 @@ export default function ConductoresPage() {
                     {shiftOptions.map((shift) => (
                       <label
                         key={shift.value}
-                        className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]"
+                        className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]"
                       >
                         {shift.label}
                         <input
@@ -1203,7 +1230,7 @@ export default function ConductoresPage() {
                         emergencyContactName: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1220,7 +1247,7 @@ export default function ConductoresPage() {
                         emergencyContactEmail: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1237,7 +1264,7 @@ export default function ConductoresPage() {
                         emergencyContactPhone: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1254,7 +1281,7 @@ export default function ConductoresPage() {
                         licensePlate: event.target.value.toUpperCase(),
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1271,7 +1298,7 @@ export default function ConductoresPage() {
                         vehicleType: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1288,7 +1315,7 @@ export default function ConductoresPage() {
                         inspectionExpiryDate: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -1305,7 +1332,7 @@ export default function ConductoresPage() {
                         subscriptionDate: event.target.value,
                       }))
                     }
-                    className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
               </div>

@@ -7,8 +7,11 @@ export {
   weekdayOptions,
   RESTRICTED_DAY_MESSAGE,
   formatRestrictedWeekdays,
+  formatBusinessDayAdvanceSummary,
+  getBusinessDayAdvanceMessage,
   getSantiagoToday,
   isReasonRestrictedToday,
+  checkBusinessDayAdvance,
   parseRestrictedWeekdays,
   serializeRestrictedWeekdays,
 } from "@/lib/appointment-reason-weekdays";
@@ -18,10 +21,14 @@ export type AppointmentReasonConfig = {
   value: string;
   label: string;
   allowsExecutiveAssignment: boolean;
+  usesAppointmentDuration: boolean;
+  appointmentDurationMinutes: number;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
+  requiresBusinessDayAdvance: boolean;
+  businessDaysAdvance: number;
   sortOrder: number;
 };
 
@@ -30,40 +37,56 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     value: "vacaciones",
     label: "Vacaciones",
     allowsExecutiveAssignment: false,
+    usesAppointmentDuration: false,
+    appointmentDurationMinutes: 30,
     usesDateRange: true,
     usesPermitDetails: false,
     isActive: true,
     restrictedWeekdays: [],
+    requiresBusinessDayAdvance: false,
+    businessDaysAdvance: 0,
     sortOrder: 10,
   },
   {
     value: "licencia-medica",
     label: "Licencias médicas",
     allowsExecutiveAssignment: false,
+    usesAppointmentDuration: false,
+    appointmentDurationMinutes: 30,
     usesDateRange: true,
     usesPermitDetails: false,
     isActive: true,
     restrictedWeekdays: [],
+    requiresBusinessDayAdvance: false,
+    businessDaysAdvance: 0,
     sortOrder: 20,
   },
   {
     value: "permisos",
     label: "Permisos",
     allowsExecutiveAssignment: false,
+    usesAppointmentDuration: false,
+    appointmentDurationMinutes: 30,
     usesDateRange: false,
     usesPermitDetails: true,
     isActive: true,
     restrictedWeekdays: [],
+    requiresBusinessDayAdvance: false,
+    businessDaysAdvance: 0,
     sortOrder: 30,
   },
   {
     value: "otros",
     label: "Otros",
     allowsExecutiveAssignment: true,
+    usesAppointmentDuration: true,
+    appointmentDurationMinutes: 30,
     usesDateRange: false,
     usesPermitDetails: false,
     isActive: true,
     restrictedWeekdays: [],
+    requiresBusinessDayAdvance: false,
+    businessDaysAdvance: 0,
     sortOrder: 40,
   },
 ];
@@ -147,6 +170,8 @@ export type Appointment = {
   appointmentReason: PermissionReason;
   appointmentReasonLabel: string;
   reasonAllowsExecutiveAssignment: boolean;
+  reasonUsesAppointmentDuration: boolean;
+  reasonAppointmentDurationMinutes: number;
   reasonUsesDateRange: boolean;
   reasonUsesPermitDetails: boolean;
   email: string;

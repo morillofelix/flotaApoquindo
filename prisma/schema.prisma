@@ -41,10 +41,14 @@ model AppointmentReason {
   value                      String   @unique
   label                      String
   allowsExecutiveAssignment  Boolean  @default(false)
+  usesAppointmentDuration    Boolean  @default(false)
+  appointmentDurationMinutes Int      @default(30)
   usesDateRange              Boolean  @default(false)
   usesPermitDetails          Boolean  @default(false)
   isActive                   Boolean  @default(true)
   restrictedWeekdays         String   @default("")
+  requiresBusinessDayAdvance Boolean  @default(false)
+  businessDaysAdvance        Int      @default(0)
   sortOrder                  Int      @default(0)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt

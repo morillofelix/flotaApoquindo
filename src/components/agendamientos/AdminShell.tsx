@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { UI_CARD_SHELL, uiFieldClass } from "@/lib/ui-borders";
 
 const navItems = [
   { href: "/agendamientos", label: "Solicitudes" },
@@ -78,8 +79,8 @@ export default function AdminShell({
   if (!isAuthenticated) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
-        <section className="w-full max-w-md rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8">
-          <div className="mb-7 border-b border-[#e3ebf5] pb-6">
+        <section className={`w-full max-w-md ${UI_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}>
+          <div className="mb-7 border-b border-[#c5d8eb] pb-6">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
               Acceso ejecutivo
             </p>
@@ -105,7 +106,7 @@ export default function AdminShell({
                     user: event.target.value,
                   }))
                 }
-                className="h-12 rounded-2xl border border-[#d8e2ef] bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
                 placeholder="Usuario ejecutivo"
               />
             </label>
@@ -124,7 +125,7 @@ export default function AdminShell({
                       password: event.target.value,
                     }))
                   }
-                  className="h-12 w-full rounded-2xl border border-[#d8e2ef] bg-white px-4 pr-12 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                  className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
                   placeholder="Clave de acceso"
                 />
                 <button
@@ -135,7 +136,7 @@ export default function AdminShell({
                   aria-label={
                     isPasswordVisible ? "Ocultar clave" : "Mostrar clave"
                   }
-                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#f8fbff] hover:text-[#0b5cab] focus:outline-none focus:ring-4 focus:ring-blue-100"
+                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#f8fbff] hover:text-[#0b5cab] focus:outline-none focus:ring-2 focus:ring-[#0b5cab]/15"
                 >
                   {isPasswordVisible ? (
                     <svg

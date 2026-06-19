@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UI_CARD_SHELL } from "@/lib/ui-borders";
 
 export default function MaintainerPageHeader({
   title,
@@ -8,7 +9,7 @@ export default function MaintainerPageHeader({
   subtitle?: string;
 }) {
   return (
-    <header className="mb-4 flex flex-col gap-1.5 rounded-[22px] border border-[#d8e2ef] bg-white px-4 py-3 shadow-lg shadow-slate-200/70 sm:flex-row sm:items-center sm:justify-between sm:rounded-[24px]">
+    <header className={`mb-4 flex flex-col gap-1.5 ${UI_CARD_SHELL} px-4 py-3 sm:flex-row sm:items-center sm:justify-between`}>
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0b5cab]">
           {subtitle}

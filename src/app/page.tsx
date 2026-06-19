@@ -9,10 +9,24 @@ import {
   getAppointmentTicketLabel,
   getSantiagoToday,
   isReasonRestrictedToday,
+  checkBusinessDayAdvance,
   RESTRICTED_DAY_MESSAGE,
   type PermissionReason,
 } from "@/lib/appointments";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import PublicPageBanner from "@/components/PublicPageBanner";
+import { normalizeVehicleNumber } from "@/lib/driver-owners";
+import VehicleNumberLookupField, {
+  type DriverLookupResult,
+} from "@/components/VehicleNumberLookupField";
+import PublicAppointmentHistory, {
+  type PublicAppointmentSummary,
+} from "@/components/PublicAppointmentHistory";
+import {
+  UI_DIVIDER_BORDER,
+  UI_FIELD_BORDER,
+  UI_PANEL_BORDER,
+} from "@/lib/ui-borders";
 
 type FormValues = {
   driverName: string;
@@ -49,6 +63,9 @@ const initialValues: FormValues = {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const formPanelBorderClass = UI_PANEL_BORDER;
+const formFieldBorderClass = UI_FIELD_BORDER;
+const formDividerBorderClass = UI_DIVIDER_BORDER;
 
 function getTodayValue() {
   return getSantiagoToday().date;
@@ -70,8 +87,8 @@ function validateField(
     return "Ingresa el nombre completo del conductor.";
   }
 
-  if (name === "vehicleNumber" && !/^\d{1,3}$/.test(trimmedValue)) {
-    return "Ingresa un móvil numérico de hasta 3 dígitos.";
+  if (name === "vehicleNumber" && !/^\d{1,4}$/.test(trimmedValue)) {
+    return "Ingresa un móvil numérico de hasta 4 dígitos.";
   }
 
   if (name === "vacationStartDate" && trimmedValue < today) {
@@ -111,16 +128,14 @@ function validateField(
   return "";
 }
 
-function normalizeVehicleNumber(value: string) {
-  return value.trim().padStart(3, "0");
-}
-
 type AppointmentSubmission = Omit<
   Appointment,
   | "id"
   | "ticketNumber"
   | "appointmentReasonLabel"
   | "reasonAllowsExecutiveAssignment"
+  | "reasonUsesAppointmentDuration"
+  | "reasonAppointmentDurationMinutes"
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
   | "assignedExecutive"
@@ -238,6 +253,11 @@ export default function HomePage() {
   const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
     defaultAppointmentReasons,
   );
+  const [linkedVehicleNumber, setLinkedVehicleNumber] = useState("");
+  const [recentAppointments, setRecentAppointments] = useState<
+    PublicAppointmentSummary[]
+  >([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(false);
   const activeReasons = useMemo(
     () => reasons.filter((reason) => reason.isActive),
     [reasons],
@@ -262,6 +282,64 @@ export default function HomePage() {
         : false,
     [selectedReasonConfig],
   );
+  const businessDayAdvanceMessage = useMemo(() => {
+    if (!selectedReasonConfig) {
+      return "";
+    }
+
+    return checkBusinessDayAdvance(selectedReasonConfig, today, {
+      usesDateRange: selectedReasonConfig.usesDateRange,
+      usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+      vacationStartDate: values.vacationStartDate,
+      permitType: values.permitType,
+      permitStartDate: values.permitStartDate,
+      permitDate: values.permitDate,
+    }).message;
+  }, [selectedReasonConfig, today, values]);
+
+  useEffect(() => {
+    if (!linkedVehicleNumber) {
+      setRecentAppointments([]);
+      setIsLoadingRecent(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingRecent(true);
+
+    fetch(
+      `/api/appointments/by-vehicle?vehicleNumber=${encodeURIComponent(linkedVehicleNumber)}`,
+      { cache: "no-store" },
+    )
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar las solicitudes.");
+        }
+
+        return response.json() as Promise<{
+          appointments?: PublicAppointmentSummary[];
+        }>;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setRecentAppointments(data.appointments ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecentAppointments([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingRecent(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedVehicleNumber]);
 
   useEffect(() => {
     fetch("/api/appointment-reasons", { cache: "no-store" })
@@ -314,13 +392,27 @@ export default function HomePage() {
         : "";
 
     return {
-      driverName: validateField("driverName", values.driverName, today, reasons),
-      vehicleNumber: validateField(
-        "vehicleNumber",
-        values.vehicleNumber,
-        today,
-        reasons,
-      ),
+      driverName: linkedVehicleNumber
+        ? validateField("driverName", values.driverName, today, reasons)
+        : "",
+      vehicleNumber: (() => {
+        const baseError = validateField(
+          "vehicleNumber",
+          values.vehicleNumber,
+          today,
+          reasons,
+        );
+
+        if (baseError) {
+          return baseError;
+        }
+
+        if (values.vehicleNumber.trim() && !linkedVehicleNumber) {
+          return "Móvil no registrado o no activo.";
+        }
+
+        return "";
+      })(),
       appointmentReason: validateField(
         "appointmentReason",
         values.appointmentReason,
@@ -358,10 +450,14 @@ export default function HomePage() {
         values.permitEndTime <= values.permitStartTime
           ? "La hora hasta debe ser posterior a la hora desde."
           : permitEndTime,
-      email: validateField("email", values.email, today, reasons),
-      phone: validateField("phone", values.phone, today, reasons),
+      email: linkedVehicleNumber
+        ? validateField("email", values.email, today, reasons)
+        : "",
+      phone: linkedVehicleNumber
+        ? validateField("phone", values.phone, today, reasons)
+        : "",
     };
-  }, [today, usesDateRange, usesPermitDetails, values, reasons]);
+  }, [today, usesDateRange, usesPermitDetails, values, reasons, linkedVehicleNumber]);
 
   const securityError =
     botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
@@ -370,12 +466,64 @@ export default function HomePage() {
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
     !securityError &&
-    !isSelectedReasonRestricted;
+    !isSelectedReasonRestricted &&
+    !businessDayAdvanceMessage;
 
-  function updateField(name: FieldName, value: string) {
+  function resetSubmissionState() {
+    setShowSuccess(false);
+    setSuccessTicketId("");
+    setEmailWarning("");
+    setSubmitError("");
+  }
+
+  function handleVehicleNumberChange(value: string) {
+    const newValue = value.replace(/\D/g, "").slice(0, 4);
+    const normalizedNew = newValue ? normalizeVehicleNumber(newValue) : "";
+    const clearingLinked =
+      Boolean(linkedVehicleNumber) && normalizedNew !== linkedVehicleNumber;
+
     setValues((currentValues) => ({
       ...currentValues,
-      [name]: name === "vehicleNumber" ? value.replace(/\D/g, "").slice(0, 3) : value,
+      vehicleNumber: newValue,
+      ...(clearingLinked ? { driverName: "", email: "", phone: "" } : {}),
+    }));
+
+    if (clearingLinked) {
+      setLinkedVehicleNumber("");
+      setRecentAppointments([]);
+    }
+
+    resetSubmissionState();
+  }
+
+  function handleDriverLookupSelect(result: DriverLookupResult) {
+    setValues((currentValues) => ({
+      ...currentValues,
+      vehicleNumber: result.vehicleNumber,
+      driverName: result.fullName,
+      email: result.email,
+      phone: result.phone,
+    }));
+    setLinkedVehicleNumber(result.vehicleNumber);
+    setTouched((currentTouched) => ({
+      ...currentTouched,
+      vehicleNumber: true,
+      driverName: true,
+      email: true,
+      phone: true,
+    }));
+    resetSubmissionState();
+  }
+
+  function updateField(name: FieldName, value: string) {
+    if (name === "vehicleNumber") {
+      handleVehicleNumberChange(value);
+      return;
+    }
+
+    setValues((currentValues) => ({
+      ...currentValues,
+      [name]: value,
       ...(name === "appointmentReason" &&
       !appointmentReasonUsesDateRange(value, reasons)
         ? { vacationStartDate: "", vacationEndDate: "" }
@@ -398,20 +546,7 @@ export default function HomePage() {
         ? { permitStartDate: "", permitEndDate: "" }
         : {}),
     }));
-    setShowSuccess(false);
-    setSuccessTicketId("");
-    setEmailWarning("");
-    setSubmitError("");
-  }
-
-  function formatVehicleNumber() {
-    setValues((currentValues) => ({
-      ...currentValues,
-      vehicleNumber: currentValues.vehicleNumber
-        ? normalizeVehicleNumber(currentValues.vehicleNumber)
-        : "",
-    }));
-    markFieldAsTouched("vehicleNumber");
+    resetSubmissionState();
   }
 
   function markFieldAsTouched(name: FieldName) {
@@ -449,6 +584,12 @@ export default function HomePage() {
       return;
     }
 
+    if (businessDayAdvanceMessage) {
+      setSubmitError(businessDayAdvanceMessage);
+      setShowSuccess(false);
+      return;
+    }
+
     const canSubmit = isFormValid && !submittedTooFast;
 
     if (canSubmit) {
@@ -468,6 +609,21 @@ export default function HomePage() {
         }
 
         setSuccessTicketId(getAppointmentTicketLabel(savedAppointment));
+
+        if (linkedVehicleNumber) {
+          fetch(
+            `/api/appointments/by-vehicle?vehicleNumber=${encodeURIComponent(linkedVehicleNumber)}`,
+            { cache: "no-store" },
+          )
+            .then((response) =>
+              response.ok ? response.json() : Promise.reject(),
+            )
+            .then((data: { appointments?: PublicAppointmentSummary[] }) => {
+              setRecentAppointments(data.appointments ?? []);
+            })
+            .catch(() => {});
+        }
+
         setValues(initialValues);
         setSecurityAnswer("");
         setTouched({});
@@ -490,141 +646,67 @@ export default function HomePage() {
   }
 
   function fieldStatus(name: FieldName) {
-    return touched[name] && errors[name] ? "border-red-400" : "border-[#d8e2ef]";
+    return touched[name] && errors[name]
+      ? "border-red-500"
+      : "border-[#9fb8d9]";
   }
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
-      <section className="grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.15fr)] lg:items-stretch">
-        <aside className="flex flex-col rounded-[24px] bg-[#062b5f] p-5 text-white shadow-xl shadow-slate-300/60 sm:rounded-[28px] sm:p-8 lg:p-9">
-          <div className="mb-8 rounded-[20px] bg-white p-4 shadow-lg shadow-blue-950/20 sm:mb-12">
-            <img
-              src="/logo-apoquindo.png"
-              alt="Transportes Apoquindo"
-              className="h-auto w-full object-contain"
-            />
-          </div>
+    <main className="flex min-h-[100dvh] flex-col bg-[#eef3f9] text-[#0f2747]">
+      <PublicPageBanner title="Solicitud de cita" />
 
-          <div className="space-y-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ec5ff]">
-              Solicitud de cita
-            </p>
-            <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-              Registra citas de forma segura
-            </h1>
-            <p className="text-base leading-7 text-blue-50/85">
-              Completa los datos del conductor, móvil y motivo para validar la
-              solicitud antes de continuar.
-            </p>
-          </div>
-
-          <div className="mt-8 overflow-hidden rounded-[22px] border border-white/15 bg-white/5 shadow-2xl shadow-blue-950/30 lg:mt-auto">
-            <img
-              src="/agendamiento-citas-apoquindo.png"
-              alt="Agendamiento de citas de transporte ejecutivo"
-              className="aspect-[16/10] w-full object-cover"
-            />
-          </div>
-        </aside>
-
+      <div className="flex-1 px-4 pb-5 pt-2 sm:px-6 md:px-8">
         <form
           noValidate
           onSubmit={handleSubmit}
-          className="rounded-[24px] border border-[#d8e2ef] bg-white p-5 shadow-xl shadow-slate-200/80 sm:rounded-[28px] sm:p-8"
+          className={`mx-auto w-full max-w-2xl rounded-[18px] ${formPanelBorderClass} bg-white p-4 shadow-sm shadow-slate-300/25 sm:rounded-[20px] sm:p-5 md:max-w-3xl`}
         >
-          <div className="mb-7 border-b border-[#e3ebf5] pb-6">
-            <h2 className="font-heading text-2xl font-semibold text-[#0f2747]">
-              Datos de la cita
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Completa todos los campos para validar la solicitud.
-            </p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <VehicleNumberLookupField
+                  value={values.vehicleNumber}
+                  onChange={handleVehicleNumberChange}
+                  onSelect={handleDriverLookupSelect}
+                  onBlur={() => markFieldAsTouched("vehicleNumber")}
+                  error={errors.vehicleNumber}
+                  touched={touched.vehicleNumber}
+                  fieldStatusClass={fieldStatus("vehicleNumber")}
+                />
+              </div>
+
+              <PublicAppointmentHistory
+                appointments={recentAppointments}
+                isLoading={isLoadingRecent}
+                vehicleNumber={linkedVehicleNumber}
+              />
+            </div>
+
+            <div className={`rounded-xl ${formPanelBorderClass} bg-[#f8fbff] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]`}>
+              <dl className="grid gap-0 text-sm">
+                <div className={`grid grid-cols-[7.5rem_1fr] items-start gap-2 border-b ${formDividerBorderClass} py-2.5`}>
+                  <dt className="text-xs font-medium text-slate-500">Conductor</dt>
+                  <dd className="font-medium text-[#0f2747]">
+                    {values.driverName || "—"}
+                  </dd>
+                </div>
+                <div className={`grid grid-cols-[7.5rem_1fr] items-start gap-2 border-b ${formDividerBorderClass} py-2.5`}>
+                  <dt className="text-xs font-medium text-slate-500">Correo</dt>
+                  <dd className="break-all font-medium text-[#0f2747]">
+                    {values.email || "—"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[7.5rem_1fr] items-start gap-2 py-2.5">
+                  <dt className="text-xs font-medium text-slate-500">Teléfono</dt>
+                  <dd className="font-medium text-[#0f2747]">{values.phone || "—"}</dd>
+                </div>
+              </dl>
+            </div>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
-                Nombre del conductor
-              </span>
-              <input
-                type="text"
-                name="driverName"
-                required
-                value={values.driverName}
-                onBlur={() => markFieldAsTouched("driverName")}
-                onChange={(event) => updateField("driverName", event.target.value)}
-                placeholder="Ej: Juan Pérez"
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("driverName")}`}
-              />
-              {touched.driverName && errors.driverName ? (
-                <span className="text-sm text-red-600">{errors.driverName}</span>
-              ) : null}
-            </label>
-
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
-                Número de móvil
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                name="vehicleNumber"
-                required
-                value={values.vehicleNumber}
-                onBlur={formatVehicleNumber}
-                onChange={(event) =>
-                  updateField("vehicleNumber", event.target.value)
-                }
-                placeholder="Ej: 001"
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("vehicleNumber")}`}
-              />
-              {touched.vehicleNumber && errors.vehicleNumber ? (
-                <span className="text-sm text-red-600">
-                  {errors.vehicleNumber}
-                </span>
-              ) : null}
-            </label>
-
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
-                Correo electrónico
-              </span>
-              <input
-                type="email"
-                name="email"
-                required
-                value={values.email}
-                onBlur={() => markFieldAsTouched("email")}
-                onChange={(event) => updateField("email", event.target.value)}
-                placeholder="correo@ejemplo.com"
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("email")}`}
-              />
-              {touched.email && errors.email ? (
-                <span className="text-sm text-red-600">{errors.email}</span>
-              ) : null}
-            </label>
-
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
-                Número telefónico
-              </span>
-              <input
-                type="tel"
-                name="phone"
-                required
-                value={values.phone}
-                onBlur={() => markFieldAsTouched("phone")}
-                onChange={(event) => updateField("phone", event.target.value)}
-                placeholder="Ej: +56 9 1234 5678"
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("phone")}`}
-              />
-              {touched.phone && errors.phone ? (
-                <span className="text-sm text-red-600">{errors.phone}</span>
-              ) : null}
-            </label>
-
-            <label className="flex flex-col gap-2 sm:col-span-2">
-              <span className="text-sm font-semibold text-[#173b68]">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <span className="text-xs font-semibold text-[#173b68]">
                 Motivo de la cita
               </span>
               <select
@@ -635,7 +717,7 @@ export default function HomePage() {
                 onChange={(event) =>
                   updateField("appointmentReason", event.target.value)
                 }
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("appointmentReason")}`}
+                className={`h-10 rounded-xl ${formFieldBorderClass} bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("appointmentReason")}`}
               >
                 <option value="">Selecciona una opción</option>
                 {activeReasons.map((reason) => (
@@ -657,7 +739,7 @@ export default function HomePage() {
             </label>
 
             {usesDateRange ? (
-              <div className="grid gap-4 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:col-span-2 sm:grid-cols-2">
+              <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
                     Fecha desde
@@ -672,7 +754,7 @@ export default function HomePage() {
                     onChange={(event) =>
                       updateField("vacationStartDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("vacationStartDate")}`}
+                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("vacationStartDate")}`}
                   />
                   {touched.vacationStartDate && errors.vacationStartDate ? (
                     <span className="text-sm text-red-600">
@@ -695,7 +777,7 @@ export default function HomePage() {
                     onChange={(event) =>
                       updateField("vacationEndDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("vacationEndDate")}`}
+                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("vacationEndDate")}`}
                   />
                   {touched.vacationEndDate && errors.vacationEndDate ? (
                     <span className="text-sm text-red-600">
@@ -703,11 +785,17 @@ export default function HomePage() {
                     </span>
                   ) : null}
                 </label>
+
+                {businessDayAdvanceMessage ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900 sm:col-span-2">
+                    {businessDayAdvanceMessage}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
             {usesPermitDetails ? (
-              <div className="grid gap-4 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4 sm:col-span-2">
+              <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2`}>
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
                     Tipo de permiso
@@ -720,7 +808,7 @@ export default function HomePage() {
                     onChange={(event) =>
                       updateField("permitType", event.target.value)
                     }
-                    className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitType")}`}
+                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitType")}`}
                   >
                     <option value="">Selecciona una opción</option>
                     <option value="dias">Por día</option>
@@ -749,7 +837,7 @@ export default function HomePage() {
                         onChange={(event) =>
                           updateField("permitStartDate", event.target.value)
                         }
-                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitStartDate")}`}
+                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitStartDate")}`}
                       />
                       {touched.permitStartDate && errors.permitStartDate ? (
                         <span className="text-sm text-red-600">
@@ -772,7 +860,7 @@ export default function HomePage() {
                         onChange={(event) =>
                           updateField("permitEndDate", event.target.value)
                         }
-                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitEndDate")}`}
+                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitEndDate")}`}
                       />
                       {touched.permitEndDate && errors.permitEndDate ? (
                         <span className="text-sm text-red-600">
@@ -799,7 +887,7 @@ export default function HomePage() {
                         onChange={(event) =>
                           updateField("permitDate", event.target.value)
                         }
-                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitDate")}`}
+                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitDate")}`}
                       />
                       {touched.permitDate && errors.permitDate ? (
                         <span className="text-sm text-red-600">
@@ -821,7 +909,7 @@ export default function HomePage() {
                         onChange={(event) =>
                           updateField("permitStartTime", event.target.value)
                         }
-                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitStartTime")}`}
+                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitStartTime")}`}
                       />
                       {touched.permitStartTime && errors.permitStartTime ? (
                         <span className="text-sm text-red-600">
@@ -843,7 +931,7 @@ export default function HomePage() {
                         onChange={(event) =>
                           updateField("permitEndTime", event.target.value)
                         }
-                        className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("permitEndTime")}`}
+                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitEndTime")}`}
                       />
                       {touched.permitEndTime && errors.permitEndTime ? (
                         <span className="text-sm text-red-600">
@@ -851,6 +939,12 @@ export default function HomePage() {
                         </span>
                       ) : null}
                     </label>
+                  </div>
+                ) : null}
+
+                {businessDayAdvanceMessage ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+                    {businessDayAdvanceMessage}
                   </div>
                 ) : null}
               </div>
@@ -868,7 +962,7 @@ export default function HomePage() {
             aria-hidden="true"
           />
 
-          <div className="mt-6 rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4">
+          <div className={`mt-6 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]`}>
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">
                 Verificación de seguridad
@@ -886,10 +980,10 @@ export default function HomePage() {
                   setSecurityAnswer(event.target.value);
                   setShowSuccess(false);
                 }}
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${
+                className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${
                   securityTouched && securityError
-                    ? "border-red-400"
-                    : "border-[#d8e2ef]"
+                    ? "border-red-500"
+                    : "border-[#9fb8d9]"
                 }`}
                 placeholder="Respuesta"
               />
@@ -919,20 +1013,20 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          <div className="mt-8 flex flex-col gap-4 border-t border-[#e3ebf5] pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className={`mt-8 flex flex-col gap-4 border-t ${formDividerBorderClass} pt-6 sm:flex-row sm:items-center sm:justify-between`}>
             <p className="text-sm text-slate-600">
               Este botón valida los campos y la verificación de seguridad.
             </p>
             <button
               type="submit"
-              disabled={isSubmitting || isSelectedReasonRestricted}
+              disabled={isSubmitting || isSelectedReasonRestricted || Boolean(businessDayAdvanceMessage)}
               className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto sm:min-w-44"
             >
               {isSubmitting ? "Registrando..." : "Validar cita"}
             </button>
           </div>
         </form>
-      </section>
+      </div>
     </main>
   );
 }

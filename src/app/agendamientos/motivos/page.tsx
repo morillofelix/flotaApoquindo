@@ -6,21 +6,27 @@ import {
   type WeekdayKey,
   weekdayOptions,
   formatRestrictedWeekdays,
+  formatBusinessDayAdvanceSummary,
 } from "@/lib/appointments";
 import {
   downloadAppointmentReasonsExcel,
   loadAppointmentReasons,
 } from "@/lib/agendamientos-admin";
+import { uiListRowClass } from "@/lib/ui-borders";
 import { useEffect, useMemo, useState } from "react";
 
 type ReasonForm = {
   id: string;
   label: string;
   allowsExecutiveAssignment: boolean;
+  usesAppointmentDuration: boolean;
+  appointmentDurationMinutes: number;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
+  requiresBusinessDayAdvance: boolean;
+  businessDaysAdvance: number;
 };
 
 type ReasonBooleanField =
@@ -30,7 +36,6 @@ type ReasonBooleanField =
   | "isActive";
 
 const reasonFeatureFields: Array<[ReasonBooleanField, string]> = [
-  ["allowsExecutiveAssignment", "Derivar"],
   ["usesDateRange", "Rango fechas"],
   ["usesPermitDetails", "Permiso horas/días"],
   ["isActive", "Activo"],
@@ -40,10 +45,14 @@ const emptyReasonForm: ReasonForm = {
   id: "",
   label: "",
   allowsExecutiveAssignment: false,
+  usesAppointmentDuration: false,
+  appointmentDurationMinutes: 30,
   usesDateRange: false,
   usesPermitDetails: false,
   isActive: true,
   restrictedWeekdays: [],
+  requiresBusinessDayAdvance: false,
+  businessDaysAdvance: 5,
 };
 
 export default function MotivosPage() {
@@ -84,15 +93,29 @@ export default function MotivosPage() {
     downloadAppointmentReasonsExcel(filteredReasons, fileName);
   }
 
+  function isSelectedReason(reason: AppointmentReasonConfig) {
+    if (reasonForm.id && reason.id) {
+      return reasonForm.id === reason.id;
+    }
+
+    return (
+      reasonForm.label.trim().toLowerCase() === reason.label.trim().toLowerCase()
+    );
+  }
+
   function editReason(reason: AppointmentReasonConfig) {
     setReasonForm({
       id: reason.id ?? "",
       label: reason.label,
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+      usesAppointmentDuration: reason.usesAppointmentDuration,
+      appointmentDurationMinutes: reason.appointmentDurationMinutes || 30,
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
       restrictedWeekdays: reason.restrictedWeekdays,
+      requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
+      businessDaysAdvance: reason.businessDaysAdvance || 5,
     });
     setReasonMessage("");
     setReasonError("");
@@ -120,6 +143,23 @@ export default function MotivosPage() {
 
     if (reasonForm.label.trim().length < 3) {
       setReasonError("Ingresa un nombre de motivo válido.");
+      return;
+    }
+
+    if (
+      reasonForm.requiresBusinessDayAdvance &&
+      reasonForm.businessDaysAdvance < 1
+    ) {
+      setReasonError("Ingresa un número válido de días hábiles.");
+      return;
+    }
+
+    if (
+      reasonForm.allowsExecutiveAssignment &&
+      reasonForm.usesAppointmentDuration &&
+      reasonForm.appointmentDurationMinutes < 5
+    ) {
+      setReasonError("Ingresa una duración válida en minutos.");
       return;
     }
 
@@ -154,9 +194,9 @@ export default function MotivosPage() {
       <section className="mx-auto w-full max-w-[1540px]">
         <MaintainerPageHeader title="Motivos de cita" />
 
-        <div className="overflow-hidden rounded-[22px] border border-[#d8e2ef] bg-white shadow-lg shadow-slate-200/70 sm:rounded-[24px]">
+        <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <div className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-3">
+            <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
               <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end lg:grid-cols-[1fr_auto_auto_auto]">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-semibold text-[#173b68]">
@@ -166,7 +206,7 @@ export default function MotivosPage() {
                     type="search"
                     value={reasonSearch}
                     onChange={(event) => setReasonSearch(event.target.value)}
-                    className="h-9 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                    className="h-9 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                     placeholder="Nombre o código"
                   />
                 </label>
@@ -199,21 +239,23 @@ export default function MotivosPage() {
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[#d8e2ef] bg-white">
+              <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
                 <div className="grid grid-cols-[1.2fr_1fr_0.7fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
                   <span>Nombre</span>
                   <span>Características</span>
                   <span>Estado</span>
                 </div>
-                <div className="max-h-[70dvh] overflow-auto divide-y divide-[#e3ebf5]">
+                <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
                   {filteredReasons.map((reason) => (
                     <button
                       key={reason.value}
                       type="button"
+                      aria-selected={isSelectedReason(reason)}
                       onClick={() => editReason(reason)}
-                      className={`grid w-full grid-cols-[1.2fr_1fr_0.7fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f8fbff] ${
-                        reasonForm.id === reason.id ? "bg-blue-50/70" : ""
-                      }`}
+                      className={uiListRowClass(
+                        isSelectedReason(reason),
+                        "grid w-full grid-cols-[1.2fr_1fr_0.7fr] gap-2 px-3 py-2 text-left text-xs",
+                      )}
                     >
                       <span>
                         <strong className="block text-[#0f2747]">
@@ -223,12 +265,20 @@ export default function MotivosPage() {
                       </span>
                       <span className="text-slate-600">
                         {[
-                          reason.allowsExecutiveAssignment ? "Deriva" : "",
+                          reason.allowsExecutiveAssignment
+                            ? reason.usesAppointmentDuration
+                              ? `Deriva · ${reason.appointmentDurationMinutes} min`
+                              : "Deriva"
+                            : "",
                           reason.usesDateRange ? "Fechas" : "",
                           reason.usesPermitDetails ? "Horas/días" : "",
                           reason.restrictedWeekdays.length
                             ? `Restringe: ${formatRestrictedWeekdays(reason.restrictedWeekdays)}`
                             : "",
+                          formatBusinessDayAdvanceSummary(
+                            reason.requiresBusinessDayAdvance,
+                            reason.businessDaysAdvance,
+                          ),
                         ]
                           .filter(Boolean)
                           .join(" · ") || "Sin campos"}
@@ -251,9 +301,9 @@ export default function MotivosPage() {
             <form
               noValidate
               onSubmit={saveReason}
-              className="rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] p-4"
+              className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
-              <div className="mb-4 border-b border-[#e3ebf5] pb-3">
+              <div className="mb-4 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-base font-semibold text-[#0f2747]">
                   Datos generales
                 </h4>
@@ -275,16 +325,83 @@ export default function MotivosPage() {
                       label: event.target.value,
                     }))
                   }
-                  className="h-10 rounded-2xl border border-[#d8e2ef] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100"
+                  className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   placeholder="Ej: Capacitación"
                 />
               </label>
 
               <div className="mt-4 grid gap-2">
+                <div className="overflow-hidden rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+                  <label className="flex h-10 items-center justify-between px-3 text-xs font-semibold text-[#173b68]">
+                    Derivar
+                    <input
+                      type="checkbox"
+                      checked={reasonForm.allowsExecutiveAssignment}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => ({
+                          ...currentForm,
+                          allowsExecutiveAssignment: event.target.checked,
+                          ...(event.target.checked
+                            ? {}
+                            : { usesAppointmentDuration: false }),
+                        }))
+                      }
+                      className="h-4 w-4 accent-[#0b5cab]"
+                    />
+                  </label>
+
+                  {reasonForm.allowsExecutiveAssignment ? (
+                    <div className="border-t border-[#c5d8eb] bg-[#f8fbff] px-3 py-3">
+                      <p className="text-xs font-semibold text-[#173b68]">
+                        Duración de la cita
+                      </p>
+                      <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                        Define cuánto durará la atención al derivar. Por ahora
+                        la hora de inicio es fija a las 09:00.
+                      </p>
+                      <div className="mt-3 flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-white px-3">
+                        <span className="shrink-0 text-[11px] font-semibold text-[#173b68]">
+                          Minutos
+                        </span>
+                        <input
+                          type="number"
+                          min={5}
+                          max={480}
+                          step={5}
+                          value={reasonForm.appointmentDurationMinutes}
+                          disabled={!reasonForm.usesAppointmentDuration}
+                          onChange={(event) =>
+                            setReasonForm((currentForm) => ({
+                              ...currentForm,
+                              appointmentDurationMinutes:
+                                Number.parseInt(event.target.value, 10) || 0,
+                            }))
+                          }
+                          className="h-8 w-16 rounded-xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                        <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[#173b68]">
+                          Activo
+                          <input
+                            type="checkbox"
+                            checked={reasonForm.usesAppointmentDuration}
+                            onChange={(event) =>
+                              setReasonForm((currentForm) => ({
+                                ...currentForm,
+                                usesAppointmentDuration: event.target.checked,
+                              }))
+                            }
+                            className="h-3.5 w-3.5 accent-[#0b5cab]"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
                 {reasonFeatureFields.map(([field, label]) => (
                   <label
                     key={field}
-                    className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-white px-3 text-xs font-semibold text-[#173b68]"
+                    className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]"
                   >
                     {label}
                     <input
@@ -302,31 +419,66 @@ export default function MotivosPage() {
                 ))}
               </div>
 
-              <div className="mt-4 rounded-2xl border border-[#d8e2ef] bg-white p-3">
+              <div className="mt-4 rounded-2xl border border-[#b7cce4] bg-white p-3">
                 <p className="text-xs font-semibold text-[#173b68]">
                   Días restringidos
                 </p>
-                <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                  Marca los días en que no se podrá solicitar este motivo desde
-                  la app pública.
-                </p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="mt-2 flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5">
                   {weekdayOptions.map((option) => (
                     <label
                       key={option.value}
-                      className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]"
+                      className="inline-flex min-w-[2.75rem] shrink-0 flex-col items-center gap-1 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2 text-[#173b68]"
                     >
-                      {option.label}
                       <input
                         type="checkbox"
                         checked={reasonForm.restrictedWeekdays.includes(
                           option.value,
                         )}
                         onChange={() => toggleRestrictedWeekday(option.value)}
-                        className="h-4 w-4 accent-[#0b5cab]"
+                        className="h-3.5 w-3.5 accent-[#0b5cab]"
                       />
+                      <span className="text-[11px] font-semibold lowercase leading-none">
+                        {option.shortLabel}
+                      </span>
                     </label>
                   ))}
+                </div>
+
+                <div className="mt-3 flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3">
+                  <span className="shrink-0 text-[11px] font-semibold text-[#173b68]">
+                    Anticip. días háb.
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={reasonForm.businessDaysAdvance}
+                    disabled={!reasonForm.requiresBusinessDayAdvance}
+                    onChange={(event) =>
+                      setReasonForm((currentForm) => ({
+                        ...currentForm,
+                        businessDaysAdvance: Number.parseInt(
+                          event.target.value,
+                          10,
+                        ) || 0,
+                      }))
+                    }
+                    className="h-8 w-14 rounded-xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100 disabled:text-slate-400"
+                  />
+                  <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[#173b68]">
+                    Activo
+                    <input
+                      type="checkbox"
+                      checked={reasonForm.requiresBusinessDayAdvance}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => ({
+                          ...currentForm,
+                          requiresBusinessDayAdvance: event.target.checked,
+                        }))
+                      }
+                      className="h-3.5 w-3.5 accent-[#0b5cab]"
+                    />
+                  </label>
                 </div>
               </div>
 
