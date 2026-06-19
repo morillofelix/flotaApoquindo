@@ -14,6 +14,9 @@ import {
   type PermissionReason,
 } from "@/lib/appointments";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import ExecutiveAccessLoginScreen, {
+  PUBLIC_ACCESS_STORAGE_KEY,
+} from "@/components/ExecutiveAccessLoginScreen";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import VehicleNumberLookupField, {
@@ -236,15 +239,45 @@ async function sendTicketEmail(newAppointment: Appointment) {
 }
 
 export default function HomePage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    setIsAuthenticated(
+      window.sessionStorage.getItem(PUBLIC_ACCESS_STORAGE_KEY) === "true",
+    );
+    setAuthChecked(true);
+  }, []);
+
+  if (!authChecked) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <ExecutiveAccessLoginScreen
+        storageKey={PUBLIC_ACCESS_STORAGE_KEY}
+        eyebrow="Acceso al formulario"
+        title="Solicitud de cita"
+        description="Ingresa usuario y clave para registrar una solicitud."
+        showCredentialHint
+        onAuthenticated={() => setIsAuthenticated(true)}
+      />
+    );
+  }
+
+  return (
+    <AppointmentRequestForm onLogout={() => setIsAuthenticated(false)} />
+  );
+}
+
+function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
   const today = useMemo(() => getTodayValue(), []);
   const formStartedAt = useMemo(() => Date.now(), []);
   const [values, setValues] = useState<FormValues>(initialValues);
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>(
     {},
   );
-  const [securityTouched, setSecurityTouched] = useState(false);
-  const [securityAnswer, setSecurityAnswer] = useState("");
-  const [botTrap, setBotTrap] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTicketId, setSuccessTicketId] = useState("");
   const [emailWarning, setEmailWarning] = useState("");
@@ -459,15 +492,15 @@ export default function HomePage() {
     };
   }, [today, usesDateRange, usesPermitDetails, values, reasons, linkedVehicleNumber]);
 
-  const securityError =
-    botTrap.trim().length > 0 || securityAnswer.trim() !== "7"
-      ? "Completa la verificación de seguridad."
-      : "";
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
-    !securityError &&
     !isSelectedReasonRestricted &&
     !businessDayAdvanceMessage;
+
+  function handleLogout() {
+    window.sessionStorage.removeItem(PUBLIC_ACCESS_STORAGE_KEY);
+    onLogout();
+  }
 
   function resetSubmissionState() {
     setShowSuccess(false);
@@ -574,8 +607,6 @@ export default function HomePage() {
       email: true,
       phone: true,
     });
-    setSecurityTouched(true);
-
     const submittedTooFast = Date.now() - formStartedAt < 2000;
 
     if (isSelectedReasonRestricted) {
@@ -625,9 +656,7 @@ export default function HomePage() {
         }
 
         setValues(initialValues);
-        setSecurityAnswer("");
         setTouched({});
-        setSecurityTouched(false);
         setShowSuccess(true);
       } catch (error) {
         setShowSuccess(false);
@@ -653,9 +682,20 @@ export default function HomePage() {
 
   return (
     <main className="flex min-h-[100dvh] flex-col bg-[#eef3f9] text-[#0f2747]">
-      <PublicPageBanner title="Solicitud de cita" />
+      <div className="sticky top-0 z-10 bg-[#eef3f9]/95 backdrop-blur-sm">
+        <PublicPageBanner title="Solicitud de cita" />
+        <div className="mx-auto flex w-full max-w-2xl justify-end px-4 pb-2 sm:px-6 md:max-w-3xl md:px-8">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex h-8 items-center justify-center rounded-xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68] transition hover:border-[#0b5cab] hover:text-[#0b5cab]"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
 
-      <div className="flex-1 px-4 pb-5 pt-2 sm:px-6 md:px-8">
+      <div className="flex-1 px-4 pb-5 pt-0 sm:px-6 md:px-8">
         <form
           noValidate
           onSubmit={handleSubmit}
@@ -951,48 +991,6 @@ export default function HomePage() {
             ) : null}
           </div>
 
-          <input
-            type="text"
-            name="companyWebsite"
-            value={botTrap}
-            onChange={(event) => setBotTrap(event.target.value)}
-            className="hidden"
-            tabIndex={-1}
-            autoComplete="off"
-            aria-hidden="true"
-          />
-
-          <div className={`mt-6 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]`}>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
-                Verificación de seguridad
-              </span>
-              <span className="text-sm leading-6 text-slate-600">
-                Para evitar spam, escribe el resultado de 3 + 4.
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                value={securityAnswer}
-                onBlur={() => setSecurityTouched(true)}
-                onChange={(event) => {
-                  setSecurityAnswer(event.target.value);
-                  setShowSuccess(false);
-                }}
-                className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${
-                  securityTouched && securityError
-                    ? "border-red-500"
-                    : "border-[#9fb8d9]"
-                }`}
-                placeholder="Respuesta"
-              />
-              {securityTouched && securityError ? (
-                <span className="text-sm text-red-600">{securityError}</span>
-              ) : null}
-            </label>
-          </div>
-
           {showSuccess ? (
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
               Solicitud registrada correctamente. Tu número de ticket es{" "}
@@ -1015,7 +1013,7 @@ export default function HomePage() {
 
           <div className={`mt-8 flex flex-col gap-4 border-t ${formDividerBorderClass} pt-6 sm:flex-row sm:items-center sm:justify-between`}>
             <p className="text-sm text-slate-600">
-              Este botón valida los campos y la verificación de seguridad.
+              Este botón valida los campos de la solicitud.
             </p>
             <button
               type="submit"
