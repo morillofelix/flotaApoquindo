@@ -7,6 +7,9 @@ import {
   appointmentReasonUsesDateRange,
   defaultAppointmentReasons,
   getAppointmentTicketLabel,
+  getSantiagoToday,
+  isReasonRestrictedToday,
+  RESTRICTED_DAY_MESSAGE,
   type PermissionReason,
 } from "@/lib/appointments";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
@@ -14,7 +17,6 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 type FormValues = {
   driverName: string;
   vehicleNumber: string;
-  appointmentDate: string;
   appointmentReason: string;
   vacationStartDate: string;
   vacationEndDate: string;
@@ -33,7 +35,6 @@ type FieldName = keyof FormValues;
 const initialValues: FormValues = {
   driverName: "",
   vehicleNumber: "",
-  appointmentDate: "",
   appointmentReason: "",
   vacationStartDate: "",
   vacationEndDate: "",
@@ -50,7 +51,7 @@ const initialValues: FormValues = {
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function getTodayValue() {
-  return new Date().toISOString().split("T")[0] ?? "";
+  return getSantiagoToday().date;
 }
 
 function validateField(
@@ -71,10 +72,6 @@ function validateField(
 
   if (name === "vehicleNumber" && !/^\d{1,3}$/.test(trimmedValue)) {
     return "Ingresa un móvil numérico de hasta 3 dígitos.";
-  }
-
-  if (name === "appointmentDate" && trimmedValue < today) {
-    return "La fecha debe ser hoy o posterior.";
   }
 
   if (name === "vacationStartDate" && trimmedValue < today) {
@@ -147,7 +144,7 @@ function createAppointment(
   return {
     driverName: values.driverName.trim(),
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
-    appointmentDate: values.appointmentDate,
+    appointmentDate: getSantiagoToday().date,
     vacationStartDate: usesDateRange ? values.vacationStartDate : "",
     vacationEndDate: usesDateRange ? values.vacationEndDate : "",
     permitType: usesPermitDetails
@@ -189,6 +186,14 @@ async function saveAppointment(newAppointment: AppointmentSubmission) {
   });
 
   if (!response.ok) {
+    const result = (await response.json().catch(() => ({}))) as {
+      message?: string;
+    };
+
+    if (response.status === 403 && result.message) {
+      throw new Error(result.message);
+    }
+
     throw new Error("No se pudo registrar la solicitud.");
   }
 
@@ -244,6 +249,18 @@ export default function HomePage() {
   const usesPermitDetails = appointmentReasonUsesPermitDetails(
     values.appointmentReason,
     reasons,
+  );
+  const selectedReasonConfig = useMemo(
+    () =>
+      activeReasons.find((reason) => reason.value === values.appointmentReason),
+    [activeReasons, values.appointmentReason],
+  );
+  const isSelectedReasonRestricted = useMemo(
+    () =>
+      selectedReasonConfig
+        ? isReasonRestrictedToday(selectedReasonConfig.restrictedWeekdays)
+        : false,
+    [selectedReasonConfig],
   );
 
   useEffect(() => {
@@ -304,12 +321,6 @@ export default function HomePage() {
         today,
         reasons,
       ),
-      appointmentDate: validateField(
-        "appointmentDate",
-        values.appointmentDate,
-        today,
-        reasons,
-      ),
       appointmentReason: validateField(
         "appointmentReason",
         values.appointmentReason,
@@ -357,7 +368,9 @@ export default function HomePage() {
       ? "Completa la verificación de seguridad."
       : "";
   const isFormValid =
-    Object.values(errors).every((error) => !error) && !securityError;
+    Object.values(errors).every((error) => !error) &&
+    !securityError &&
+    !isSelectedReasonRestricted;
 
   function updateField(name: FieldName, value: string) {
     setValues((currentValues) => ({
@@ -414,7 +427,6 @@ export default function HomePage() {
     setTouched({
       driverName: true,
       vehicleNumber: true,
-      appointmentDate: true,
       appointmentReason: true,
       vacationStartDate: usesDateRange,
       vacationEndDate: usesDateRange,
@@ -430,6 +442,13 @@ export default function HomePage() {
     setSecurityTouched(true);
 
     const submittedTooFast = Date.now() - formStartedAt < 2000;
+
+    if (isSelectedReasonRestricted) {
+      setSubmitError(RESTRICTED_DAY_MESSAGE);
+      setShowSuccess(false);
+      return;
+    }
+
     const canSubmit = isFormValid && !submittedTooFast;
 
     if (canSubmit) {
@@ -454,10 +473,12 @@ export default function HomePage() {
         setTouched({});
         setSecurityTouched(false);
         setShowSuccess(true);
-      } catch {
+      } catch (error) {
         setShowSuccess(false);
         setSubmitError(
-          "No se pudo registrar la solicitud. Intenta nuevamente.",
+          error instanceof Error && error.message
+            ? error.message
+            : "No se pudo registrar la solicitud. Intenta nuevamente.",
         );
       } finally {
         setIsSubmitting(false);
@@ -566,29 +587,6 @@ export default function HomePage() {
 
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">
-                Fecha requerida
-              </span>
-              <input
-                type="date"
-                name="appointmentDate"
-                required
-                value={values.appointmentDate}
-                min={today}
-                onBlur={() => markFieldAsTouched("appointmentDate")}
-                onChange={(event) =>
-                  updateField("appointmentDate", event.target.value)
-                }
-                className={`h-12 rounded-2xl border bg-white px-4 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-4 focus:ring-blue-100 ${fieldStatus("appointmentDate")}`}
-              />
-              {touched.appointmentDate && errors.appointmentDate ? (
-                <span className="text-sm text-red-600">
-                  {errors.appointmentDate}
-                </span>
-              ) : null}
-            </label>
-
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-[#173b68]">
                 Correo electrónico
               </span>
               <input
@@ -650,6 +648,11 @@ export default function HomePage() {
                 <span className="text-sm text-red-600">
                   {errors.appointmentReason}
                 </span>
+              ) : null}
+              {isSelectedReasonRestricted ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+                  {RESTRICTED_DAY_MESSAGE}
+                </div>
               ) : null}
             </label>
 
@@ -922,8 +925,8 @@ export default function HomePage() {
             </p>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px sm:w-auto sm:min-w-44"
+              disabled={isSubmitting || isSelectedReasonRestricted}
+              className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto sm:min-w-44"
             >
               {isSubmitting ? "Registrando..." : "Validar cita"}
             </button>

@@ -5,7 +5,14 @@ import {
   type PermitType,
   defaultAppointmentReasons,
   getPermissionReasonLabel,
+  RESTRICTED_DAY_MESSAGE,
 } from "@/lib/appointments";
+import {
+  getSantiagoToday,
+  isReasonRestrictedToday,
+  parseRestrictedWeekdays,
+  serializeRestrictedWeekdays,
+} from "@/lib/appointment-reason-weekdays";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
@@ -128,21 +135,51 @@ function toAppointment(
 
 async function ensureDefaultReasons() {
   await prisma.appointmentReason.createMany({
-    data: defaultAppointmentReasons,
+    data: defaultAppointmentReasons.map((reason) => ({
+      ...reason,
+      restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
+    })),
     skipDuplicates: true,
   });
+}
+
+function toReasonConfig(
+  reason: {
+    value: string;
+    label: string;
+    allowsExecutiveAssignment: boolean;
+    usesDateRange: boolean;
+    usesPermitDetails: boolean;
+    isActive: boolean;
+    restrictedWeekdays: string;
+    sortOrder: number;
+  } | null,
+): AppointmentReasonConfig | null {
+  if (!reason) {
+    return null;
+  }
+
+  return {
+    value: reason.value,
+    label: reason.label,
+    allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+    usesDateRange: reason.usesDateRange,
+    usesPermitDetails: reason.usesPermitDetails,
+    isActive: reason.isActive,
+    restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
+    sortOrder: reason.sortOrder,
+  };
 }
 
 function validateCreateBody(
   body: AppointmentCreateBody,
   reasonConfig: AppointmentReasonConfig | null,
+  appointmentDate: string,
 ) {
   const driverName =
     typeof body.driverName === "string" ? body.driverName.trim() : "";
   const vehicleNumber =
     typeof body.vehicleNumber === "string" ? body.vehicleNumber.trim() : "";
-  const appointmentDate =
-    typeof body.appointmentDate === "string" ? body.appointmentDate : "";
   const appointmentReason =
     typeof body.appointmentReason === "string" ? body.appointmentReason : "";
   const vacationStartDate =
@@ -240,7 +277,11 @@ export async function GET() {
 
   return NextResponse.json({
     appointments: appointments.map((appointment) =>
-      toAppointment(appointment, reasonByValue.get(appointment.appointmentReason)),
+      toAppointment(
+        appointment,
+        toReasonConfig(reasonByValue.get(appointment.appointmentReason) ?? null) ??
+          undefined,
+      ),
     ),
   });
 }
@@ -263,7 +304,20 @@ export async function POST(request: NextRequest) {
   const reasonConfig = await prisma.appointmentReason.findUnique({
     where: { value: appointmentReason },
   });
-  const appointment = validateCreateBody(body, reasonConfig);
+  const reason = toReasonConfig(reasonConfig);
+  const today = getSantiagoToday();
+
+  if (
+    reason &&
+    isReasonRestrictedToday(reason.restrictedWeekdays, today)
+  ) {
+    return NextResponse.json(
+      { message: RESTRICTED_DAY_MESSAGE },
+      { status: 403 },
+    );
+  }
+
+  const appointment = validateCreateBody(body, reason, today.date);
 
   if (!appointment) {
     return NextResponse.json(
@@ -295,7 +349,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { appointment: toAppointment(createdAppointment, reasonConfig ?? undefined) },
+      { appointment: toAppointment(createdAppointment, reason ?? undefined) },
       { status: 201 },
     );
   } catch {

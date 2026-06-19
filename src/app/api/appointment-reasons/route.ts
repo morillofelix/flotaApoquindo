@@ -2,6 +2,12 @@ import {
   type AppointmentReasonConfig,
   defaultAppointmentReasons,
 } from "@/lib/appointments";
+import {
+  isWeekdayKey,
+  parseRestrictedWeekdays,
+  serializeRestrictedWeekdays,
+  type WeekdayKey,
+} from "@/lib/appointment-reason-weekdays";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -14,6 +20,7 @@ type ReasonBody = {
   usesDateRange?: unknown;
   usesPermitDetails?: unknown;
   isActive?: unknown;
+  restrictedWeekdays?: unknown;
 };
 
 function slugify(value: string) {
@@ -26,7 +33,19 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function toReason(value: AppointmentReasonConfig): AppointmentReasonConfig {
+function toReason(
+  value: AppointmentReasonConfig | {
+    id: string;
+    value: string;
+    label: string;
+    allowsExecutiveAssignment: boolean;
+    usesDateRange: boolean;
+    usesPermitDetails: boolean;
+    isActive: boolean;
+    restrictedWeekdays: string;
+    sortOrder: number;
+  },
+): AppointmentReasonConfig {
   return {
     id: value.id,
     value: value.value,
@@ -35,8 +54,19 @@ function toReason(value: AppointmentReasonConfig): AppointmentReasonConfig {
     usesDateRange: value.usesDateRange,
     usesPermitDetails: value.usesPermitDetails,
     isActive: value.isActive,
+    restrictedWeekdays: parseRestrictedWeekdays(value.restrictedWeekdays),
     sortOrder: value.sortOrder,
   };
+}
+
+function parseRestrictedWeekdaysBody(value: unknown): WeekdayKey[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (item): item is WeekdayKey => typeof item === "string" && isWeekdayKey(item),
+  );
 }
 
 async function ensureDefaultReasons() {
@@ -48,6 +78,7 @@ async function ensureDefaultReasons() {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
+      restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
       sortOrder: reason.sortOrder,
     })),
     skipDuplicates: true,
@@ -114,6 +145,8 @@ export async function POST(request: NextRequest) {
     suffix += 1;
   }
 
+  const restrictedWeekdays = parseRestrictedWeekdaysBody(body.restrictedWeekdays);
+
   const reason = await prisma.appointmentReason.create({
     data: {
       value,
@@ -122,6 +155,7 @@ export async function POST(request: NextRequest) {
       usesDateRange: getBoolean(body.usesDateRange),
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
+      restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
       sortOrder: (existingCount + 1) * 10,
     },
   });
@@ -151,6 +185,8 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  const restrictedWeekdays = parseRestrictedWeekdaysBody(body.restrictedWeekdays);
+
   try {
     const reason = await prisma.appointmentReason.update({
       where: { id },
@@ -160,6 +196,7 @@ export async function PATCH(request: NextRequest) {
         usesDateRange: getBoolean(body.usesDateRange),
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         isActive: getBoolean(body.isActive),
+        restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
       },
     });
 

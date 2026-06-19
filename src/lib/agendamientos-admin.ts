@@ -4,6 +4,7 @@ import {
   type ExecutiveConfig,
   defaultAppointmentReasons,
   defaultExecutives,
+  formatRestrictedWeekdays,
 } from "@/lib/appointments";
 import { type DriverOwnerConfig } from "@/lib/driver-owners";
 
@@ -112,6 +113,7 @@ export function downloadAppointmentReasonsExcel(
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesDateRange))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesPermitDetails))}</td>
           <td>${escapeExcelHtml(formatExcelActiveStatus(reason.isActive))}</td>
+          <td>${escapeExcelHtml(formatRestrictedWeekdays(reason.restrictedWeekdays))}</td>
           <td>${escapeExcelHtml(String(reason.sortOrder))}</td>
         </tr>`,
     )
@@ -132,6 +134,7 @@ export function downloadAppointmentReasonsExcel(
               <th>Rango fechas</th>
               <th>Permiso horas/días</th>
               <th>Estado</th>
+              <th>Días restringidos</th>
               <th>Orden</th>
             </tr>
           </thead>

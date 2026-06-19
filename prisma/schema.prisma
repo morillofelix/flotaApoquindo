@@ -44,6 +44,7 @@ model AppointmentReason {
   usesDateRange              Boolean  @default(false)
   usesPermitDetails          Boolean  @default(false)
   isActive                   Boolean  @default(true)
+  restrictedWeekdays         String   @default("")
   sortOrder                  Int      @default(0)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt

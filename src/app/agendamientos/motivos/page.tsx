@@ -1,7 +1,12 @@
 "use client";
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
-import { type AppointmentReasonConfig } from "@/lib/appointments";
+import {
+  type AppointmentReasonConfig,
+  type WeekdayKey,
+  weekdayOptions,
+  formatRestrictedWeekdays,
+} from "@/lib/appointments";
 import {
   downloadAppointmentReasonsExcel,
   loadAppointmentReasons,
@@ -15,6 +20,7 @@ type ReasonForm = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   isActive: boolean;
+  restrictedWeekdays: WeekdayKey[];
 };
 
 type ReasonBooleanField =
@@ -37,6 +43,7 @@ const emptyReasonForm: ReasonForm = {
   usesDateRange: false,
   usesPermitDetails: false,
   isActive: true,
+  restrictedWeekdays: [],
 };
 
 export default function MotivosPage() {
@@ -85,6 +92,7 @@ export default function MotivosPage() {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
+      restrictedWeekdays: reason.restrictedWeekdays,
     });
     setReasonMessage("");
     setReasonError("");
@@ -94,6 +102,15 @@ export default function MotivosPage() {
     setReasonForm(emptyReasonForm);
     setReasonMessage("");
     setReasonError("");
+  }
+
+  function toggleRestrictedWeekday(weekday: WeekdayKey) {
+    setReasonForm((currentForm) => ({
+      ...currentForm,
+      restrictedWeekdays: currentForm.restrictedWeekdays.includes(weekday)
+        ? currentForm.restrictedWeekdays.filter((item) => item !== weekday)
+        : [...currentForm.restrictedWeekdays, weekday],
+    }));
   }
 
   async function saveReason(event: React.FormEvent<HTMLFormElement>) {
@@ -209,6 +226,9 @@ export default function MotivosPage() {
                           reason.allowsExecutiveAssignment ? "Deriva" : "",
                           reason.usesDateRange ? "Fechas" : "",
                           reason.usesPermitDetails ? "Horas/días" : "",
+                          reason.restrictedWeekdays.length
+                            ? `Restringe: ${formatRestrictedWeekdays(reason.restrictedWeekdays)}`
+                            : "",
                         ]
                           .filter(Boolean)
                           .join(" · ") || "Sin campos"}
@@ -280,6 +300,34 @@ export default function MotivosPage() {
                     />
                   </label>
                 ))}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#d8e2ef] bg-white p-3">
+                <p className="text-xs font-semibold text-[#173b68]">
+                  Días restringidos
+                </p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                  Marca los días en que no se podrá solicitar este motivo desde
+                  la app pública.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {weekdayOptions.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex h-10 items-center justify-between rounded-2xl border border-[#d8e2ef] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]"
+                    >
+                      {option.label}
+                      <input
+                        type="checkbox"
+                        checked={reasonForm.restrictedWeekdays.includes(
+                          option.value,
+                        )}
+                        onChange={() => toggleRestrictedWeekday(option.value)}
+                        className="h-4 w-4 accent-[#0b5cab]"
+                      />
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {reasonMessage ? (

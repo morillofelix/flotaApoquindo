@@ -1,5 +1,18 @@
 export const APPOINTMENTS_STORAGE_KEY = "apoquindo-permission-appointments";
 
+import { type WeekdayKey } from "@/lib/appointment-reason-weekdays";
+
+export type { WeekdayKey };
+export {
+  weekdayOptions,
+  RESTRICTED_DAY_MESSAGE,
+  formatRestrictedWeekdays,
+  getSantiagoToday,
+  isReasonRestrictedToday,
+  parseRestrictedWeekdays,
+  serializeRestrictedWeekdays,
+} from "@/lib/appointment-reason-weekdays";
+
 export type AppointmentReasonConfig = {
   id?: string;
   value: string;
@@ -8,6 +21,7 @@ export type AppointmentReasonConfig = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   isActive: boolean;
+  restrictedWeekdays: WeekdayKey[];
   sortOrder: number;
 };
 
@@ -19,6 +33,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: true,
     usesPermitDetails: false,
     isActive: true,
+    restrictedWeekdays: [],
     sortOrder: 10,
   },
   {
@@ -28,6 +43,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: true,
     usesPermitDetails: false,
     isActive: true,
+    restrictedWeekdays: [],
     sortOrder: 20,
   },
   {
@@ -37,6 +53,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: false,
     usesPermitDetails: true,
     isActive: true,
+    restrictedWeekdays: [],
     sortOrder: 30,
   },
   {
@@ -46,6 +63,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: false,
     usesPermitDetails: false,
     isActive: true,
+    restrictedWeekdays: [],
     sortOrder: 40,
   },
 ];
