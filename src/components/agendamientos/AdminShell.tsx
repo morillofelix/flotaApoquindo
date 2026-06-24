@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "/agendamientos", label: "Solicitudes" },
+  { href: "/agendamientos/calendario", label: "Calendario" },
   { href: "/agendamientos/motivos", label: "Motivos" },
   { href: "/agendamientos/ejecutivos", label: "Ejecutivos" },
   { href: "/agendamientos/conductores", label: "Conductores" },
