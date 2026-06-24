@@ -1,13 +1,17 @@
 import {
   type Appointment,
+  type AppointmentStatus,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import {
   formatClockTime,
   resolveAppointmentSchedule,
 } from "@/lib/appointment-scheduling";
+import { statusLabels } from "@/lib/agendamientos-appointments";
 
 export type CalendarViewMode = "month" | "day";
+
+export type CalendarEventKind = "executive" | "approval";
 
 export type AppointmentCalendarEvent = {
   id: string;
@@ -18,16 +22,26 @@ export type AppointmentCalendarEvent = {
   endHour: number;
   endMinute: number;
   timeLabel: string;
+  kind: CalendarEventKind;
   executive: string;
   vehicleNumber: string;
   driverName: string;
+  reasonValue: string;
   reasonLabel: string;
-  status: string;
+  status: AppointmentStatus;
+  calendarStatusLabel: string;
   ticketLabel: string;
   sortKey: number;
 };
 
-const HIDDEN_STATUSES = new Set(["cancelado", "rechazado"]);
+export type CalendarDayGroup = {
+  key: string;
+  title: string;
+  kind: CalendarEventKind;
+  events: AppointmentCalendarEvent[];
+};
+
+const HIDDEN_STATUSES = new Set<AppointmentStatus>(["cancelado", "rechazado"]);
 
 const weekdayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -68,16 +82,72 @@ function enumerateDateRange(startDate: string, endDate: string) {
   return dates;
 }
 
+function getCalendarStatusLabel(
+  appointment: Appointment,
+  kind: CalendarEventKind,
+) {
+  if (kind === "approval") {
+    if (appointment.status === "aprobado") {
+      return "Aprobada";
+    }
+
+    if (appointment.status === "pendiente") {
+      return "Sin aprobar";
+    }
+  }
+
+  return statusLabels[appointment.status] ?? appointment.status;
+}
+
 function buildEvent(
   appointment: Appointment,
-  event: Omit<AppointmentCalendarEvent, "id" | "appointmentId" | "ticketLabel">,
+  kind: CalendarEventKind,
+  event: Omit<
+    AppointmentCalendarEvent,
+    | "id"
+    | "appointmentId"
+    | "ticketLabel"
+    | "kind"
+    | "calendarStatusLabel"
+  >,
 ) {
   return {
     ...event,
-    id: `${appointment.id}-${event.date}-${event.sortKey}`,
+    kind,
+    calendarStatusLabel: getCalendarStatusLabel(appointment, kind),
+    id: `${appointment.id}-${event.date}-${event.sortKey}-${kind}`,
     appointmentId: appointment.id,
     ticketLabel: getAppointmentTicketLabel(appointment),
   };
+}
+
+function pushApprovalDateRangeEvents(
+  appointment: Appointment,
+  events: AppointmentCalendarEvent[],
+  startDate: string,
+  endDate: string,
+  timeLabel: string,
+  sortKey: number,
+) {
+  for (const date of enumerateDateRange(startDate, endDate)) {
+    events.push(
+      buildEvent(appointment, "approval", {
+        date,
+        startHour: 0,
+        startMinute: 0,
+        endHour: 23,
+        endMinute: 59,
+        timeLabel,
+        executive: "",
+        vehicleNumber: appointment.vehicleNumber,
+        driverName: appointment.driverName,
+        reasonValue: appointment.appointmentReason,
+        reasonLabel: appointment.appointmentReasonLabel,
+        status: appointment.status,
+        sortKey,
+      }),
+    );
+  }
 }
 
 export function getAppointmentCalendarEvents(
@@ -88,8 +158,10 @@ export function getAppointmentCalendarEvents(
   }
 
   const events: AppointmentCalendarEvent[] = [];
+  const isApprovalOnly = !appointment.reasonAllowsExecutiveAssignment;
 
   if (
+    !isApprovalOnly &&
     appointment.reasonAllowsExecutiveAssignment &&
     appointment.assignedExecutive
   ) {
@@ -104,7 +176,7 @@ export function getAppointmentCalendarEvents(
 
     if (schedule) {
       events.push(
-        buildEvent(appointment, {
+        buildEvent(appointment, "executive", {
           date: appointment.appointmentDate,
           startHour: schedule.startHour,
           startMinute: schedule.startMinute,
@@ -114,12 +186,34 @@ export function getAppointmentCalendarEvents(
           executive: appointment.assignedExecutive,
           vehicleNumber: appointment.vehicleNumber,
           driverName: appointment.driverName,
-          reasonLabel: appointment.appointmentReasonLabel,
+          reasonValue: appointment.appointmentReason,
+        reasonLabel: appointment.appointmentReasonLabel,
           status: appointment.status,
           sortKey: toSortKey(schedule.startHour, schedule.startMinute),
         }),
       );
     }
+
+    return events;
+  }
+
+  if (!isApprovalOnly) {
+    return events;
+  }
+
+  if (
+    appointment.reasonUsesDateRange &&
+    appointment.vacationStartDate &&
+    appointment.vacationEndDate
+  ) {
+    pushApprovalDateRangeEvents(
+      appointment,
+      events,
+      appointment.vacationStartDate,
+      appointment.vacationEndDate,
+      "",
+      0,
+    );
   }
 
   if (
@@ -132,47 +226,20 @@ export function getAppointmentCalendarEvents(
 
     if (start && end) {
       events.push(
-        buildEvent(appointment, {
+        buildEvent(appointment, "approval", {
           date: appointment.permitDate,
           startHour: start.hour,
           startMinute: start.minute,
           endHour: end.hour,
           endMinute: end.minute,
-          timeLabel: `${formatClockTime(start.hour, start.minute)} a ${formatClockTime(end.hour, end.minute)}`,
-          executive: appointment.assignedExecutive || "Sin ejecutivo",
+          timeLabel: `${formatClockTime(start.hour, start.minute)}-${formatClockTime(end.hour, end.minute)}`,
+          executive: "",
           vehicleNumber: appointment.vehicleNumber,
           driverName: appointment.driverName,
-          reasonLabel: appointment.appointmentReasonLabel,
+          reasonValue: appointment.appointmentReason,
+        reasonLabel: appointment.appointmentReasonLabel,
           status: appointment.status,
           sortKey: toSortKey(start.hour, start.minute),
-        }),
-      );
-    }
-  }
-
-  if (
-    appointment.reasonUsesDateRange &&
-    appointment.vacationStartDate &&
-    appointment.vacationEndDate
-  ) {
-    for (const date of enumerateDateRange(
-      appointment.vacationStartDate,
-      appointment.vacationEndDate,
-    )) {
-      events.push(
-        buildEvent(appointment, {
-          date,
-          startHour: 0,
-          startMinute: 0,
-          endHour: 23,
-          endMinute: 59,
-          timeLabel: "Todo el día",
-          executive: appointment.assignedExecutive || "Sin ejecutivo",
-          vehicleNumber: appointment.vehicleNumber,
-          driverName: appointment.driverName,
-          reasonLabel: appointment.appointmentReasonLabel,
-          status: appointment.status,
-          sortKey: 0,
         }),
       );
     }
@@ -184,27 +251,14 @@ export function getAppointmentCalendarEvents(
     appointment.permitStartDate &&
     appointment.permitEndDate
   ) {
-    for (const date of enumerateDateRange(
+    pushApprovalDateRangeEvents(
+      appointment,
+      events,
       appointment.permitStartDate,
       appointment.permitEndDate,
-    )) {
-      events.push(
-        buildEvent(appointment, {
-          date,
-          startHour: 0,
-          startMinute: 0,
-          endHour: 23,
-          endMinute: 59,
-          timeLabel: "Todo el día",
-          executive: appointment.assignedExecutive || "Sin ejecutivo",
-          vehicleNumber: appointment.vehicleNumber,
-          driverName: appointment.driverName,
-          reasonLabel: appointment.appointmentReasonLabel,
-          status: appointment.status,
-          sortKey: 0,
-        }),
-      );
-    }
+      "",
+      0,
+    );
   }
 
   return events;
@@ -218,12 +272,60 @@ export function collectCalendarEvents(appointments: Appointment[]) {
         return left.date.localeCompare(right.date);
       }
 
+      if (left.kind !== right.kind) {
+        return left.kind === "executive" ? -1 : 1;
+      }
+
       if (left.sortKey !== right.sortKey) {
         return left.sortKey - right.sortKey;
       }
 
-      return left.executive.localeCompare(right.executive, "es");
+      const leftTitle =
+        left.kind === "executive" ? left.executive : left.reasonLabel;
+      const rightTitle =
+        right.kind === "executive" ? right.executive : right.reasonLabel;
+
+      return leftTitle.localeCompare(rightTitle, "es");
     });
+}
+
+export function groupCalendarDayEvents(events: AppointmentCalendarEvent[]) {
+  const groups = new Map<string, CalendarDayGroup>();
+
+  for (const event of events) {
+    const key =
+      event.kind === "executive"
+        ? `executive:${event.executive}`
+        : `approval:${event.reasonLabel}`;
+    const title =
+      event.kind === "executive" ? event.executive : event.reasonLabel;
+    const currentGroup = groups.get(key);
+
+    if (currentGroup) {
+      currentGroup.events.push(event);
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      title,
+      kind: event.kind,
+      events: [event],
+    });
+  }
+
+  return [...groups.values()]
+    .sort((left, right) => {
+      if (left.kind !== right.kind) {
+        return left.kind === "executive" ? -1 : 1;
+      }
+
+      return left.title.localeCompare(right.title, "es");
+    })
+    .map((group) => ({
+      ...group,
+      events: group.events.sort((left, right) => left.sortKey - right.sortKey),
+    }));
 }
 
 export function getMonthMatrix(year: number, month: number) {
@@ -286,19 +388,10 @@ export function shiftDate(dateValue: string, deltaDays: number) {
   return toIsoDate(date);
 }
 
+/** @deprecated Use groupCalendarDayEvents */
 export function groupEventsByExecutive(events: AppointmentCalendarEvent[]) {
-  const groups = new Map<string, AppointmentCalendarEvent[]>();
-
-  for (const event of events) {
-    const currentEvents = groups.get(event.executive) ?? [];
-    currentEvents.push(event);
-    groups.set(event.executive, currentEvents);
-  }
-
-  return [...groups.entries()]
-    .sort(([left], [right]) => left.localeCompare(right, "es"))
-    .map(([executive, executiveEvents]) => ({
-      executive,
-      events: executiveEvents.sort((left, right) => left.sortKey - right.sortKey),
-    }));
+  return groupCalendarDayEvents(events).map((group) => ({
+    executive: group.title,
+    events: group.events,
+  }));
 }

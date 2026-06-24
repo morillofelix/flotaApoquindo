@@ -2,29 +2,143 @@
 
 import {
   type Appointment,
+  type AppointmentReasonConfig,
   type ExecutiveConfig,
 } from "@/lib/appointments";
 import {
   type AppointmentCalendarEvent,
+  type CalendarEventKind,
   type CalendarViewMode,
   collectCalendarEvents,
   formatLongDate,
   formatMonthYear,
   getMonthMatrix,
   getTodayIsoDate,
-  groupEventsByExecutive,
+  groupCalendarDayEvents,
   shiftDate,
   shiftMonth,
 } from "@/lib/appointment-calendar";
-import { statusLabels, statusStyles } from "@/lib/agendamientos-appointments";
+import { statusStyles } from "@/lib/agendamientos-appointments";
 import { UI_CARD_SHELL } from "@/lib/ui-borders";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type AppointmentsCalendarProps = {
   appointments: Appointment[];
   executives: ExecutiveConfig[];
+  reasons: AppointmentReasonConfig[];
   isLoading?: boolean;
 };
+
+type ReasonOption = {
+  value: string;
+  label: string;
+};
+
+const filterFieldClass =
+  "h-10 min-w-[180px] rounded-2xl border border-[#9fb8d9] bg-white px-3 text-left text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
+
+function CalendarReasonMultiSelect({
+  options,
+  selectedValues,
+  onChange,
+}: {
+  options: ReasonOption[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  const buttonLabel = useMemo(() => {
+    if (selectedValues.length === 0) {
+      return "Todos";
+    }
+
+    if (selectedValues.length === 1) {
+      return (
+        options.find((option) => option.value === selectedValues[0])?.label ??
+        "1 motivo"
+      );
+    }
+
+    return `${selectedValues.length} motivos`;
+  }, [options, selectedValues]);
+
+  function toggleReason(value: string) {
+    if (selectedValues.includes(value)) {
+      onChange(selectedValues.filter((currentValue) => currentValue !== value));
+      return;
+    }
+
+    onChange([...selectedValues, value]);
+  }
+
+  return (
+    <div ref={containerRef} className="relative min-w-[180px]">
+      <button
+        type="button"
+        onClick={() => setIsOpen((currentValue) => !currentValue)}
+        className={`${filterFieldClass} flex w-full items-center justify-between gap-2`}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{buttonLabel}</span>
+        <span className="text-xs text-slate-500">{isOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {isOpen ? (
+        <div className="absolute right-0 z-30 mt-1 max-h-64 w-full min-w-[220px] overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white p-2 shadow-lg shadow-slate-300/30">
+          <div className="mb-1 flex items-center justify-between gap-2 px-2 py-1">
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#173b68]">
+              Motivos
+            </span>
+            {selectedValues.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-xs font-semibold text-[#0b5cab] hover:underline"
+              >
+                Limpiar
+              </button>
+            ) : null}
+          </div>
+
+          {options.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-slate-500">
+              No hay motivos disponibles.
+            </p>
+          ) : (
+            options.map((option) => (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm text-[#0f2747] transition hover:bg-[#f8fbff]"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedValues.includes(option.value)}
+                  onChange={() => toggleReason(option.value)}
+                  className="h-4 w-4 rounded border-[#9fb8d9] text-[#0b5cab] focus:ring-[#0b5cab]/20"
+                />
+                <span className="truncate">{option.label}</span>
+              </label>
+            ))
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const weekdayHeaders = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const CALENDAR_DAY_BG = "bg-[#f5ead8]";
@@ -43,14 +157,6 @@ function parseIsoDate(dateValue: string) {
   };
 }
 
-function eventStatusLabel(status: string) {
-  if (status in statusLabels) {
-    return statusLabels[status as keyof typeof statusLabels];
-  }
-
-  return status;
-}
-
 function eventStatusClass(status: string) {
   if (status in statusStyles) {
     return statusStyles[status as keyof typeof statusStyles];
@@ -59,15 +165,40 @@ function eventStatusClass(status: string) {
   return "border-[#b7cce4] bg-[#f8fbff] text-[#173b68]";
 }
 
+function getEventPresentation(event: AppointmentCalendarEvent) {
+  if (event.kind === "approval") {
+    const timePrefix = event.timeLabel ? `${event.timeLabel} · ` : "";
+    return {
+      primary: `${event.reasonLabel} · Móv. ${event.vehicleNumber}`,
+      secondary: `${timePrefix}${event.calendarStatusLabel}`,
+    };
+  }
+
+  return {
+    primary: `${event.timeLabel} · ${event.executive}`,
+    secondary: `Móv. ${event.vehicleNumber}`,
+  };
+}
+
+function getGroupSubtitle(kind: CalendarEventKind, count: number) {
+  if (kind === "approval") {
+    return `${count} ${count === 1 ? "solicitud" : "solicitudes"} por aprobar o aprobadas`;
+  }
+
+  return `${count} ${count === 1 ? "cita" : "citas"} en el día`;
+}
+
 export default function AppointmentsCalendar({
   appointments,
   executives,
+  reasons,
   isLoading = false,
 }: AppointmentsCalendarProps) {
   const today = getTodayIsoDate();
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [selectedDate, setSelectedDate] = useState(today);
   const [executiveFilter, setExecutiveFilter] = useState("todos");
+  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const selectedParts = parseIsoDate(selectedDate);
   const [visibleMonth, setVisibleMonth] = useState({
     year: selectedParts.year,
@@ -80,12 +211,17 @@ export default function AppointmentsCalendar({
   );
 
   const filteredEvents = useMemo(() => {
-    if (executiveFilter === "todos") {
-      return allEvents;
-    }
+    return allEvents.filter((event) => {
+      const matchesReason =
+        selectedReasons.length === 0 ||
+        selectedReasons.includes(event.reasonValue);
+      const matchesExecutive =
+        executiveFilter === "todos" ||
+        (event.kind === "executive" && event.executive === executiveFilter);
 
-    return allEvents.filter((event) => event.executive === executiveFilter);
-  }, [allEvents, executiveFilter]);
+      return matchesReason && matchesExecutive;
+    });
+  }, [allEvents, executiveFilter, selectedReasons]);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, AppointmentCalendarEvent[]>();
@@ -112,7 +248,25 @@ export default function AppointmentsCalendar({
   );
 
   const selectedDayEvents = eventsByDate.get(selectedDate) ?? [];
-  const selectedDayGroups = groupEventsByExecutive(selectedDayEvents);
+  const selectedDayGroups = groupCalendarDayEvents(selectedDayEvents);
+
+  const reasonOptions = useMemo(() => {
+    const options = new Map<string, string>();
+
+    for (const reason of reasons) {
+      options.set(reason.value, reason.label);
+    }
+
+    for (const event of allEvents) {
+      if (!options.has(event.reasonValue)) {
+        options.set(event.reasonValue, event.reasonLabel);
+      }
+    }
+
+    return [...options.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, "es"));
+  }, [allEvents, reasons]);
 
   const executiveOptions = useMemo(() => {
     const names = new Set<string>();
@@ -162,13 +316,13 @@ export default function AppointmentsCalendar({
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-semibold text-[#173b68]">Ejecutivo</span>
               <select
                 value={executiveFilter}
                 onChange={(event) => setExecutiveFilter(event.target.value)}
-                className="h-10 min-w-[180px] rounded-2xl border border-[#9fb8d9] bg-white px-3 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                className={filterFieldClass}
               >
                 <option value="todos">Todos</option>
                 {executiveOptions.map((executive) => (
@@ -177,6 +331,15 @@ export default function AppointmentsCalendar({
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-semibold text-[#173b68]">Motivo</span>
+              <CalendarReasonMultiSelect
+                options={reasonOptions}
+                selectedValues={selectedReasons}
+                onChange={setSelectedReasons}
+              />
             </label>
 
             <div className="inline-flex rounded-2xl border border-[#9fb8d9] bg-[#f8fbff] p-1">
@@ -323,17 +486,21 @@ export default function AppointmentsCalendar({
                     </div>
 
                     <div className="space-y-1">
-                      {dayEvents.slice(0, 3).map((event) => (
-                        <div
-                          key={event.id}
-                          className={`rounded-lg border-2 px-2 py-1 text-[11px] leading-4 shadow-sm ${eventStatusClass(event.status)}`}
-                        >
-                          <p className="font-semibold">{event.timeLabel}</p>
-                          <p className="truncate">
-                            {event.executive} · Móvil {event.vehicleNumber}
-                          </p>
-                        </div>
-                      ))}
+                      {dayEvents.slice(0, 3).map((event) => {
+                        const presentation = getEventPresentation(event);
+
+                        return (
+                          <div
+                            key={event.id}
+                            className={`rounded-md border px-1.5 py-1 text-[10px] leading-[1.25] shadow-sm ${eventStatusClass(event.status)}`}
+                          >
+                            <p className="truncate font-semibold">
+                              {presentation.primary}
+                            </p>
+                            <p className="truncate">{presentation.secondary}</p>
+                          </div>
+                        );
+                      })}
                       {dayEvents.length > 3 ? (
                         <p className="text-[11px] font-semibold text-[#0b5cab]">
                           +{dayEvents.length - 3} más
@@ -355,49 +522,44 @@ export default function AppointmentsCalendar({
           ) : (
             selectedDayGroups.map((group) => (
               <section
-                key={group.executive}
+                key={group.key}
                 className={`overflow-hidden rounded-2xl border-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_DAY_BG} shadow-sm`}
               >
-                <header className={`border-b-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_HEADER_BG} px-4 py-3`}>
-                  <h3 className="font-heading text-lg font-semibold text-[#0f2747]">
-                    {group.executive}
+                <header className={`border-b-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_HEADER_BG} px-4 py-2.5`}>
+                  <h3 className="font-heading text-base font-semibold text-[#0f2747]">
+                    {group.title}
                   </h3>
-                  <p className="text-sm text-slate-600">
-                    {group.events.length}{" "}
-                    {group.events.length === 1 ? "cita" : "citas"} en el día
+                  <p className="text-xs text-slate-600">
+                    {getGroupSubtitle(group.kind, group.events.length)}
                   </p>
                 </header>
 
-                <div className={`divide-y-2 divide-[#7a9fc4] bg-[#faf4ea]`}>
+                <div className={`divide-y divide-[#7a9fc4] bg-[#faf4ea]`}>
                   {group.events.map((event) => (
                     <article
                       key={event.id}
-                      className="grid gap-3 px-4 py-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center"
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm"
                     >
-                      <div>
-                        <p className="text-sm font-semibold text-[#0b5cab]">
-                          {event.timeLabel}
-                        </p>
                         <span
-                          className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${eventStatusClass(event.status)}`}
+                          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${eventStatusClass(event.status)}`}
                         >
-                          {eventStatusLabel(event.status)}
+                          {event.calendarStatusLabel}
                         </span>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="font-heading text-base font-semibold text-[#0f2747]">
-                          Móvil {event.vehicleNumber} · {event.driverName}
+                        <p className="min-w-0 flex-1 font-semibold text-[#0f2747]">
+                          Móvil {event.vehicleNumber}
+                          <span className="font-normal text-slate-600">
+                            {" "}
+                            · {event.driverName}
+                            {group.kind === "executive" && event.timeLabel
+                              ? ` · ${event.timeLabel}`
+                              : ""}
+                          </span>
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {event.reasonLabel}
-                        </p>
-                        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#0b5cab]">
                           {event.ticketLabel}
                         </p>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    ))}
                 </div>
               </section>
             ))

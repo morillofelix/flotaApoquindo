@@ -455,6 +455,7 @@ function AppointmentsPageContent() {
           <AppointmentsCalendar
             appointments={appointments}
             executives={executiveOptions}
+            reasons={reasons}
             isLoading={isLoadingAppointments}
           />
         </section>
