@@ -43,7 +43,7 @@ export default function DriverAccessLoginScreen({
     setLoginError("");
 
     const email = loginValues.email.trim();
-    const password = loginValues.password;
+    const password = loginValues.password.trim();
 
     if (!email || !password) {
       setLoginError("Ingresa correo y clave.");
@@ -144,6 +144,11 @@ export default function DriverAccessLoginScreen({
           <p className="mt-3 text-sm leading-6 text-slate-600">
             Ingresa con tu correo y clave para registrar solicitudes de tu móvil.
           </p>
+          <p className="mt-2 rounded-2xl bg-[#f8fbff] px-4 py-3 text-xs leading-5 text-slate-600">
+            Si recibiste una clave temporal, usa los{" "}
+            <strong>4 primeros dígitos de tu RUT</strong> (solo números, sin
+            puntos ni guión). Luego el sistema te pedirá crear una clave nueva.
+          </p>
         </div>
 
         {mode === "login" ? (
@@ -168,19 +173,20 @@ export default function DriverAccessLoginScreen({
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">Clave</span>
               <div className="relative">
-                <input
-                  type={isPasswordVisible ? "text" : "password"}
-                  value={loginValues.password}
-                  onChange={(event) =>
-                    setLoginValues((currentValues) => ({
-                      ...currentValues,
-                      password: event.target.value,
-                    }))
-                  }
-                  className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
-                  placeholder="Clave de acceso"
-                  autoComplete="current-password"
-                />
+              <input
+                type={isPasswordVisible ? "text" : "password"}
+                value={loginValues.password}
+                onChange={(event) =>
+                  setLoginValues((currentValues) => ({
+                    ...currentValues,
+                    password: event.target.value,
+                  }))
+                }
+                className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+                placeholder="Clave temporal o definitiva"
+                autoComplete="current-password"
+                inputMode="text"
+              />
                 <button
                   type="button"
                   onClick={() =>

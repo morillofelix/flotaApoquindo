@@ -44,7 +44,8 @@ async function findActiveDriverByEmail(email: string) {
 
 async function handleLogin(body: AuthBody) {
   const email = typeof body.email === "string" ? body.email.trim() : "";
-  const password = typeof body.password === "string" ? body.password : "";
+  const password =
+    typeof body.password === "string" ? body.password.trim() : "";
 
   if (!email || !password) {
     return NextResponse.json(
@@ -95,7 +96,7 @@ async function handleLogin(body: AuthBody) {
 async function handleChangePassword(body: AuthBody) {
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const currentPassword =
-    typeof body.currentPassword === "string" ? body.currentPassword : "";
+    typeof body.currentPassword === "string" ? body.currentPassword.trim() : "";
   const newPassword =
     typeof body.newPassword === "string" ? body.newPassword : "";
   const confirmPassword =
