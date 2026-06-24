@@ -1,7 +1,13 @@
 "use client";
 
-import { UI_CARD_SHELL, uiFieldClass } from "@/lib/ui-borders";
+import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
+import { UI_FIELD_FOCUS, UI_FIELD_SHADOW } from "@/lib/ui-borders";
+import Image from "next/image";
 import { useState } from "react";
+
+const LOGIN_CARD_SHELL =
+  "rounded-[22px] border-2 border-[#7a9fc4] bg-white shadow-lg shadow-slate-400/30 ring-1 ring-[#b7cce4]/60 sm:rounded-[24px]";
+const LOGIN_FIELD_CLASS = `border-2 border-[#7a9fc4] bg-white ${UI_FIELD_SHADOW} ${UI_FIELD_FOCUS}`;
 
 type ExecutiveAccessLoginScreenProps = {
   storageKey: string;
@@ -61,16 +67,29 @@ export default function ExecutiveAccessLoginScreen({
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
       <section
-        className={`w-full max-w-md ${UI_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}
+        className={`w-full max-w-md ${LOGIN_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}
       >
-        <div className="mb-7 border-b border-[#c5d8eb] pb-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
+        <div className="mb-7 border-b-2 border-[#9fb8d9] pb-6 text-center">
+          <div className="mx-auto mb-5 flex w-fit items-center justify-center rounded-2xl border-2 border-[#7a9fc4] bg-white px-5 py-3.5">
+            <Image
+              src="/logo-apoquindo.png"
+              alt="Transportes Apoquindo"
+              width={1024}
+              height={220}
+              priority
+              unoptimized
+              className="h-14 w-auto max-w-[min(100%,18rem)] object-contain sm:h-[3.75rem]"
+            />
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0b5cab]">
             {eyebrow}
           </p>
-          <h1 className="mt-3 font-heading text-3xl font-semibold leading-tight tracking-tight text-[#0f2747]">
+          <h1 className="mt-2 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
             {title}
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600">
+            {description}
+          </p>
         </div>
 
         <form noValidate onSubmit={handleLogin} className="grid gap-5">
@@ -85,7 +104,7 @@ export default function ExecutiveAccessLoginScreen({
                   user: event.target.value,
                 }))
               }
-              className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+              className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
               placeholder="Usuario ejecutivo"
               autoComplete="username"
             />
@@ -103,58 +122,21 @@ export default function ExecutiveAccessLoginScreen({
                     password: event.target.value,
                   }))
                 }
-                className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+                className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
                 placeholder="Clave de acceso"
                 autoComplete="current-password"
               />
-              <button
-                type="button"
-                onClick={() =>
+              <PasswordVisibilityButton
+                visible={isPasswordVisible}
+                onToggle={() =>
                   setIsPasswordVisible((currentValue) => !currentValue)
                 }
-                aria-label={
-                  isPasswordVisible ? "Ocultar clave" : "Mostrar clave"
-                }
-                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#f8fbff] hover:text-[#0b5cab] focus:outline-none focus:ring-2 focus:ring-[#0b5cab]/15"
-              >
-                {isPasswordVisible ? (
-                  <svg
-                    aria-hidden="true"
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="m3 3 18 18" />
-                    <path d="M10.7 5.1A10.8 10.8 0 0 1 12 5c6 0 9 7 9 7a13.2 13.2 0 0 1-2.1 3.2" />
-                    <path d="M6.6 6.6C4.1 8.3 3 12 3 12s3 7 9 7a9.7 9.7 0 0 0 4.1-.9" />
-                    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
-                    <path d="M14.1 9.9A3 3 0 0 0 9.9 14.1" />
-                  </svg>
-                ) : (
-                  <svg
-                    aria-hidden="true"
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
+              />
             </div>
           </label>
 
           {loginError ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            <div className="rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {loginError}
             </div>
           ) : null}
@@ -162,14 +144,14 @@ export default function ExecutiveAccessLoginScreen({
           <button
             type="submit"
             disabled={isLoggingIn}
-            className="flex h-12 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="flex h-12 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {isLoggingIn ? "Validando..." : "Ingresar"}
           </button>
         </form>
 
         {showCredentialHint ? (
-          <p className="mt-5 rounded-2xl bg-[#f8fbff] px-4 py-3 text-xs leading-5 text-slate-500">
+          <p className="mt-5 rounded-2xl border-2 border-[#9fb8d9] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-slate-600">
             Acceso temporal: usuario <strong>ejecutivo</strong>, clave{" "}
             <strong>Apoquindo2026</strong>.
           </p>
