@@ -1,9 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { validatePermanentPassword } from "@/lib/password-policy";
 
 const SCRYPT_KEY_LENGTH = 64;
-const PERMANENT_PASSWORD_MIN_LENGTH = 6;
-const PERMANENT_PASSWORD_MAX_LENGTH = 32;
-const PERMANENT_PASSWORD_PATTERN = /^[A-Za-z0-9]+$/;
 
 export function getTemporaryPasswordFromRut(rut: string) {
   const digits = rut.replace(/\D/g, "");
@@ -90,20 +88,4 @@ export function canSendTemporaryPassword(
   return Date.now() - lastSentMs >= cooldownMinutes * 60 * 1000;
 }
 
-export function validatePermanentPassword(password: string) {
-  const value = password.trim();
-
-  if (value.length < PERMANENT_PASSWORD_MIN_LENGTH) {
-    return `La clave debe tener al menos ${PERMANENT_PASSWORD_MIN_LENGTH} caracteres.`;
-  }
-
-  if (value.length > PERMANENT_PASSWORD_MAX_LENGTH) {
-    return `La clave no puede superar ${PERMANENT_PASSWORD_MAX_LENGTH} caracteres.`;
-  }
-
-  if (!PERMANENT_PASSWORD_PATTERN.test(value)) {
-    return "La clave debe ser alfanumérica, sin caracteres especiales.";
-  }
-
-  return null;
-}
+export { validatePermanentPassword };

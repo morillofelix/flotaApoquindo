@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { PERMANENT_PASSWORD_EMAIL_LINES } from "@/lib/password-policy";
 
 type TemporaryPasswordEmailInput = {
   to: string;
@@ -73,7 +74,9 @@ export async function sendTemporaryPasswordEmail(
     "",
     input.temporaryPassword,
     "",
-    "Ingresa con tu correo y esta clave. Al ingresar deberás crear una clave definitiva alfanumérica (sin caracteres especiales).",
+    "Ingresa con tu correo y esta clave temporal.",
+    "",
+    ...PERMANENT_PASSWORD_EMAIL_LINES,
     "",
     "Si no solicitaste esta clave, ignora este mensaje.",
     "",

@@ -35,10 +35,12 @@ import {
   shouldSendDecisionEmail,
   statusStyles,
 } from "@/lib/agendamientos-appointments";
+import { useConfirmAction } from "@/hooks/useConfirmAction";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 export default function AppointmentsPage() {
+  const { confirm, dialog } = useConfirmAction();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
     defaultAppointmentReasons,
@@ -419,6 +421,20 @@ export default function AppointmentsPage() {
     } catch {
       setAppointments(previousAppointments);
       setAppointmentsError("No se pudo eliminar la solicitud.");
+    }
+  }
+
+  async function confirmRemoveAppointment(appointment: Appointment) {
+    const confirmed = await confirm({
+      title: "Eliminar solicitud",
+      message: "¿Estás seguro de que deseas eliminar esta solicitud?",
+      detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}. Esta acción no se puede deshacer.`,
+      confirmLabel: "Sí, eliminar",
+      tone: "danger",
+    });
+
+    if (confirmed) {
+      await removeAppointment(appointment.id);
     }
   }
 
@@ -920,15 +936,7 @@ export default function AppointmentsPage() {
                         <td className="px-2.5 py-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              const shouldDelete = window.confirm(
-                                "¿Estás seguro de que deseas eliminar esta solicitud?",
-                              );
-
-                              if (shouldDelete) {
-                                removeAppointment(appointment.id);
-                              }
-                            }}
+                            onClick={() => confirmRemoveAppointment(appointment)}
                             className="h-8 rounded-2xl border border-red-200 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
                           >
                             Eliminar
@@ -959,6 +967,7 @@ export default function AppointmentsPage() {
           )}
         </section>
       </section>
+      {dialog}
     </main>
   );
 }

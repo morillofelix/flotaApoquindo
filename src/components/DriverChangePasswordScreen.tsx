@@ -1,6 +1,11 @@
 "use client";
 
 import type { PublicDriverOwner } from "@/components/DriverAccessLoginScreen";
+import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
+import {
+  PERMANENT_PASSWORD_REQUIREMENTS_HINT,
+  validatePermanentPassword,
+} from "@/lib/password-policy";
 import { UI_CARD_SHELL, uiFieldClass } from "@/lib/ui-borders";
 import { useState } from "react";
 
@@ -21,6 +26,8 @@ export default function DriverChangePasswordScreen({
     newPassword: "",
     confirmPassword: "",
   });
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,13 +50,10 @@ export default function DriverChangePasswordScreen({
       return;
     }
 
-    if (!/^[A-Za-z0-9]+$/.test(newPassword)) {
-      setError("La clave debe ser alfanumérica, sin caracteres especiales.");
-      return;
-    }
+    const validationMessage = validatePermanentPassword(newPassword);
 
-    if (newPassword.length < 6) {
-      setError("La clave debe tener al menos 6 caracteres.");
+    if (validationMessage) {
+      setError(validationMessage);
       return;
     }
 
@@ -102,8 +106,11 @@ export default function DriverChangePasswordScreen({
             Define tu clave
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Ingresaste con una clave temporal. Antes de continuar, define una
-            clave personal alfanumérica.
+            Ingresaste con una clave temporal. Antes de continuar, crea tu clave
+            definitiva.
+          </p>
+          <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
+            {PERMANENT_PASSWORD_REQUIREMENTS_HINT}
           </p>
         </div>
 
@@ -112,36 +119,48 @@ export default function DriverChangePasswordScreen({
             <span className="text-sm font-semibold text-[#173b68]">
               Clave nueva
             </span>
-            <input
-              type="password"
-              value={values.newPassword}
-              onChange={(event) =>
-                setValues((current) => ({
-                  ...current,
-                  newPassword: event.target.value,
-                }))
-              }
-              className={`h-12 rounded-2xl px-4 text-[#0f2747] ${uiFieldClass()}`}
-              autoComplete="new-password"
-            />
+            <div className="relative">
+              <input
+                type={showNewPassword ? "text" : "password"}
+                value={values.newPassword}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    newPassword: event.target.value,
+                  }))
+                }
+                className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] ${uiFieldClass()}`}
+                autoComplete="new-password"
+              />
+              <PasswordVisibilityButton
+                visible={showNewPassword}
+                onToggle={() => setShowNewPassword((current) => !current)}
+              />
+            </div>
           </label>
 
           <label className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-[#173b68]">
               Confirmar clave
             </span>
-            <input
-              type="password"
-              value={values.confirmPassword}
-              onChange={(event) =>
-                setValues((current) => ({
-                  ...current,
-                  confirmPassword: event.target.value,
-                }))
-              }
-              className={`h-12 rounded-2xl px-4 text-[#0f2747] ${uiFieldClass()}`}
-              autoComplete="new-password"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                value={values.confirmPassword}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    confirmPassword: event.target.value,
+                  }))
+                }
+                className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] ${uiFieldClass()}`}
+                autoComplete="new-password"
+              />
+              <PasswordVisibilityButton
+                visible={showConfirmPassword}
+                onToggle={() => setShowConfirmPassword((current) => !current)}
+              />
+            </div>
           </label>
 
           {message ? (

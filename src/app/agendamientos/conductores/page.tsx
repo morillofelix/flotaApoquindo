@@ -1,6 +1,7 @@
 "use client";
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
+import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { loadDriverOwners } from "@/lib/agendamientos-admin";
 import {
   countImportCategories,
@@ -122,6 +123,7 @@ function toggleDriverOwnerShift(
 }
 
 export default function ConductoresPage() {
+  const { confirm, dialog } = useConfirmAction();
   const [driverOwners, setDriverOwners] = useState<DriverOwnerConfig[]>([]);
   const [driverOwnerForm, setDriverOwnerForm] =
     useState<DriverOwnerForm>(emptyDriverOwnerForm);
@@ -371,6 +373,19 @@ export default function ConductoresPage() {
       return;
     }
 
+    const confirmed = await confirm({
+      title: "Reemplazar catálogo completo",
+      message: `¿Importar ${rowsToImport.length} registros y reemplazar toda la base actual?`,
+      detail:
+        "Esta acción sustituye por completo el catálogo de conductores y propietarios. Verifica el archivo antes de continuar.",
+      confirmLabel: "Sí, importar",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setDriverOwnerMessage("");
     setDriverOwnerError("");
     setBulkUpload((currentState) => ({
@@ -581,9 +596,12 @@ export default function ConductoresPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `¿Enviar clave temporal al correo ${driverOwnerForm.email.trim()}?\n\nClave que recibirá el cliente: ${temporaryPassword}`,
-    );
+    const confirmed = await confirm({
+      title: "Enviar clave temporal",
+      message: `¿Enviar clave temporal al correo ${driverOwnerForm.email.trim()}?`,
+      detail: `Clave que recibirá el cliente: ${temporaryPassword}`,
+      confirmLabel: "Enviar correo",
+    });
 
     if (!confirmed) {
       return;
@@ -628,9 +646,13 @@ export default function ConductoresPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "¿Eliminar este conductor o propietario del catálogo?",
-    );
+    const confirmed = await confirm({
+      title: "Eliminar registro",
+      message: "¿Eliminar este conductor o propietario del catálogo?",
+      detail: `Móvil ${driverOwnerForm.vehicleNumber} — ${driverOwnerForm.fullName}. Esta acción no se puede deshacer.`,
+      confirmLabel: "Sí, eliminar",
+      tone: "danger",
+    });
 
     if (!confirmed) {
       return;
@@ -1467,6 +1489,7 @@ export default function ConductoresPage() {
           </div>
         </div>
       </section>
+      {dialog}
     </main>
   );
 }

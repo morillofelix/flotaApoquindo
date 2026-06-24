@@ -1,5 +1,7 @@
 "use client";
 
+import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
+import { PERMANENT_PASSWORD_REQUIREMENTS_HINT } from "@/lib/password-policy";
 import { UI_CARD_SHELL, uiFieldClass } from "@/lib/ui-borders";
 import { useState } from "react";
 
@@ -173,32 +175,26 @@ export default function DriverAccessLoginScreen({
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-[#173b68]">Clave</span>
               <div className="relative">
-              <input
-                type={isPasswordVisible ? "text" : "password"}
-                value={loginValues.password}
-                onChange={(event) =>
-                  setLoginValues((currentValues) => ({
-                    ...currentValues,
-                    password: event.target.value,
-                  }))
-                }
-                className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
-                placeholder="Clave temporal o definitiva"
-                autoComplete="current-password"
-                inputMode="text"
-              />
-                <button
-                  type="button"
-                  onClick={() =>
+                <input
+                  type={isPasswordVisible ? "text" : "password"}
+                  value={loginValues.password}
+                  onChange={(event) =>
+                    setLoginValues((currentValues) => ({
+                      ...currentValues,
+                      password: event.target.value,
+                    }))
+                  }
+                  className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+                  placeholder="Clave temporal o definitiva"
+                  autoComplete="current-password"
+                  inputMode="text"
+                />
+                <PasswordVisibilityButton
+                  visible={isPasswordVisible}
+                  onToggle={() =>
                     setIsPasswordVisible((currentValue) => !currentValue)
                   }
-                  aria-label={
-                    isPasswordVisible ? "Ocultar clave" : "Mostrar clave"
-                  }
-                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#f8fbff] hover:text-[#0b5cab]"
-                >
-                  {isPasswordVisible ? "Ocultar" : "Ver"}
-                </button>
+                />
               </div>
             </label>
 
@@ -225,9 +221,9 @@ export default function DriverAccessLoginScreen({
                 setRecoverError("");
                 setRecoverEmail(loginValues.email);
               }}
-              className="text-sm font-semibold text-[#0b5cab] transition hover:text-[#084a8c]"
+              className="text-sm font-semibold text-[#0b5cab] underline-offset-2 transition hover:text-[#084a8c] hover:underline"
             >
-              ¿Olvidaste tu clave?
+              Recuperar clave
             </button>
           </form>
         ) : (
@@ -239,6 +235,9 @@ export default function DriverAccessLoginScreen({
             <p className="text-sm leading-6 text-slate-600">
               Te enviaremos una clave temporal al correo registrado. Al ingresar
               deberás crear una clave definitiva.
+            </p>
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
+              {PERMANENT_PASSWORD_REQUIREMENTS_HINT}
             </p>
 
             <label className="flex flex-col gap-2">
