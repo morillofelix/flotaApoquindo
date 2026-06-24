@@ -27,6 +27,12 @@ type AppointmentsCalendarProps = {
 };
 
 const weekdayHeaders = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const CALENDAR_DAY_BG = "bg-[#f5ead8]";
+const CALENDAR_DAY_BG_EMPTY = "bg-[#ebe3d4]";
+const CALENDAR_DAY_BG_SELECTED = "bg-[#e8dcc8]";
+const CALENDAR_DAY_BG_HOVER = "hover:bg-[#ebe0cf]";
+const CALENDAR_HEADER_BG = "bg-[#e8dcc8]";
+const CALENDAR_GRID_BORDER = "border-[#7a9fc4]";
 
 function parseIsoDate(dateValue: string) {
   const [year = "0", month = "0", day = "0"] = dateValue.split("-");
@@ -261,11 +267,13 @@ export default function AppointmentsCalendar({
       ) : viewMode === "month" ? (
         <div className="overflow-x-auto px-2 py-4 sm:px-4">
           <div className="min-w-[760px]">
-            <div className="grid grid-cols-7 border border-[#b7cce4] bg-[#f8fbff]">
+            <div
+              className={`grid grid-cols-7 border-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_HEADER_BG} shadow-sm`}
+            >
               {weekdayHeaders.map((weekday) => (
                 <div
                   key={weekday}
-                  className="border-b border-r border-[#c5d8eb] px-2 py-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#173b68] last:border-r-0"
+                  className={`border-b-2 border-r-2 ${CALENDAR_GRID_BORDER} px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#5c4a32] last:border-r-0`}
                 >
                   {weekday}
                 </div>
@@ -276,7 +284,7 @@ export default function AppointmentsCalendar({
                   return (
                     <div
                       key={`empty-${index}`}
-                      className="min-h-[120px] border-b border-r border-[#d7e7f8] bg-[#f8fbff] last:border-r-0"
+                      className={`min-h-[120px] border-b-2 border-r-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_DAY_BG_EMPTY} last:border-r-0`}
                     />
                   );
                 }
@@ -291,8 +299,10 @@ export default function AppointmentsCalendar({
                     key={dateValue}
                     type="button"
                     onClick={() => openDay(dateValue)}
-                    className={`min-h-[120px] border-b border-r border-[#c5d8eb] p-2 text-left align-top transition last:border-r-0 hover:bg-[#f8fbff] ${
-                      isSelected ? "bg-[#eef5fd] ring-1 ring-inset ring-[#0b5cab]/20" : "bg-white"
+                    className={`min-h-[120px] border-b-2 border-r-2 ${CALENDAR_GRID_BORDER} p-2 text-left align-top transition last:border-r-0 ${CALENDAR_DAY_BG_HOVER} ${
+                      isSelected
+                        ? `${CALENDAR_DAY_BG_SELECTED} ring-2 ring-inset ring-[#0b5cab]/35`
+                        : CALENDAR_DAY_BG
                     }`}
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -316,7 +326,7 @@ export default function AppointmentsCalendar({
                       {dayEvents.slice(0, 3).map((event) => (
                         <div
                           key={event.id}
-                          className={`rounded-lg border px-2 py-1 text-[11px] leading-4 ${eventStatusClass(event.status)}`}
+                          className={`rounded-lg border-2 px-2 py-1 text-[11px] leading-4 shadow-sm ${eventStatusClass(event.status)}`}
                         >
                           <p className="font-semibold">{event.timeLabel}</p>
                           <p className="truncate">
@@ -339,16 +349,16 @@ export default function AppointmentsCalendar({
       ) : (
         <div className="space-y-4 px-4 py-4 sm:px-6">
           {selectedDayGroups.length === 0 ? (
-            <div className="rounded-2xl border border-[#c5d8eb] bg-[#f8fbff] px-4 py-8 text-center text-sm text-slate-600">
+            <div className={`rounded-2xl border-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_DAY_BG} px-4 py-8 text-center text-sm text-[#5c4a32]`}>
               No hay citas para este día con el filtro seleccionado.
             </div>
           ) : (
             selectedDayGroups.map((group) => (
               <section
                 key={group.executive}
-                className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white"
+                className={`overflow-hidden rounded-2xl border-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_DAY_BG} shadow-sm`}
               >
-                <header className="border-b border-[#c5d8eb] bg-[#d7e7f8] px-4 py-3">
+                <header className={`border-b-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_HEADER_BG} px-4 py-3`}>
                   <h3 className="font-heading text-lg font-semibold text-[#0f2747]">
                     {group.executive}
                   </h3>
@@ -358,7 +368,7 @@ export default function AppointmentsCalendar({
                   </p>
                 </header>
 
-                <div className="divide-y divide-[#d7e7f8]">
+                <div className={`divide-y-2 divide-[#7a9fc4] bg-[#faf4ea]`}>
                   {group.events.map((event) => (
                     <article
                       key={event.id}
