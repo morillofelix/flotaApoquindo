@@ -14,14 +14,12 @@ import {
   type PermissionReason,
 } from "@/lib/appointments";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import ExecutiveAccessLoginScreen, {
-  PUBLIC_ACCESS_STORAGE_KEY,
-} from "@/components/ExecutiveAccessLoginScreen";
+import DriverAccessLoginScreen, {
+  type PublicDriverOwner,
+} from "@/components/DriverAccessLoginScreen";
+import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
-import VehicleNumberLookupField, {
-  type DriverLookupResult,
-} from "@/components/VehicleNumberLookupField";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
 } from "@/components/PublicAppointmentHistory";
@@ -238,43 +236,110 @@ async function sendTicketEmail(newAppointment: Appointment) {
   }
 }
 
+type AuthView = "loading" | "login" | "change-password" | "form";
+
+type PendingPasswordChange = {
+  driverOwner: PublicDriverOwner;
+  currentPassword: string;
+};
+
 export default function HomePage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [authView, setAuthView] = useState<AuthView>("loading");
+  const [driverOwner, setDriverOwner] = useState<PublicDriverOwner | null>(null);
+  const [pendingPasswordChange, setPendingPasswordChange] =
+    useState<PendingPasswordChange | null>(null);
 
   useEffect(() => {
-    setIsAuthenticated(
-      window.sessionStorage.getItem(PUBLIC_ACCESS_STORAGE_KEY) === "true",
-    );
-    setAuthChecked(true);
+    fetch("/api/auth", { cache: "no-store" })
+      .then((response) => response.json() as Promise<{
+        authenticated?: boolean;
+        driverOwner?: PublicDriverOwner;
+      }>)
+      .then((data) => {
+        if (data.authenticated && data.driverOwner) {
+          setDriverOwner(data.driverOwner);
+          setAuthView("form");
+          return;
+        }
+
+        setAuthView("login");
+      })
+      .catch(() => {
+        setAuthView("login");
+      });
   }, []);
 
-  if (!authChecked) {
+  if (authView === "loading") {
     return null;
   }
 
-  if (!isAuthenticated) {
+  if (authView === "login") {
     return (
-      <ExecutiveAccessLoginScreen
-        storageKey={PUBLIC_ACCESS_STORAGE_KEY}
-        eyebrow="Acceso al formulario"
-        title="Solicitud de cita"
-        description="Ingresa usuario y clave para registrar una solicitud."
-        showCredentialHint
-        onAuthenticated={() => setIsAuthenticated(true)}
+      <DriverAccessLoginScreen
+        onAuthenticated={(nextDriverOwner) => {
+          setDriverOwner(nextDriverOwner);
+          setAuthView("form");
+        }}
+        onMustChangePassword={(nextDriverOwner, currentPassword) => {
+          setPendingPasswordChange({
+            driverOwner: nextDriverOwner,
+            currentPassword,
+          });
+          setAuthView("change-password");
+        }}
       />
     );
   }
 
+  if (authView === "change-password" && pendingPasswordChange) {
+    return (
+      <DriverChangePasswordScreen
+        driverOwner={pendingPasswordChange.driverOwner}
+        currentPassword={pendingPasswordChange.currentPassword}
+        onCompleted={(nextDriverOwner) => {
+          setDriverOwner(nextDriverOwner);
+          setPendingPasswordChange(null);
+          setAuthView("form");
+        }}
+        onCancel={() => {
+          setPendingPasswordChange(null);
+          setAuthView("login");
+        }}
+      />
+    );
+  }
+
+  if (!driverOwner) {
+    return null;
+  }
+
   return (
-    <AppointmentRequestForm onLogout={() => setIsAuthenticated(false)} />
+    <AppointmentRequestForm
+      driverOwner={driverOwner}
+      onLogout={() => {
+        setDriverOwner(null);
+        setAuthView("login");
+      }}
+    />
   );
 }
 
-function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
+function AppointmentRequestForm({
+  driverOwner,
+  onLogout,
+}: {
+  driverOwner: PublicDriverOwner;
+  onLogout: () => void;
+}) {
   const today = useMemo(() => getTodayValue(), []);
   const formStartedAt = useMemo(() => Date.now(), []);
-  const [values, setValues] = useState<FormValues>(initialValues);
+  const [values, setValues] = useState<FormValues>(() => ({
+    ...initialValues,
+    driverName: driverOwner.fullName,
+    vehicleNumber: driverOwner.vehicleNumber.replace(/^0+/, "") || driverOwner.vehicleNumber,
+    email: driverOwner.email,
+    phone: driverOwner.phone,
+  }));
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>(
     {},
   );
@@ -286,7 +351,7 @@ function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
   const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
     defaultAppointmentReasons,
   );
-  const [linkedVehicleNumber, setLinkedVehicleNumber] = useState("");
+  const linkedVehicleNumber = driverOwner.vehicleNumber;
   const [recentAppointments, setRecentAppointments] = useState<
     PublicAppointmentSummary[]
   >([]);
@@ -340,10 +405,7 @@ function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
     let cancelled = false;
     setIsLoadingRecent(true);
 
-    fetch(
-      `/api/appointments/by-vehicle?vehicleNumber=${encodeURIComponent(linkedVehicleNumber)}`,
-      { cache: "no-store" },
-    )
+    fetch("/api/appointments/by-vehicle", { cache: "no-store" })
       .then((response) => {
         if (!response.ok) {
           throw new Error("No se pudieron cargar las solicitudes.");
@@ -498,7 +560,7 @@ function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
     !businessDayAdvanceMessage;
 
   function handleLogout() {
-    window.sessionStorage.removeItem(PUBLIC_ACCESS_STORAGE_KEY);
+    fetch("/api/auth?action=logout", { method: "POST" }).catch(() => undefined);
     onLogout();
   }
 
@@ -509,48 +571,8 @@ function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
     setSubmitError("");
   }
 
-  function handleVehicleNumberChange(value: string) {
-    const newValue = value.replace(/\D/g, "").slice(0, 4);
-    const normalizedNew = newValue ? normalizeVehicleNumber(newValue) : "";
-    const clearingLinked =
-      Boolean(linkedVehicleNumber) && normalizedNew !== linkedVehicleNumber;
-
-    setValues((currentValues) => ({
-      ...currentValues,
-      vehicleNumber: newValue,
-      ...(clearingLinked ? { driverName: "", email: "", phone: "" } : {}),
-    }));
-
-    if (clearingLinked) {
-      setLinkedVehicleNumber("");
-      setRecentAppointments([]);
-    }
-
-    resetSubmissionState();
-  }
-
-  function handleDriverLookupSelect(result: DriverLookupResult) {
-    setValues((currentValues) => ({
-      ...currentValues,
-      vehicleNumber: result.vehicleNumber,
-      driverName: result.fullName,
-      email: result.email,
-      phone: result.phone,
-    }));
-    setLinkedVehicleNumber(result.vehicleNumber);
-    setTouched((currentTouched) => ({
-      ...currentTouched,
-      vehicleNumber: true,
-      driverName: true,
-      email: true,
-      phone: true,
-    }));
-    resetSubmissionState();
-  }
-
   function updateField(name: FieldName, value: string) {
-    if (name === "vehicleNumber") {
-      handleVehicleNumberChange(value);
+    if (name === "vehicleNumber" || name === "driverName" || name === "email" || name === "phone") {
       return;
     }
 
@@ -704,15 +726,17 @@ function AppointmentRequestForm({ onLogout }: { onLogout: () => void }) {
           <div className="space-y-3">
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
-                <VehicleNumberLookupField
-                  value={values.vehicleNumber}
-                  onChange={handleVehicleNumberChange}
-                  onSelect={handleDriverLookupSelect}
-                  onBlur={() => markFieldAsTouched("vehicleNumber")}
-                  error={errors.vehicleNumber}
-                  touched={touched.vehicleNumber}
-                  fieldStatusClass={fieldStatus("vehicleNumber")}
-                />
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Número de móvil
+                  </span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={driverOwner.vehicleNumber}
+                    className={`h-10 rounded-xl ${formFieldBorderClass} bg-[#f8fbff] px-3 text-sm font-semibold text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)]`}
+                  />
+                </label>
               </div>
 
               <PublicAppointmentHistory

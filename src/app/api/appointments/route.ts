@@ -15,6 +15,8 @@ import {
   checkBusinessDayAdvance,
 } from "@/lib/appointment-reason-weekdays";
 import { prisma } from "@/lib/prisma";
+import { readDriverSession } from "@/lib/driver-auth";
+import { normalizeEmail } from "@/lib/password-utils";
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -309,6 +311,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = readDriverSession(request);
+
+  if (!session) {
+    return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  }
+
   let body: AppointmentCreateBody;
 
   try {
@@ -345,6 +353,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { message: "Datos de solicitud incompletos." },
       { status: 400 },
+    );
+  }
+
+  if (
+    appointment.vehicleNumber !== session.vehicleNumber ||
+    normalizeEmail(appointment.email) !== session.email
+  ) {
+    return NextResponse.json(
+      { message: "Solo puedes solicitar citas para tu móvil." },
+      { status: 403 },
     );
   }
 

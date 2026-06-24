@@ -4,6 +4,7 @@ import {
 } from "@/lib/appointments";
 import { resolveAppointmentSchedule } from "@/lib/appointment-scheduling";
 import { parseRestrictedWeekdays } from "@/lib/appointment-reason-weekdays";
+import { readDriverSession } from "@/lib/driver-auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -53,13 +54,13 @@ function matchesVehicleNumber(stored: string, query: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const vehicleNumber = request.nextUrl.searchParams
-    .get("vehicleNumber")
-    ?.trim();
+  const session = readDriverSession(request);
 
-  if (!vehicleNumber) {
-    return NextResponse.json({ appointments: [] satisfies PublicAppointmentSummary[] });
+  if (!session) {
+    return NextResponse.json({ message: "No autorizado." }, { status: 401 });
   }
+
+  const vehicleNumber = session.vehicleNumber;
 
   try {
     const reasons = await prisma.appointmentReason.findMany();

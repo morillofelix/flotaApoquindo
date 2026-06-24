@@ -32,6 +32,16 @@ export const shiftOptions: Array<{ value: ShiftType; label: string }> = [
   { value: "intermedio", label: "Intermedio" },
 ];
 
+export function getTemporaryPasswordFromRut(rut: string) {
+  const digits = rut.replace(/\D/g, "");
+
+  if (digits.length < 4) {
+    return null;
+  }
+
+  return digits.slice(0, 4);
+}
+
 export const driverOwnerCsvTemplate = [
   "activo,nombre,correo,rut,fecha_vencimiento_carnet,fecha_nacimiento,telefono_fijo,telefono_movil,direccion,estado,tipo,licencia_municipal,turnos,nombre_contacto_emergencia,correo_contacto_emergencia,telefono_contacto_emergencia,patente,fecha_vencimiento_revision,tipo_vehiculo,fecha_suscripcion",
   '001,Juan Pérez,juan@ejemplo.com,12.345.678-9,31-12-2026,15-03-1985,22334455,912345678,Av. Principal 123,V,"Conductor; Propietario",LM-12345,"Diurno; Nocturno",María Pérez,maria@ejemplo.com,987654321,ABCD12,30-06-2026,Sedan,01-01-2024',

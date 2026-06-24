@@ -9,6 +9,7 @@ import {
   formatFileSize,
   formatPersonTypes,
   formatShifts,
+  getTemporaryPasswordFromRut,
   parseDriverOwnersCsv,
   prepareDriverOwnerUploadContent,
   readDriverOwnerFileContent,
@@ -138,6 +139,7 @@ export default function ConductoresPage() {
   const [driverOwnerMessage, setDriverOwnerMessage] = useState("");
   const [driverOwnerError, setDriverOwnerError] = useState("");
   const [isSavingDriverOwner, setIsSavingDriverOwner] = useState(false);
+  const [sendingTempPassword, setSendingTempPassword] = useState(false);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
   const [bulkImportFilters, setBulkImportFilters] =
     useState<BulkImportFilters>(defaultBulkImportFilters);
@@ -552,6 +554,75 @@ export default function ConductoresPage() {
     }
   }
 
+  async function sendTemporaryPassword() {
+    if (!driverOwnerForm.id) {
+      setDriverOwnerError(
+        "Guarda o selecciona un conductor antes de enviar la clave temporal.",
+      );
+      return;
+    }
+
+    if (!driverOwnerForm.email.trim()) {
+      setDriverOwnerError("El conductor debe tener un correo registrado.");
+      return;
+    }
+
+    if (!driverOwnerForm.rut.trim()) {
+      setDriverOwnerError("El conductor debe tener un RUT válido.");
+      return;
+    }
+
+    const temporaryPassword = getTemporaryPasswordFromRut(driverOwnerForm.rut);
+
+    if (!temporaryPassword) {
+      setDriverOwnerError(
+        "El RUT debe tener al menos 4 dígitos para generar la clave temporal.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Enviar clave temporal al correo ${driverOwnerForm.email.trim()}?\n\nClave que recibirá el cliente: ${temporaryPassword}`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDriverOwnerMessage("");
+    setDriverOwnerError("");
+    setSendingTempPassword(true);
+
+    try {
+      const response = await fetch("/api/driver-owners/temporary-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driverOwnerId: driverOwnerForm.id }),
+      });
+
+      const data = (await response.json()) as { message?: string; detail?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          [data.message, data.detail].filter(Boolean).join(" — ") ||
+            "No se pudo enviar la clave temporal.",
+        );
+      }
+
+      setDriverOwnerMessage(
+        `${data.message ?? "Clave temporal enviada correctamente."} Clave: ${temporaryPassword}`,
+      );
+    } catch (error) {
+      setDriverOwnerError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar la clave temporal.",
+      );
+    } finally {
+      setSendingTempPassword(false);
+    }
+  }
+
   async function removeDriverOwner() {
     if (!driverOwnerForm.id) {
       return;
@@ -950,13 +1021,32 @@ export default function ConductoresPage() {
               className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
               <div className="mb-4 border-b border-[#c5d8eb] pb-3">
-                <h4 className="font-heading text-base font-semibold text-[#0f2747]">
-                  Datos generales
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Completa los datos del registro. Puedes marcar conductor y
-                  propietario a la vez.
-                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h4 className="font-heading text-base font-semibold text-[#0f2747]">
+                      Datos generales
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Completa los datos del registro. Puedes marcar conductor y
+                      propietario a la vez.
+                    </p>
+                  </div>
+                  {driverOwnerForm.id && driverOwnerForm.isConductor ? (
+                    <button
+                      type="button"
+                      disabled={sendingTempPassword}
+                      onClick={sendTemporaryPassword}
+                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#eef3f9] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {sendingTempPassword ? "Enviando..." : "Clave temporal"}
+                    </button>
+                  ) : null}
+                </div>
+                {sendingTempPassword ? (
+                  <p className="mt-3 text-xs font-medium text-[#0b5cab]">
+                    Enviando clave temporal a {driverOwnerForm.email.trim()}...
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">

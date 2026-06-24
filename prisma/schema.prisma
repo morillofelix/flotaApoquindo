@@ -93,6 +93,9 @@ model DriverOwner {
   inspectionExpiryDate   DateTime? @db.Date
   vehicleType            String    @default("")
   subscriptionDate       DateTime? @db.Date
+  passwordHash           String?
+  tempPasswordSentAt     DateTime?
+  mustChangePassword     Boolean   @default(false)
   isActive               Boolean   @default(true)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt

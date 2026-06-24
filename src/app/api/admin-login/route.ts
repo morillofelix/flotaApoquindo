@@ -1,3 +1,4 @@
+import { setAdminSessionCookie } from "@/lib/driver-auth";
 import { NextResponse, type NextRequest } from "next/server";
 
 type LoginBody = {
@@ -37,5 +38,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+
+  if (!setAdminSessionCookie(response, adminUser)) {
+    return NextResponse.json(
+      { message: "Sesión de administrador no configurada." },
+      { status: 500 },
+    );
+  }
+
+  return response;
 }
