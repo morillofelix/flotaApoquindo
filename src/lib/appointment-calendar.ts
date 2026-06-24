@@ -76,7 +76,7 @@ function buildEvent(
     ...event,
     id: `${appointment.id}-${event.date}-${event.sortKey}`,
     appointmentId: appointment.id,
-    ticketLabel: getAppointmentTicketLabel(appointment.ticketNumber),
+    ticketLabel: getAppointmentTicketLabel(appointment),
   };
 }
 
