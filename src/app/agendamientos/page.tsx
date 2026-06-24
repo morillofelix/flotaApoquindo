@@ -36,11 +36,15 @@ import {
   statusStyles,
 } from "@/lib/agendamientos-appointments";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
+import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
-export default function AppointmentsPage() {
+function AppointmentsPageContent() {
   const { confirm, dialog } = useConfirmAction();
+  const searchParams = useSearchParams();
+  const isCalendarView = searchParams.get("vista") === "calendario";
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
     defaultAppointmentReasons,
@@ -436,6 +440,26 @@ export default function AppointmentsPage() {
     if (confirmed) {
       await removeAppointment(appointment.id);
     }
+  }
+
+  if (isCalendarView) {
+    return (
+      <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
+        <section className="mx-auto w-full max-w-[1540px]">
+          {appointmentsError ? (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {appointmentsError}
+            </div>
+          ) : null}
+
+          <AppointmentsCalendar
+            appointments={appointments}
+            executives={executiveOptions}
+            isLoading={isLoadingAppointments}
+          />
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -969,5 +993,13 @@ export default function AppointmentsPage() {
       </section>
       {dialog}
     </main>
+  );
+}
+
+export default function AppointmentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AppointmentsPageContent />
+    </Suspense>
   );
 }
