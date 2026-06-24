@@ -136,20 +136,22 @@ export default function DriverAccessLoginScreen({
       <section
         className={`w-full max-w-md ${UI_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}
       >
-        <div className="mb-7 border-b border-[#c5d8eb] pb-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
-            Acceso conductor
+        <div className="mb-7 border-b border-[#c5d8eb] pb-6 text-center">
+          <div className="mx-auto mb-4 flex w-fit items-center justify-center rounded-2xl border border-[#c5d8eb] bg-white px-4 py-3 shadow-sm">
+            <img
+              src="/logo-apoquindo.png"
+              alt="Transportes Apoquindo"
+              className="h-10 w-auto object-contain sm:h-11"
+            />
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0b5cab]">
+            Primer acceso en la app
           </p>
-          <h1 className="mt-3 font-heading text-3xl font-semibold leading-tight tracking-tight text-[#0f2747]">
+          <h1 className="mt-2 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
             Solicitud de cita
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600">
             Ingresa con tu correo y clave para registrar solicitudes de tu móvil.
-          </p>
-          <p className="mt-2 rounded-2xl bg-[#f8fbff] px-4 py-3 text-xs leading-5 text-slate-600">
-            Si recibiste una clave temporal, usa los{" "}
-            <strong>4 primeros dígitos de tu RUT</strong> (solo números, sin
-            puntos ni guión). Luego el sistema te pedirá crear una clave nueva.
           </p>
         </div>
 
