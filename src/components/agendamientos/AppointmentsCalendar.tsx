@@ -99,20 +99,19 @@ function CalendarReasonMultiSelect({
 
       {isOpen ? (
         <div className="absolute right-0 z-30 mt-1 max-h-64 w-full min-w-[220px] overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white p-2 shadow-lg shadow-slate-300/30">
-          <div className="mb-1 flex items-center justify-between gap-2 px-2 py-1">
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#173b68]">
-              Motivos
-            </span>
-            {selectedValues.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="text-xs font-semibold text-[#0b5cab] hover:underline"
-              >
-                Limpiar
-              </button>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className={`flex w-full items-center rounded-xl px-2 py-2 text-left text-sm transition hover:bg-[#f8fbff] ${
+              selectedValues.length === 0
+                ? "bg-[#d7e7f8] font-semibold text-[#0b5cab]"
+                : "text-[#0f2747]"
+            }`}
+          >
+            Todos
+          </button>
+
+          <div className="my-1 border-t border-[#d7e7f8]" />
 
           {options.length === 0 ? (
             <p className="px-2 py-2 text-xs text-slate-500">
@@ -165,18 +164,36 @@ function eventStatusClass(status: string) {
   return "border-[#b7cce4] bg-[#f8fbff] text-[#173b68]";
 }
 
+function getCalendarEventStatusClass(event: AppointmentCalendarEvent) {
+  if (event.kind === "approval" && event.status === "pendiente") {
+    return "border-2 border-amber-600 bg-amber-200 text-amber-950 shadow-sm";
+  }
+
+  if (event.kind === "approval" && event.status === "aprobado") {
+    return "border-2 border-blue-500 bg-blue-100 text-blue-950";
+  }
+
+  return eventStatusClass(event.status);
+}
+
 function getEventPresentation(event: AppointmentCalendarEvent) {
   if (event.kind === "approval") {
     const timePrefix = event.timeLabel ? `${event.timeLabel} · ` : "";
+    const isPendingApproval = event.status === "pendiente";
+
     return {
       primary: `${event.reasonLabel} · Móv. ${event.vehicleNumber}`,
       secondary: `${timePrefix}${event.calendarStatusLabel}`,
+      secondaryClassName: isPendingApproval
+        ? "font-bold text-amber-950"
+        : "font-semibold",
     };
   }
 
   return {
     primary: `${event.timeLabel} · ${event.executive}`,
     secondary: `Móv. ${event.vehicleNumber}`,
+    secondaryClassName: "",
   };
 }
 
@@ -492,12 +509,16 @@ export default function AppointmentsCalendar({
                         return (
                           <div
                             key={event.id}
-                            className={`rounded-md border px-1.5 py-1 text-[10px] leading-[1.25] shadow-sm ${eventStatusClass(event.status)}`}
+                            className={`rounded-md border px-1.5 py-1 text-[10px] leading-[1.25] shadow-sm ${getCalendarEventStatusClass(event)}`}
                           >
                             <p className="truncate font-semibold">
                               {presentation.primary}
                             </p>
-                            <p className="truncate">{presentation.secondary}</p>
+                            <p
+                              className={`truncate ${presentation.secondaryClassName}`}
+                            >
+                              {presentation.secondary}
+                            </p>
                           </div>
                         );
                       })}
@@ -541,7 +562,7 @@ export default function AppointmentsCalendar({
                       className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm"
                     >
                         <span
-                          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${eventStatusClass(event.status)}`}
+                          className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${getCalendarEventStatusClass(event)}`}
                         >
                           {event.calendarStatusLabel}
                         </span>
