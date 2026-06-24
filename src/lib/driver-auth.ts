@@ -50,10 +50,17 @@ export function setDriverSessionCookie(
 }
 
 export function clearDriverSessionCookie(response: NextResponse) {
-  response.cookies.set(DRIVER_SESSION_COOKIE, "", {
-    ...getCookieOptions(0),
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
     maxAge: 0,
-  });
+    expires: new Date(0),
+  };
+
+  response.cookies.set(DRIVER_SESSION_COOKIE, "", cookieOptions);
+  response.cookies.delete(DRIVER_SESSION_COOKIE);
 }
 
 export function readDriverSession(request: NextRequest): DriverSession | null {

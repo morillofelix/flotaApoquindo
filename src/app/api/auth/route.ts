@@ -1,6 +1,5 @@
 import {
   clearDriverSessionCookie,
-  readDriverSession,
   setDriverSessionCookie,
   toPublicDriverOwner,
 } from "@/lib/driver-auth";
@@ -246,35 +245,10 @@ async function handleRecoverPassword(body: AuthBody) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  const session = readDriverSession(request);
-
-  if (!session) {
-    return NextResponse.json({ authenticated: false });
-  }
-
-  const driverOwner = await prisma.driverOwner.findFirst({
-    where: {
-      vehicleNumber: session.vehicleNumber,
-      email: {
-        equals: session.email,
-        mode: "insensitive",
-      },
-      isActive: true,
-      isConductor: true,
-    },
-  });
-
-  if (!driverOwner) {
-    const response = NextResponse.json({ authenticated: false });
-    clearDriverSessionCookie(response);
-    return response;
-  }
-
-  return NextResponse.json({
-    authenticated: true,
-    driverOwner: toPublicDriverOwner(driverOwner),
-  });
+export async function GET() {
+  const response = NextResponse.json({ authenticated: false });
+  clearDriverSessionCookie(response);
+  return response;
 }
 
 export async function POST(request: NextRequest) {

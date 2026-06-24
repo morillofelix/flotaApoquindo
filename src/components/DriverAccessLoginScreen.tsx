@@ -2,8 +2,13 @@
 
 import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
 import { PERMANENT_PASSWORD_REQUIREMENTS_HINT } from "@/lib/password-policy";
-import { UI_CARD_SHELL, uiFieldClass } from "@/lib/ui-borders";
+import { UI_FIELD_FOCUS, UI_FIELD_SHADOW } from "@/lib/ui-borders";
+import Image from "next/image";
 import { useState } from "react";
+
+const LOGIN_CARD_SHELL =
+  "rounded-[22px] border-2 border-[#7a9fc4] bg-white shadow-lg shadow-slate-400/30 ring-1 ring-[#b7cce4]/60 sm:rounded-[24px]";
+const LOGIN_FIELD_CLASS = `border-2 border-[#7a9fc4] bg-white ${UI_FIELD_SHADOW} ${UI_FIELD_FOCUS}`;
 
 export type PublicDriverOwner = {
   vehicleNumber: string;
@@ -57,6 +62,8 @@ export default function DriverAccessLoginScreen({
       const response = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
         body: JSON.stringify({ email, password }),
       });
 
@@ -134,20 +141,21 @@ export default function DriverAccessLoginScreen({
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
       <section
-        className={`w-full max-w-md ${UI_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}
+        className={`w-full max-w-md ${LOGIN_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}
       >
-        <div className="mb-7 border-b border-[#c5d8eb] pb-6 text-center">
-          <div className="mx-auto mb-4 flex w-fit items-center justify-center rounded-2xl border border-[#c5d8eb] bg-white px-4 py-3 shadow-sm">
-            <img
+        <div className="mb-7 border-b-2 border-[#9fb8d9] pb-6 text-center">
+          <div className="mx-auto mb-5 flex w-fit items-center justify-center rounded-2xl border-2 border-[#7a9fc4] bg-white px-5 py-3.5">
+            <Image
               src="/logo-apoquindo.png"
               alt="Transportes Apoquindo"
-              className="h-10 w-auto object-contain sm:h-11"
+              width={1024}
+              height={220}
+              priority
+              unoptimized
+              className="h-14 w-auto max-w-[min(100%,18rem)] object-contain sm:h-[3.75rem]"
             />
           </div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0b5cab]">
-            Primer acceso en la app
-          </p>
-          <h1 className="mt-2 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
+          <h1 className="font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
             Solicitud de cita
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600">
@@ -168,7 +176,7 @@ export default function DriverAccessLoginScreen({
                     email: event.target.value,
                   }))
                 }
-                className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+                className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
                 placeholder="correo@ejemplo.com"
                 autoComplete="username"
               />
@@ -186,7 +194,7 @@ export default function DriverAccessLoginScreen({
                       password: event.target.value,
                     }))
                   }
-                  className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+                  className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
                   placeholder="Clave temporal o definitiva"
                   autoComplete="current-password"
                   inputMode="text"
@@ -201,7 +209,7 @@ export default function DriverAccessLoginScreen({
             </label>
 
             {loginError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              <div className="rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {loginError}
               </div>
             ) : null}
@@ -238,7 +246,7 @@ export default function DriverAccessLoginScreen({
               Te enviaremos una clave temporal al correo registrado. Al ingresar
               deberás crear una clave definitiva.
             </p>
-            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
+            <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
               {PERMANENT_PASSWORD_REQUIREMENTS_HINT}
             </p>
 
@@ -248,20 +256,20 @@ export default function DriverAccessLoginScreen({
                 type="email"
                 value={recoverEmail}
                 onChange={(event) => setRecoverEmail(event.target.value)}
-                className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${uiFieldClass()}`}
+                className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
                 placeholder="correo@ejemplo.com"
                 autoComplete="username"
               />
             </label>
 
             {recoverMessage ? (
-              <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+              <div className="rounded-2xl border-2 border-green-300 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
                 {recoverMessage}
               </div>
             ) : null}
 
             {recoverError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              <div className="rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {recoverError}
               </div>
             ) : null}

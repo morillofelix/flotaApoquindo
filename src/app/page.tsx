@@ -19,6 +19,7 @@ import DriverAccessLoginScreen, {
 } from "@/components/DriverAccessLoginScreen";
 import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
 import PublicPageBanner from "@/components/PublicPageBanner";
+import { clearDriverSession } from "@/lib/driver-auth-client";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
@@ -236,7 +237,7 @@ async function sendTicketEmail(newAppointment: Appointment) {
   }
 }
 
-type AuthView = "loading" | "login" | "change-password" | "form";
+type AuthView = "bootstrapping" | "login" | "change-password" | "form";
 
 type PendingPasswordChange = {
   driverOwner: PublicDriverOwner;
@@ -244,32 +245,47 @@ type PendingPasswordChange = {
 };
 
 export default function HomePage() {
-  const [authView, setAuthView] = useState<AuthView>("loading");
+  const [authView, setAuthView] = useState<AuthView>("bootstrapping");
   const [driverOwner, setDriverOwner] = useState<PublicDriverOwner | null>(null);
   const [pendingPasswordChange, setPendingPasswordChange] =
     useState<PendingPasswordChange | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth", { cache: "no-store" })
-      .then((response) => response.json() as Promise<{
-        authenticated?: boolean;
-        driverOwner?: PublicDriverOwner;
-      }>)
-      .then((data) => {
-        if (data.authenticated && data.driverOwner) {
-          setDriverOwner(data.driverOwner);
-          setAuthView("form");
-          return;
-        }
+    let cancelled = false;
 
+    async function bootstrap() {
+      await clearDriverSession();
+
+      if (!cancelled) {
+        setDriverOwner(null);
+        setPendingPasswordChange(null);
         setAuthView("login");
-      })
-      .catch(() => {
+      }
+    }
+
+    void bootstrap();
+
+    function handlePageShow(event: PageTransitionEvent) {
+      if (!event.persisted) {
+        return;
+      }
+
+      void clearDriverSession().then(() => {
+        setDriverOwner(null);
+        setPendingPasswordChange(null);
         setAuthView("login");
       });
+    }
+
+    window.addEventListener("pageshow", handlePageShow);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, []);
 
-  if (authView === "loading") {
+  if (authView === "bootstrapping") {
     return null;
   }
 
@@ -559,8 +575,8 @@ function AppointmentRequestForm({
     !isSelectedReasonRestricted &&
     !businessDayAdvanceMessage;
 
-  function handleLogout() {
-    fetch("/api/auth?action=logout", { method: "POST" }).catch(() => undefined);
+  async function handleLogout() {
+    await clearDriverSession();
     onLogout();
   }
 
