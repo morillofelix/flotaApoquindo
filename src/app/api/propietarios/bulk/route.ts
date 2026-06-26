@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
       {
         message: "No se pudo reemplazar la base de propietarios.",
         detail,
+        errors: errors.length ? errors : [detail],
       },
       { status: 500 },
     );

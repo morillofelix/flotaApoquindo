@@ -435,7 +435,11 @@ export function parsePropietariosCsv(content: string) {
     const importKey = resolveImportKey(rawMobile, rut, lineIndex + 1, titularRut);
 
     if (!fullName) {
-      errors.push(`Fila ${lineIndex + 1}: el nombre es obligatorio.`);
+      if (hasMobileNumber || (record.rut ?? "").trim() || rawMobile.trim()) {
+        errors.push(
+          `Fila ${lineIndex + 1}: sin propietario, fila omitida (móvil ${rawMobile || "sin número"}).`,
+        );
+      }
       continue;
     }
 

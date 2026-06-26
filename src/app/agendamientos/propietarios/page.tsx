@@ -286,14 +286,18 @@ export default function PropietariosPage() {
 
       const data = (await response.json()) as {
         message?: string;
+        detail?: string;
         summary?: { imported?: number; total?: number };
         errors?: string[];
         propietarios?: PropietarioConfig[];
       };
 
       if (!response.ok) {
+        const detail = data.detail ?? data.errors?.[0];
         throw new Error(
-          data.message ?? "No se pudo importar el archivo. Verifica el formato.",
+          detail
+            ? `${data.message ?? "No se pudo importar el archivo."} ${detail}`
+            : data.message ?? "No se pudo importar el archivo. Verifica el formato.",
         );
       }
 
