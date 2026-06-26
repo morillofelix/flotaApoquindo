@@ -105,3 +105,48 @@ model DriverOwner {
   @@index([recordStatus])
   @@index([licensePlate])
 }
+
+model Propietario {
+  id                    String    @id @default(uuid())
+  importKey             String    @unique
+  vehicleNumber         String    @default("")
+  fullName              String
+  firstName             String    @default("")
+  lastName              String    @default("")
+  secondLastName        String    @default("")
+  rut                   String    @default("")
+  email                 String    @default("")
+  landlinePhone         String    @default("")
+  mobilePhone           String    @default("")
+  address               String    @default("")
+  postalCode            String    @default("")
+  city                  String    @default("")
+  province              String    @default("")
+  bankName              String    @default("")
+  bankAccount           String    @default("")
+  accountHolder         String    @default("")
+  bankBic               String    @default("")
+  paymentMethod         String    @default("")
+  paymentDay            String    @default("")
+  notes                 String    @default("")
+  branchOffice          String    @default("")
+  area                  String    @default("")
+  costCenter            String    @default("")
+  isVip                 Boolean   @default(false)
+  gender                String    @default("")
+  recordStatus          String    @default("V")
+  licenseExpiryDate     DateTime? @db.Date
+  birthDate             DateTime? @db.Date
+  incorporationDate     DateTime? @db.Date
+  deactivationDate      DateTime? @db.Date
+  emergencyContactName  String    @default("")
+  emergencyContactEmail String    @default("")
+  emergencyContactPhone String    @default("")
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([fullName])
+  @@index([rut])
+}

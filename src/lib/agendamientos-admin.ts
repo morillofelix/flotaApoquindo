@@ -7,6 +7,7 @@ import {
   formatRestrictedWeekdays,
 } from "@/lib/appointments";
 import { type DriverOwnerConfig } from "@/lib/driver-owners";
+import { type PropietarioConfig } from "@/lib/propietarios";
 
 export async function loadAppointments() {
   const response = await fetch("/api/appointments", {
@@ -67,6 +68,22 @@ export async function loadDriverOwners() {
   };
 
   return data.driverOwners ?? [];
+}
+
+export async function loadPropietarios() {
+  const response = await fetch("/api/propietarios", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar los propietarios.");
+  }
+
+  const data = (await response.json()) as {
+    propietarios?: PropietarioConfig[];
+  };
+
+  return data.propietarios ?? [];
 }
 
 function escapeExcelHtml(value: string) {

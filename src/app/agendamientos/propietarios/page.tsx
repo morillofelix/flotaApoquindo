@@ -1,0 +1,1176 @@
+"use client";
+
+import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
+import { useConfirmAction } from "@/hooks/useConfirmAction";
+import { loadPropietarios } from "@/lib/agendamientos-admin";
+import {
+  displayVehicleNumber,
+  downloadPropietariosExcel,
+  formatFileSize,
+  parsePropietariosCsv,
+  preparePropietarioUploadContent,
+  readPropietarioFileContent,
+  type ParsedPropietarioRow,
+  type PropietarioConfig,
+} from "@/lib/propietarios";
+import {
+  isDigitOnlySearch,
+  matchesTextSearch,
+  matchesVehicleNumberSearch,
+} from "@/lib/maintainer-search";
+import { uiListRowClass } from "@/lib/ui-borders";
+import { useEffect, useMemo, useState } from "react";
+
+type PropietarioForm = PropietarioConfig & { id: string };
+
+type BulkUploadPhase =
+  | "idle"
+  | "ready"
+  | "reading"
+  | "uploading"
+  | "success"
+  | "error";
+
+type BulkUploadState = {
+  phase: BulkUploadPhase;
+  fileName: string;
+  fileSize: number;
+  detail: string;
+  progress: number;
+  importedCount: number;
+  rowErrors: string[];
+  parsedRows: ParsedPropietarioRow[];
+};
+
+const emptyBulkUploadState: BulkUploadState = {
+  phase: "idle",
+  fileName: "",
+  fileSize: 0,
+  detail: "",
+  progress: 0,
+  importedCount: 0,
+  rowErrors: [],
+  parsedRows: [],
+};
+
+const bulkUploadSteps = [
+  { key: "reading", label: "Leyendo archivo" },
+  { key: "validating", label: "Validando datos" },
+  { key: "uploading", label: "Importando registros" },
+] as const;
+
+const emptyPropietarioForm: PropietarioForm = {
+  id: "",
+  vehicleNumber: "",
+  fullName: "",
+  firstName: "",
+  lastName: "",
+  secondLastName: "",
+  rut: "",
+  email: "",
+  landlinePhone: "",
+  mobilePhone: "",
+  address: "",
+  postalCode: "",
+  city: "",
+  province: "",
+  bankName: "",
+  bankAccount: "",
+  accountHolder: "",
+  bankBic: "",
+  paymentMethod: "",
+  paymentDay: "",
+  notes: "",
+  branchOffice: "",
+  area: "",
+  costCenter: "",
+  isVip: false,
+  gender: "",
+  recordStatus: "V",
+  licenseExpiryDate: "",
+  birthDate: "",
+  incorporationDate: "",
+  deactivationDate: "",
+  emergencyContactName: "",
+  emergencyContactEmail: "",
+  emergencyContactPhone: "",
+  isActive: true,
+};
+
+const inputClassName =
+  "h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
+
+const labelClassName = "text-xs font-semibold text-[#173b68]";
+
+export default function PropietariosPage() {
+  const { confirm, dialog } = useConfirmAction();
+  const [propietarios, setPropietarios] = useState<PropietarioConfig[]>([]);
+  const [propietarioForm, setPropietarioForm] =
+    useState<PropietarioForm>(emptyPropietarioForm);
+  const [propietarioSearch, setPropietarioSearch] = useState("");
+  const [activeStatusFilter, setActiveStatusFilter] = useState<
+    "todos" | "activo" | "inactivo"
+  >("todos");
+  const [propietarioMessage, setPropietarioMessage] = useState("");
+  const [propietarioError, setPropietarioError] = useState("");
+  const [isSavingPropietario, setIsSavingPropietario] = useState(false);
+  const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
+
+  useEffect(() => {
+    loadPropietarios()
+      .then((loaded) => setPropietarios(loaded))
+      .catch(() => setPropietarioError("No se pudieron cargar los propietarios."));
+  }, []);
+
+  const filteredPropietarios = useMemo(() => {
+    const normalizedSearch = propietarioSearch.trim();
+    const normalizedSearchLower = normalizedSearch.toLowerCase();
+    const digitOnlySearch = isDigitOnlySearch(normalizedSearch);
+
+    return propietarios.filter((propietario) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        (digitOnlySearch
+          ? matchesVehicleNumberSearch(
+              propietario.vehicleNumber,
+              normalizedSearch,
+            )
+          : matchesTextSearch(propietario.vehicleNumber, normalizedSearchLower) ||
+            matchesTextSearch(propietario.fullName, normalizedSearchLower) ||
+            matchesTextSearch(propietario.rut, normalizedSearchLower) ||
+            matchesTextSearch(propietario.email, normalizedSearchLower) ||
+            matchesTextSearch(propietario.bankName, normalizedSearchLower) ||
+            matchesTextSearch(propietario.city, normalizedSearchLower));
+
+      const matchesActiveStatus =
+        activeStatusFilter === "todos" ||
+        (activeStatusFilter === "activo" && propietario.isActive) ||
+        (activeStatusFilter === "inactivo" && !propietario.isActive);
+
+      return matchesSearch && matchesActiveStatus;
+    });
+  }, [activeStatusFilter, propietarioSearch, propietarios]);
+
+  const hasListFilters =
+    propietarioSearch.trim().length > 0 || activeStatusFilter !== "todos";
+
+  function isSelectedPropietario(propietario: PropietarioConfig) {
+    if (propietarioForm.id && propietario.id) {
+      return propietarioForm.id === propietario.id;
+    }
+
+    return false;
+  }
+
+  function editPropietario(propietario: PropietarioConfig) {
+    setPropietarioForm({
+      id: propietario.id ?? "",
+      ...propietario,
+    });
+    setPropietarioMessage("");
+    setPropietarioError("");
+  }
+
+  function resetPropietarioForm() {
+    setPropietarioForm(emptyPropietarioForm);
+    setPropietarioMessage("");
+    setPropietarioError("");
+  }
+
+  function downloadVisiblePropietarios() {
+    const fileName = hasListFilters
+      ? "propietarios-filtrados.xls"
+      : "propietarios.xls";
+
+    downloadPropietariosExcel(filteredPropietarios, fileName);
+  }
+
+  async function handleBulkFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setPropietarioMessage("");
+    setPropietarioError("");
+    setBulkUpload({
+      ...emptyBulkUploadState,
+      phase: "reading",
+      fileName: file.name,
+      fileSize: file.size,
+      detail: "Leyendo el archivo seleccionado...",
+      progress: 20,
+    });
+
+    try {
+      const rawContent = await readPropietarioFileContent(file);
+      const prepared = preparePropietarioUploadContent(file.name, rawContent);
+
+      if ("error" in prepared) {
+        throw new Error(prepared.error);
+      }
+
+      const parsed = parsePropietariosCsv(prepared.csvContent);
+
+      if (!parsed.rows.length) {
+        throw new Error(
+          parsed.errors[0] ?? "El archivo no tiene filas válidas para importar.",
+        );
+      }
+
+      setBulkUpload({
+        phase: "ready",
+        fileName: file.name,
+        fileSize: file.size,
+        detail: `Archivo listo. Se encontraron ${parsed.rows.length} propietarios válidos.`,
+        progress: 0,
+        importedCount: 0,
+        rowErrors: parsed.errors.slice(0, 5),
+        parsedRows: parsed.rows,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo leer el archivo.";
+
+      setBulkUpload({
+        ...emptyBulkUploadState,
+        phase: "error",
+        fileName: file.name,
+        fileSize: file.size,
+        detail: message,
+        progress: 100,
+      });
+      setPropietarioError(message);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function confirmBulkImport() {
+    if (!bulkUpload.parsedRows.length) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Importar propietarios",
+      message: `¿Importar ${bulkUpload.parsedRows.length} registros y reemplazar toda la base actual?`,
+      detail: "La carga masiva reemplaza por completo los propietarios existentes.",
+      confirmLabel: "Sí, importar",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBulkUpload((currentState) => ({
+      ...currentState,
+      phase: "uploading",
+      detail: `Importando ${bulkUpload.parsedRows.length} registros...`,
+      progress: 70,
+    }));
+
+    try {
+      const response = await fetch("/api/propietarios/bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rows: bulkUpload.parsedRows }),
+      });
+
+      const data = (await response.json()) as {
+        message?: string;
+        summary?: { imported?: number; total?: number };
+        errors?: string[];
+        propietarios?: PropietarioConfig[];
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ?? "No se pudo importar el archivo. Verifica el formato.",
+        );
+      }
+
+      const importedCount =
+        data.summary?.imported ?? data.summary?.total ?? bulkUpload.parsedRows.length;
+
+      setPropietarios(data.propietarios ?? []);
+      setBulkUpload((currentState) => ({
+        ...currentState,
+        phase: "success",
+        detail: `¡Su carga fue exitosa! Se importaron ${importedCount} propietarios y se reemplazó la base anterior.`,
+        progress: 100,
+        importedCount,
+      }));
+      setPropietarioMessage(
+        `Carga masiva exitosa: ${importedCount} propietarios importados.`,
+      );
+
+      if (data.errors?.length) {
+        setPropietarioError(
+          `Importación completada con ${data.errors.length} advertencias.`,
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo importar el archivo.";
+
+      setBulkUpload((currentState) => ({
+        ...currentState,
+        phase: "error",
+        detail: message,
+        progress: 100,
+      }));
+      setPropietarioError(message);
+    }
+  }
+
+  function resetBulkUploadStatus() {
+    setBulkUpload(emptyBulkUploadState);
+  }
+
+  function getBulkStepStatus(stepKey: (typeof bulkUploadSteps)[number]["key"]) {
+    const thresholds = { reading: 35, validating: 65, uploading: 100 };
+
+    if (bulkUpload.phase === "success") {
+      return "success";
+    }
+
+    if (bulkUpload.phase === "error") {
+      return bulkUpload.progress <= thresholds.reading
+        ? stepKey === "reading"
+          ? "error"
+          : "pending"
+        : bulkUpload.progress <= thresholds.validating
+          ? ["reading", "validating"].includes(stepKey)
+            ? stepKey === "validating"
+              ? "error"
+              : "success"
+            : "pending"
+          : "error";
+    }
+
+    if (bulkUpload.phase === "idle") {
+      return "pending";
+    }
+
+    if (bulkUpload.phase === "ready") {
+      return stepKey === "reading" || stepKey === "validating"
+        ? "success"
+        : "pending";
+    }
+
+    return bulkUpload.progress <= thresholds.reading
+      ? stepKey === "reading"
+        ? "active"
+        : "pending"
+      : bulkUpload.progress <= thresholds.validating
+        ? stepKey === "reading"
+          ? "success"
+          : stepKey === "validating"
+            ? "active"
+            : "pending"
+        : stepKey === "uploading"
+          ? "active"
+          : stepKey === "reading" || stepKey === "validating"
+            ? "success"
+            : "pending";
+  }
+
+  async function savePropietario(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPropietarioMessage("");
+    setPropietarioError("");
+
+    if (propietarioForm.fullName.trim().length < 3) {
+      setPropietarioError("Ingresa un nombre válido.");
+      return;
+    }
+
+    setIsSavingPropietario(true);
+
+    try {
+      const response = await fetch("/api/propietarios", {
+        method: propietarioForm.id ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(propietarioForm),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json()) as { message?: string };
+        throw new Error(data.message ?? "No se pudo guardar el registro.");
+      }
+
+      const loadedPropietarios = await loadPropietarios();
+      setPropietarios(loadedPropietarios);
+      setPropietarioForm(emptyPropietarioForm);
+      setPropietarioMessage("Registro guardado correctamente.");
+    } catch (error) {
+      setPropietarioError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el registro.",
+      );
+    } finally {
+      setIsSavingPropietario(false);
+    }
+  }
+
+  async function removePropietario() {
+    if (!propietarioForm.id) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Eliminar registro",
+      message: "¿Eliminar este propietario del catálogo?",
+      detail: `${propietarioForm.fullName}. Esta acción no se puede deshacer.`,
+      confirmLabel: "Sí, eliminar",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/propietarios/${propietarioForm.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = (await response.json()) as { message?: string };
+        throw new Error(data.message ?? "No se pudo eliminar el registro.");
+      }
+
+      const loadedPropietarios = await loadPropietarios();
+      setPropietarios(loadedPropietarios);
+      setPropietarioForm(emptyPropietarioForm);
+      setPropietarioMessage("Registro eliminado correctamente.");
+    } catch (error) {
+      setPropietarioError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar el registro.",
+      );
+    }
+  }
+
+  function updateFormField<K extends keyof PropietarioForm>(
+    field: K,
+    value: PropietarioForm[K],
+  ) {
+    setPropietarioForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
+    }));
+  }
+
+  return (
+    <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
+      <section className="mx-auto w-full max-w-[1540px]">
+        <MaintainerPageHeader title="Propietarios" />
+
+        <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
+          <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+            <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+              <div className="mb-3 rounded-2xl border border-[#b7cce4] bg-white p-3">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-[#173b68]">
+                        Cargador masivo
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Sube CSV o SLK exportado desde Access. La carga reemplaza
+                        por completo la base de propietarios e importa todas las
+                        filas del archivo.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={downloadVisiblePropietarios}
+                        disabled={filteredPropietarios.length === 0}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-emerald-500 bg-white px-4 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                      >
+                        <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm bg-emerald-500 text-[9px] font-bold leading-none text-white">
+                          X
+                        </span>
+                        Exportar a Excel
+                      </button>
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
+                        {bulkUpload.phase === "reading" ||
+                        bulkUpload.phase === "uploading"
+                          ? "Procesando..."
+                          : "Seleccionar archivo"}
+                        <input
+                          type="file"
+                          accept=".csv,.txt,.slk,text/csv"
+                          onChange={handleBulkFileSelect}
+                          disabled={
+                            bulkUpload.phase === "reading" ||
+                            bulkUpload.phase === "uploading"
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {bulkUpload.phase !== "idle" ? (
+                    <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-[#0f2747]">
+                            Archivo seleccionado
+                          </p>
+                          <p className="text-sm font-semibold text-[#0b5cab]">
+                            {bulkUpload.fileName}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {formatFileSize(bulkUpload.fileSize)}
+                          </p>
+                        </div>
+                        {bulkUpload.phase === "success" ||
+                        bulkUpload.phase === "error" ? (
+                          <button
+                            type="button"
+                            onClick={resetBulkUploadStatus}
+                            className="inline-flex h-8 items-center justify-center rounded-full bg-[#0b5cab] px-3 text-[11px] font-semibold text-white transition hover:bg-[#084a8c]"
+                          >
+                            Cerrar aviso
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {bulkUpload.phase === "ready" ? (
+                        <div className="mt-3 rounded-2xl border border-[#b7cce4] bg-white p-3">
+                          <p className="text-xs font-semibold text-[#173b68]">
+                            Listo para importar
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Se importarán {bulkUpload.parsedRows.length} registros
+                            y se reemplazará la base actual completa.
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={resetBulkUploadStatus}
+                              className="inline-flex h-8 items-center justify-center rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68]"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={confirmBulkImport}
+                              className="inline-flex h-8 items-center justify-center rounded-full bg-[#0b5cab] px-3 text-[11px] font-semibold text-white transition hover:bg-[#084a8c]"
+                            >
+                              Importar todo
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-3 space-y-2">
+                        {bulkUploadSteps.map((step) => {
+                          const status = getBulkStepStatus(step.key);
+
+                          return (
+                            <div
+                              key={step.key}
+                              className="flex items-center gap-2 text-xs"
+                            >
+                              <span
+                                className={
+                                  status === "success"
+                                    ? "text-green-600"
+                                    : status === "error"
+                                      ? "text-red-600"
+                                      : status === "active"
+                                        ? "text-[#0b5cab]"
+                                        : "text-slate-400"
+                                }
+                              >
+                                {status === "success"
+                                  ? "✓"
+                                  : status === "error"
+                                    ? "✕"
+                                    : status === "active"
+                                      ? "…"
+                                      : "○"}
+                              </span>
+                              <span className="font-medium text-[#0f2747]">
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {bulkUpload.detail ? (
+                        <p
+                          className={`mt-3 text-xs font-semibold ${
+                            bulkUpload.phase === "error"
+                              ? "text-red-600"
+                              : bulkUpload.phase === "success"
+                                ? "text-green-700"
+                                : "text-[#0b5cab]"
+                          }`}
+                        >
+                          {bulkUpload.detail}
+                        </p>
+                      ) : null}
+
+                      {bulkUpload.rowErrors.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] text-amber-700">
+                          {bulkUpload.rowErrors.map((error) => (
+                            <li key={error}>{error}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[#b7cce4] bg-white p-3">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <label className="flex flex-1 flex-col gap-1.5">
+                    <span className={labelClassName}>Buscar registro</span>
+                    <input
+                      type="search"
+                      value={propietarioSearch}
+                      onChange={(event) => setPropietarioSearch(event.target.value)}
+                      placeholder="Nombre, RUT, correo, banco..."
+                      className={inputClassName}
+                    />
+                  </label>
+                  <label className="flex w-full flex-col gap-1.5 sm:w-40">
+                    <span className={labelClassName}>Estado</span>
+                    <select
+                      value={activeStatusFilter}
+                      onChange={(event) =>
+                        setActiveStatusFilter(
+                          event.target.value as "todos" | "activo" | "inactivo",
+                        )
+                      }
+                      className={inputClassName}
+                    >
+                      <option value="todos">Todos</option>
+                      <option value="activo">Activo</option>
+                      <option value="inactivo">Inactivo</option>
+                    </select>
+                  </label>
+                </div>
+
+                <p className="mb-2 text-[11px] text-slate-500">
+                  {filteredPropietarios.length} de {propietarios.length} registros
+                </p>
+
+                <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
+                  <div className="grid grid-cols-[0.45fr_1fr_0.7fr_0.55fr] gap-2 bg-[#eef4fb] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#173b68]">
+                    <span>Móvil</span>
+                    <span>Nombre</span>
+                    <span>RUT</span>
+                    <span>Estado</span>
+                  </div>
+                  <div className="max-h-[50dvh] overflow-auto divide-y divide-[#c5d8eb]">
+                    {filteredPropietarios.map((propietario) => (
+                      <button
+                        key={propietario.id}
+                        type="button"
+                        onClick={() => editPropietario(propietario)}
+                        className={uiListRowClass(
+                          isSelectedPropietario(propietario),
+                          "grid w-full grid-cols-[0.45fr_1fr_0.7fr_0.55fr] gap-2 px-3 py-2 text-left text-xs",
+                        )}
+                      >
+                        <strong className="text-[#0f2747]">
+                          {displayVehicleNumber(propietario.vehicleNumber)}
+                        </strong>
+                        <span className="text-[#0f2747]">
+                          {propietario.fullName}
+                        </span>
+                        <span className="text-slate-600">{propietario.rut}</span>
+                        <span
+                          className={
+                            propietario.isActive
+                              ? "font-semibold text-green-700"
+                              : "font-semibold text-slate-400"
+                          }
+                        >
+                          {propietario.isActive ? "Activo" : "Inactivo"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <form
+              noValidate
+              onSubmit={savePropietario}
+              className="max-h-[85vh] overflow-y-auto rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
+            >
+              <div className="mb-4 border-b border-[#c5d8eb] pb-3">
+                <h4 className="font-heading text-base font-semibold text-[#0f2747]">
+                  Datos generales
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Ficha del propietario con datos personales, bancarios y de
+                  contacto.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Número de móvil</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={propietarioForm.vehicleNumber}
+                    onChange={(event) =>
+                      updateFormField("vehicleNumber", event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Opcional"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Estado</span>
+                  <select
+                    value={propietarioForm.isActive ? "activo" : "inactivo"}
+                    onChange={(event) =>
+                      updateFormField("isActive", event.target.value === "activo")
+                    }
+                    className={inputClassName}
+                  >
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Nombre completo</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.fullName}
+                    onChange={(event) =>
+                      updateFormField("fullName", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Apellido paterno</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.lastName}
+                    onChange={(event) =>
+                      updateFormField("lastName", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Apellido materno</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.secondLastName}
+                    onChange={(event) =>
+                      updateFormField("secondLastName", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>RUT</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.rut}
+                    onChange={(event) => updateFormField("rut", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Correo</span>
+                  <input
+                    type="email"
+                    value={propietarioForm.email}
+                    onChange={(event) =>
+                      updateFormField("email", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Fecha venc. carnet</span>
+                  <input
+                    type="date"
+                    value={propietarioForm.licenseExpiryDate}
+                    onChange={(event) =>
+                      updateFormField("licenseExpiryDate", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Fecha nacimiento</span>
+                  <input
+                    type="date"
+                    value={propietarioForm.birthDate}
+                    onChange={(event) =>
+                      updateFormField("birthDate", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Teléfono fijo</span>
+                  <input
+                    type="tel"
+                    value={propietarioForm.landlinePhone}
+                    onChange={(event) =>
+                      updateFormField("landlinePhone", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Teléfono móvil</span>
+                  <input
+                    type="tel"
+                    value={propietarioForm.mobilePhone}
+                    onChange={(event) =>
+                      updateFormField("mobilePhone", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Dirección</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.address}
+                    onChange={(event) =>
+                      updateFormField("address", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Código postal</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.postalCode}
+                    onChange={(event) =>
+                      updateFormField("postalCode", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Población / comuna</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.city}
+                    onChange={(event) => updateFormField("city", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Provincia / región</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.province}
+                    onChange={(event) =>
+                      updateFormField("province", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
+                  Datos bancarios
+                </h4>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Banco</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.bankName}
+                    onChange={(event) =>
+                      updateFormField("bankName", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Cuenta bancaria</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.bankAccount}
+                    onChange={(event) =>
+                      updateFormField("bankAccount", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Titular cuenta</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.accountHolder}
+                    onChange={(event) =>
+                      updateFormField("accountHolder", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>BIC / SWIFT</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.bankBic}
+                    onChange={(event) =>
+                      updateFormField("bankBic", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Forma de pago</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.paymentMethod}
+                    onChange={(event) =>
+                      updateFormField("paymentMethod", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Día de pago</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.paymentDay}
+                    onChange={(event) =>
+                      updateFormField("paymentDay", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
+                  Otros datos
+                </h4>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Observaciones</span>
+                  <textarea
+                    value={propietarioForm.notes}
+                    onChange={(event) =>
+                      updateFormField("notes", event.target.value)
+                    }
+                    rows={3}
+                    className="rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Sucursal</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.branchOffice}
+                    onChange={(event) =>
+                      updateFormField("branchOffice", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Área</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.area}
+                    onChange={(event) => updateFormField("area", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Centro de costo</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.costCenter}
+                    onChange={(event) =>
+                      updateFormField("costCenter", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]">
+                  VIP
+                  <input
+                    type="checkbox"
+                    checked={propietarioForm.isVip}
+                    onChange={(event) =>
+                      updateFormField("isVip", event.target.checked)
+                    }
+                    className="h-4 w-4 accent-[#0b5cab]"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Género</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.gender}
+                    onChange={(event) =>
+                      updateFormField("gender", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Fecha alta</span>
+                  <input
+                    type="date"
+                    value={propietarioForm.incorporationDate}
+                    onChange={(event) =>
+                      updateFormField("incorporationDate", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Fecha baja</span>
+                  <input
+                    type="date"
+                    value={propietarioForm.deactivationDate}
+                    onChange={(event) =>
+                      updateFormField("deactivationDate", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Nombre contacto emergencia</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.emergencyContactName}
+                    onChange={(event) =>
+                      updateFormField("emergencyContactName", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Correo emergencia</span>
+                  <input
+                    type="email"
+                    value={propietarioForm.emergencyContactEmail}
+                    onChange={(event) =>
+                      updateFormField("emergencyContactEmail", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Teléfono emergencia</span>
+                  <input
+                    type="tel"
+                    value={propietarioForm.emergencyContactPhone}
+                    onChange={(event) =>
+                      updateFormField("emergencyContactPhone", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+              </div>
+
+              {propietarioMessage ? (
+                <p className="mt-3 text-xs font-semibold text-green-700">
+                  {propietarioMessage}
+                </p>
+              ) : null}
+              {propietarioError ? (
+                <p className="mt-3 text-xs font-semibold text-red-600">
+                  {propietarioError}
+                </p>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                {propietarioForm.id ? (
+                  <button
+                    type="button"
+                    onClick={removePropietario}
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-red-600 px-4 text-xs font-semibold text-white transition hover:bg-red-700 active:translate-y-px"
+                  >
+                    Eliminar
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={resetPropietarioForm}
+                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPropietario}
+                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {propietarioForm.id ? "Guardar cambios" : "Crear"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+      {dialog}
+    </main>
+  );
+}

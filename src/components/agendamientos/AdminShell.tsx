@@ -41,6 +41,11 @@ const navItems: NavItem[] = [
     href: "/agendamientos/conductores",
     isActive: (pathname) => pathname.startsWith("/agendamientos/conductores"),
   },
+  {
+    label: "Propietarios",
+    href: "/agendamientos/propietarios",
+    isActive: (pathname) => pathname.startsWith("/agendamientos/propietarios"),
+  },
 ];
 
 function AdminNavigation({
