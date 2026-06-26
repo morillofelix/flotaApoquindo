@@ -60,11 +60,14 @@ const headerAliases: Record<string, string> = {
   numero_de_movil: "vehicleNumber",
   numero_movil: "vehicleNumber",
   n_movil: "vehicleNumber",
+  no_de_movil: "vehicleNumber",
+  n_de_movil: "vehicleNumber",
   movil: "vehicleNumber",
   mobile: "vehicleNumber",
   vehicleNumber: "vehicleNumber",
   activo: "catalogActive",
   nombre: "fullName",
+  nombre_completo: "fullName",
   name: "fullName",
   fullName: "fullName",
   correo: "email",
@@ -81,7 +84,11 @@ const headerAliases: Record<string, string> = {
   estado: "recordStatus",
   genero: "gender",
   roles: "personTypes",
+  rol: "personTypes",
+  role: "personTypes",
   tipo: "personTypes",
+  tipo_usuario: "personTypes",
+  tipo_de_usuario: "personTypes",
   licencia_municipal: "municipalLicense",
   turnos: "shifts",
   turno: "shifts",
@@ -379,6 +386,53 @@ function detectDelimiter(headerLine: string) {
   return semicolonCount > commaCount ? ";" : ",";
 }
 
+type ImportHeaderMatch = {
+  headerIndex: number;
+  delimiter: string;
+  headers: string[];
+  mappedHeaders: (string | null)[];
+};
+
+function mapImportHeaders(rawHeaders: string[]) {
+  return rawHeaders.map((header) => headerAliases[header] ?? null);
+}
+
+function findImportHeader(lines: string[]): ImportHeaderMatch | null {
+  const maxScan = Math.min(lines.length, 50);
+
+  for (let headerIndex = 0; headerIndex < maxScan; headerIndex += 1) {
+    const line = lines[headerIndex] ?? "";
+    const delimiters =
+      line.includes(";") && line.includes(",")
+        ? [detectDelimiter(line), detectDelimiter(line) === ";" ? "," : ";"]
+        : line.includes(";")
+          ? [";", ","]
+          : [",", ";"];
+
+    for (const delimiter of delimiters) {
+      if (delimiter === ";" && !line.includes(";")) {
+        continue;
+      }
+
+      if (delimiter === "," && !line.includes(",") && !line.includes('"')) {
+        continue;
+      }
+
+      const headers = parseCsvLine(line, delimiter).map(normalizeHeader);
+      const mappedHeaders = mapImportHeaders(headers);
+
+      if (
+        mappedHeaders.includes("fullName") &&
+        mappedHeaders.includes("personTypes")
+      ) {
+        return { headerIndex, delimiter, headers, mappedHeaders };
+      }
+    }
+  }
+
+  return null;
+}
+
 function normalizePhone(value: string) {
   return value.trim().replace(/\D/g, "");
 }
@@ -623,34 +677,38 @@ export function parseDriverOwnersCsv(content: string) {
     };
   }
 
-  const delimiter = detectDelimiter(lines[0] ?? "");
-  const headers = parseCsvLine(lines[0] ?? "", delimiter).map(normalizeHeader);
-  const mappedHeaders = headers.map((header) => headerAliases[header] ?? null);
+  if (lines.length < 2) {
+    return {
+      rows: [] as ParsedDriverOwnerRow[],
+      errors: ["El archivo debe incluir encabezados y al menos una fila."],
+    };
+  }
 
-  if (!mappedHeaders.includes("fullName")) {
+  const headerMatch = findImportHeader(lines);
+
+  if (!headerMatch) {
+    const preview = lines
+      .slice(0, 5)
+      .map((line) => parseCsvLine(line, detectDelimiter(line)).join(" | "))
+      .join(" / ");
+
     return {
       rows: [] as ParsedDriverOwnerRow[],
       errors: [
-        'Falta la columna "Nombre". Columnas detectadas: ' + headers.join(", "),
+        'No se encontró una fila de encabezados con "Nombre" y "Roles". ' +
+          "Los reportes SLK de Access suelen traer títulos arriba; revisa que el archivo incluya esas columnas. " +
+          `Vista previa: ${preview}`,
       ],
     };
   }
 
-  if (!mappedHeaders.includes("personTypes")) {
-    return {
-      rows: [] as ParsedDriverOwnerRow[],
-      errors: [
-        'Falta la columna "Roles" o "tipo". Columnas detectadas: ' +
-          headers.join(", "),
-      ],
-    };
-  }
+  const { headerIndex, delimiter, mappedHeaders } = headerMatch;
 
   const rows: ParsedDriverOwnerRow[] = [];
   const errors: string[] = [];
   const importedVehicleNumbers = new Set<string>();
 
-  for (let lineIndex = 1; lineIndex < lines.length; lineIndex += 1) {
+  for (let lineIndex = headerIndex + 1; lineIndex < lines.length; lineIndex += 1) {
     const values = parseCsvLine(lines[lineIndex] ?? "", delimiter);
 
     if (!values.some((value) => value.trim().length > 0)) {
