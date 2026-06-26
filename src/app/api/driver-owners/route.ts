@@ -1,4 +1,5 @@
 import {
+  isImportPlaceholderVehicleNumber,
   parseShifts,
   toDriverOwner,
   toDriverOwnerCreateData,
@@ -87,8 +88,15 @@ function parseDriverOwnerBody(body: DriverOwnerBody) {
   };
 }
 
-function validateDriverOwnerInput(input: ReturnType<typeof parseDriverOwnerBody>) {
-  if (!input.vehicleNumber || input.fullName.length < 3) {
+function validateDriverOwnerInput(
+  input: ReturnType<typeof parseDriverOwnerBody>,
+  options?: { allowEmptyMobile?: boolean },
+) {
+  if (!input.vehicleNumber && !options?.allowEmptyMobile) {
+    return "Ingresa móvil y nombre válidos.";
+  }
+
+  if (input.fullName.length < 3) {
     return "Ingresa móvil y nombre válidos.";
   }
 
@@ -184,18 +192,36 @@ export async function PATCH(request: NextRequest) {
 
   const id = typeof body.id === "string" ? body.id : "";
   const input = parseDriverOwnerBody(body);
-  const validationMessage = validateDriverOwnerInput(input);
 
-  if (!id || validationMessage) {
+  const existingDriverOwner = id
+    ? await prisma.driverOwner.findUnique({ where: { id } })
+    : null;
+
+  if (!existingDriverOwner) {
+    return NextResponse.json({ message: "Registro no encontrado." }, { status: 404 });
+  }
+
+  const allowEmptyMobile =
+    !input.vehicleNumber &&
+    isImportPlaceholderVehicleNumber(existingDriverOwner.vehicleNumber);
+  const validationMessage = validateDriverOwnerInput(input, { allowEmptyMobile });
+
+  if (validationMessage) {
     return NextResponse.json(
       { message: validationMessage ?? "Datos incompletos." },
       { status: 400 },
     );
   }
 
+  const vehicleNumberForDb = input.vehicleNumber || existingDriverOwner.vehicleNumber;
+  const data = toDriverOwnerCreateData({
+    ...input,
+    vehicleNumber: vehicleNumberForDb,
+  });
+
   const duplicateVehicle = await prisma.driverOwner.findFirst({
     where: {
-      vehicleNumber: input.vehicleNumber,
+      vehicleNumber: vehicleNumberForDb,
       NOT: { id },
     },
   });
@@ -210,7 +236,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const driverOwner = await prisma.driverOwner.update({
       where: { id },
-      data: toDriverOwnerCreateData(input),
+      data,
     });
 
     return NextResponse.json({

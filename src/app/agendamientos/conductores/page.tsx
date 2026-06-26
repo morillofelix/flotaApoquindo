@@ -11,6 +11,7 @@ import {
   formatPersonTypes,
   formatShifts,
   getTemporaryPasswordFromRut,
+  displayVehicleNumber,
   parseDriverOwnersCsv,
   prepareDriverOwnerUploadContent,
   readDriverOwnerFileContent,
@@ -527,8 +528,10 @@ export default function ConductoresPage() {
     setDriverOwnerMessage("");
     setDriverOwnerError("");
 
+    const canSaveWithoutMobile = Boolean(driverOwnerForm.id);
+
     if (
-      driverOwnerForm.vehicleNumber.trim().length < 1 ||
+      (!canSaveWithoutMobile && driverOwnerForm.vehicleNumber.trim().length < 1) ||
       driverOwnerForm.fullName.trim().length < 3 ||
       (!driverOwnerForm.isConductor && !driverOwnerForm.isPropietario)
     ) {
@@ -649,7 +652,9 @@ export default function ConductoresPage() {
     const confirmed = await confirm({
       title: "Eliminar registro",
       message: "¿Eliminar este conductor o propietario del catálogo?",
-      detail: `Móvil ${driverOwnerForm.vehicleNumber} — ${driverOwnerForm.fullName}. Esta acción no se puede deshacer.`,
+      detail: driverOwnerForm.vehicleNumber.trim()
+        ? `Móvil ${driverOwnerForm.vehicleNumber} — ${driverOwnerForm.fullName}. Esta acción no se puede deshacer.`
+        : `${driverOwnerForm.fullName} (sin móvil). Esta acción no se puede deshacer.`,
       confirmLabel: "Sí, eliminar",
       tone: "danger",
     });
@@ -1010,7 +1015,7 @@ export default function ConductoresPage() {
                       )}
                     >
                       <strong className="text-[#0f2747]">
-                        {driverOwner.vehicleNumber}
+                        {displayVehicleNumber(driverOwner.vehicleNumber)}
                       </strong>
                       <span className="text-[#0f2747]">
                         {driverOwner.fullName}

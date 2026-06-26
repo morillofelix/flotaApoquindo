@@ -116,6 +116,24 @@ export function normalizeVehicleNumber(value: string) {
   return digits.padStart(3, "0");
 }
 
+export function isImportPlaceholderVehicleNumber(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return false;
+  }
+
+  return (
+    /^INACT\d+$/i.test(trimmed) ||
+    /^EXT\d+$/i.test(trimmed) ||
+    /^R\d{7,}$/i.test(trimmed)
+  );
+}
+
+export function displayVehicleNumber(value: string) {
+  return isImportPlaceholderVehicleNumber(value) ? "" : value;
+}
+
 function stripAccents(value: string) {
   return value.normalize("NFD").replace(/\p{M}/gu, "");
 }
@@ -835,7 +853,7 @@ export function toDriverOwner(value: {
 
   return {
     id: value.id,
-    vehicleNumber: value.vehicleNumber,
+    vehicleNumber: displayVehicleNumber(value.vehicleNumber),
     fullName: value.fullName,
     email: value.email,
     rut: value.rut,
@@ -908,7 +926,7 @@ export function downloadDriverOwnersExcel(
     .map(
       (row) => `
         <tr>
-          <td>${escapeExcelHtml(row.vehicleNumber)}</td>
+          <td>${escapeExcelHtml(displayVehicleNumber(row.vehicleNumber))}</td>
           <td>${escapeExcelHtml(row.fullName)}</td>
           <td>${escapeExcelHtml(formatPersonTypes(row.isConductor, row.isPropietario))}</td>
           <td>${escapeExcelHtml(formatShifts(row.shifts))}</td>
