@@ -133,17 +133,47 @@ const propietarioRoleAliases = new Set([
   "owner",
 ]);
 
+function rolePartIncludesConductor(part: string) {
+  const normalized = normalizeRolePart(part);
+
+  return movilRoleAliases.has(normalized) || normalized.includes("conductor");
+}
+
+function rolePartIncludesPropietario(part: string) {
+  const normalized = normalizeRolePart(part);
+
+  return (
+    propietarioRoleAliases.has(normalized) || normalized.includes("propietario")
+  );
+}
+
+function rolePartIncludesTitular(part: string) {
+  return normalizeRolePart(part).includes("titular");
+}
+
 export function parsePersonTypes(value: string) {
-  const normalizedParts = value
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return { isConductor: false, isPropietario: false, isTitular: false };
+  }
+
+  const normalizedParts = trimmed
     .split(/[;,/|]/)
     .map((part) => normalizeRolePart(part))
     .filter(Boolean);
+  const fullNormalized = normalizeRolePart(trimmed);
+  const partsToCheck = normalizedParts.length
+    ? normalizedParts
+    : [fullNormalized];
 
-  const isConductor = normalizedParts.some((part) => movilRoleAliases.has(part));
-  const isTitular = normalizedParts.includes("titular");
-  const isPropietario = normalizedParts.some((part) =>
-    propietarioRoleAliases.has(part),
-  );
+  const isConductor = partsToCheck.some(rolePartIncludesConductor);
+  const isTitular =
+    partsToCheck.some(rolePartIncludesTitular) ||
+    fullNormalized.includes("titular");
+  const isPropietario =
+    partsToCheck.some(rolePartIncludesPropietario) ||
+    fullNormalized.includes("propietario");
 
   return { isConductor, isPropietario, isTitular };
 }
@@ -175,7 +205,7 @@ function resolveImportVehicleNumber(
     return rutKey;
   }
 
-  return `EXT${String(lineNumber).padStart(5, "0")}`;
+  return `INACT${String(lineNumber).padStart(5, "0")}`;
 }
 
 export type BulkImportFilters = {
@@ -597,11 +627,20 @@ export function parseDriverOwnersCsv(content: string) {
   const headers = parseCsvLine(lines[0] ?? "", delimiter).map(normalizeHeader);
   const mappedHeaders = headers.map((header) => headerAliases[header] ?? null);
 
-  if (!mappedHeaders.includes("vehicleNumber")) {
+  if (!mappedHeaders.includes("fullName")) {
     return {
       rows: [] as ParsedDriverOwnerRow[],
       errors: [
-        'Falta la columna "Numero De Movil" o "movil". Columnas detectadas: ' +
+        'Falta la columna "Nombre". Columnas detectadas: ' + headers.join(", "),
+      ],
+    };
+  }
+
+  if (!mappedHeaders.includes("personTypes")) {
+    return {
+      rows: [] as ParsedDriverOwnerRow[],
+      errors: [
+        'Falta la columna "Roles" o "tipo". Columnas detectadas: ' +
           headers.join(", "),
       ],
     };
@@ -628,8 +667,10 @@ export function parseDriverOwnersCsv(content: string) {
       record[field] = values[fieldIndex] ?? "";
     });
 
+    const rawMobile = (record.vehicleNumber ?? "").trim();
+    const hasMobileNumber = Boolean(normalizeVehicleNumber(rawMobile));
     const vehicleNumber = resolveImportVehicleNumber(
-      record.vehicleNumber ?? "",
+      rawMobile,
       record.rut ?? "",
       lineIndex + 1,
     );
@@ -642,21 +683,21 @@ export function parseDriverOwnersCsv(content: string) {
       continue;
     }
 
+    if (!personTypes.isConductor) {
+      errors.push(
+        `Fila ${lineIndex + 1}: omitida — el rol debe incluir conductor.`,
+      );
+      continue;
+    }
+
     if (importedVehicleNumbers.has(vehicleNumber)) {
-      errors.push(`Fila ${lineIndex + 1}: el móvil ${vehicleNumber} está repetido.`);
+      errors.push(
+        `Fila ${lineIndex + 1}: la clave ${vehicleNumber} está repetida.`,
+      );
       continue;
     }
 
     importedVehicleNumbers.add(vehicleNumber);
-
-    if (!personTypes.isConductor && !personTypes.isPropietario) {
-      if ((record.personTypes ?? "").trim()) {
-        errors.push(`Fila ${lineIndex + 1}: define al menos un tipo.`);
-        continue;
-      }
-
-      personTypes.isConductor = true;
-    }
 
     rows.push({
       rowNumber: lineIndex + 1,
@@ -682,13 +723,15 @@ export function parseDriverOwnersCsv(content: string) {
       inspectionExpiryDate: parseDateValue(record.inspectionExpiryDate ?? ""),
       vehicleType: (record.vehicleType ?? "").trim(),
       subscriptionDate: parseDateValue(record.subscriptionDate ?? ""),
-      isActive: normalizeCatalogActive(record.catalogActive ?? "si"),
+      isActive: hasMobileNumber
+        ? normalizeCatalogActive(record.catalogActive ?? "si")
+        : false,
     });
   }
 
   if (!rows.length) {
     errors.unshift(
-      "No se importó ninguna fila válida. Revisa que el archivo tenga la columna Numero De Movil y Nombre.",
+      "No se importó ninguna fila válida. Revisa que el archivo tenga Nombre y Roles con conductor.",
     );
   }
 

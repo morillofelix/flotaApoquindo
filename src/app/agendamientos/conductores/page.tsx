@@ -696,7 +696,9 @@ export default function ConductoresPage() {
                       </p>
                       <p className="text-[11px] text-slate-500">
                         Sube CSV o SLK exportado desde Access. La carga
-                        reemplaza por completo la base actual.
+                        reemplaza por completo la base actual. Solo se importan
+                        filas cuyo rol incluya conductor; si el móvil está
+                        vacío, el registro queda inactivo.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -762,11 +764,11 @@ export default function ConductoresPage() {
                             ¿Qué deseas importar?
                           </p>
                           <p className="mt-1 text-[11px] text-slate-500">
-                            Elige una o varias opciones según la columna Roles
-                            del archivo. Si un registro dice, por ejemplo,
-                            &quot;Conductor, Propietario, Titular&quot;, se
-                            importa completo cuando coincida con cualquiera de
-                            tus selecciones.
+                            Solo entran filas con conductor en Roles (por ejemplo
+                            &quot;conductor titular&quot; o &quot;propietario +
+                            conductor&quot;). Elige una o varias categorías para
+                            filtrar qué registros reemplazan la base. Sin móvil
+                            quedan inactivos.
                           </p>
                           <div className="mt-3 grid gap-2 sm:grid-cols-3">
                             <label className="flex h-10 items-center justify-between rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
