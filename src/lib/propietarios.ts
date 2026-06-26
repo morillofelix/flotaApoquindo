@@ -34,6 +34,10 @@ export type PropietarioConfig = {
   bankName: string;
   bankAccount: string;
   accountHolder: string;
+  titularRut: string;
+  titularEmail: string;
+  titularBankName: string;
+  titularBankAccount: string;
   bankBic: string;
   paymentMethod: string;
   paymentDay: string;
@@ -92,15 +96,17 @@ const headerAliases: Record<string, string> = {
   comuna: "city",
   provincia: "province",
   region: "province",
-  banco: "bankName",
   banco_propietario: "bankName",
-  cuenta: "bankAccount",
+  banco_titular: "titularBankName",
   cuenta_propietario: "bankAccount",
+  cuenta_titular: "titularBankAccount",
   cuenta_bancaria: "bankAccount",
   num_cuenta: "bankAccount",
   iban: "bankAccount",
   titular: "accountHolder",
   titular_cuenta: "accountHolder",
+  rut_titular: "titularRut",
+  correo_titular: "titularEmail",
   bic: "bankBic",
   swift: "bankBic",
   forma_de_pago: "paymentMethod",
@@ -210,7 +216,14 @@ function findImportHeader(lines: string[]) {
         parseCsvLine(line, delimiter).map(normalizeHeader),
       );
 
-      if (mappedHeaders.includes("fullName")) {
+      if (
+        mappedHeaders.includes("fullName") &&
+        (mappedHeaders.includes("rut") ||
+          mappedHeaders.includes("email") ||
+          mappedHeaders.includes("bankName") ||
+          mappedHeaders.includes("titularRut") ||
+          mappedHeaders.includes("accountHolder"))
+      ) {
         return { headerIndex, delimiter, mappedHeaders };
       }
     }
@@ -233,14 +246,22 @@ function rutToImportKey(rut: string) {
   return `R${digits}`;
 }
 
-function resolveImportKey(rawVehicleNumber: string, rut: string, lineNumber: number) {
-  const rutKey = rutToImportKey(rut);
+function resolveImportKey(
+  rawVehicleNumber: string,
+  rut: string,
+  lineNumber: number,
+  titularRut = "",
+) {
+  const rutKey = rutToImportKey(rut) || rutToImportKey(titularRut);
+  const normalizedVehicleNumber = normalizeVehicleNumber(rawVehicleNumber);
+
+  if (rutKey && normalizedVehicleNumber) {
+    return `${rutKey}|${normalizedVehicleNumber}`;
+  }
 
   if (rutKey) {
     return rutKey;
   }
-
-  const normalizedVehicleNumber = normalizeVehicleNumber(rawVehicleNumber);
 
   if (normalizedVehicleNumber) {
     return normalizedVehicleNumber;
@@ -254,6 +275,7 @@ function resolvePersistedImportKey(
     importKey?: string;
     vehicleNumber: string;
     rut: string;
+    titularRut?: string;
     rowNumber?: number;
   },
 ) {
@@ -261,13 +283,16 @@ function resolvePersistedImportKey(
     return row.importKey;
   }
 
-  const rutKey = rutToImportKey(row.rut);
+  const rutKey = rutToImportKey(row.rut) || rutToImportKey(row.titularRut ?? "");
+  const normalizedVehicleNumber = normalizeVehicleNumber(row.vehicleNumber);
+
+  if (rutKey && normalizedVehicleNumber) {
+    return `${rutKey}|${normalizedVehicleNumber}`;
+  }
 
   if (rutKey) {
     return rutKey;
   }
-
-  const normalizedVehicleNumber = normalizeVehicleNumber(row.vehicleNumber);
 
   if (normalizedVehicleNumber) {
     return normalizedVehicleNumber;
@@ -286,8 +311,60 @@ function normalizeVip(value: string) {
   return ["si", "sí", "true", "1", "vip", "yes"].includes(normalized);
 }
 
+function looksLikeEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function realignTitularFields(record: Record<string, string>) {
+  const accountHolder = (record.accountHolder ?? "").trim();
+  const titularRut = (record.titularRut ?? "").trim();
+  const titularEmail = (record.titularEmail ?? "").trim();
+  const titularBankName = (record.titularBankName ?? "").trim();
+  const titularBankAccount = (record.titularBankAccount ?? "").trim();
+
+  if (looksLikeEmail(titularRut) && !looksLikeEmail(titularEmail)) {
+    return {
+      accountHolder,
+      titularRut: "",
+      titularEmail: titularRut,
+      titularBankName: titularEmail,
+      titularBankAccount: titularBankName,
+    };
+  }
+
+  return {
+    accountHolder,
+    titularRut,
+    titularEmail,
+    titularBankName,
+    titularBankAccount,
+  };
+}
+
+function looksLikeRut(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return false;
+  }
+
+  return (
+    /^\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]$/.test(trimmed) ||
+    /^\d{7,8}-[\dkK]$/.test(trimmed) ||
+    (/^\d{1,2}-\d$/.test(trimmed) && trimmed.length <= 5)
+  );
+}
+
+function isInvalidOwnerName(value: string) {
+  return looksLikeRut(value);
+}
+
 function buildFullName(record: Record<string, string>) {
-  const directName = (record.fullName ?? "").trim();
+  let directName = (record.fullName ?? "").trim();
+
+  if (isInvalidOwnerName(directName)) {
+    directName = "";
+  }
 
   if (directName) {
     return directName;
@@ -350,10 +427,12 @@ export function parsePropietariosCsv(content: string) {
     });
 
     const fullName = buildFullName(record);
+    const titularFields = realignTitularFields(record);
     const rut = (record.rut ?? "").trim();
+    const titularRut = titularFields.titularRut;
     const rawMobile = (record.vehicleNumber ?? "").trim();
     const hasMobileNumber = Boolean(normalizeVehicleNumber(rawMobile));
-    const importKey = resolveImportKey(rawMobile, rut, lineIndex + 1);
+    const importKey = resolveImportKey(rawMobile, rut, lineIndex + 1, titularRut);
 
     if (!fullName) {
       errors.push(`Fila ${lineIndex + 1}: el nombre es obligatorio.`);
@@ -385,7 +464,11 @@ export function parsePropietariosCsv(content: string) {
       province: (record.province ?? "").trim(),
       bankName: (record.bankName ?? "").trim(),
       bankAccount: (record.bankAccount ?? "").trim(),
-      accountHolder: (record.accountHolder ?? "").trim(),
+      accountHolder: titularFields.accountHolder,
+      titularRut,
+      titularEmail: titularFields.titularEmail,
+      titularBankName: titularFields.titularBankName,
+      titularBankAccount: titularFields.titularBankAccount,
       bankBic: (record.bankBic ?? "").trim(),
       paymentMethod: (record.paymentMethod ?? "").trim(),
       paymentDay: (record.paymentDay ?? "").trim(),
@@ -442,6 +525,10 @@ export function toPropietario(value: {
   bankName: string;
   bankAccount: string;
   accountHolder: string;
+  titularRut: string;
+  titularEmail: string;
+  titularBankName: string;
+  titularBankAccount: string;
   bankBic: string;
   paymentMethod: string;
   paymentDay: string;
@@ -483,6 +570,10 @@ export function toPropietario(value: {
     bankName: value.bankName,
     bankAccount: value.bankAccount,
     accountHolder: value.accountHolder,
+    titularRut: value.titularRut,
+    titularEmail: value.titularEmail,
+    titularBankName: value.titularBankName,
+    titularBankAccount: value.titularBankAccount,
     bankBic: value.bankBic,
     paymentMethod: value.paymentMethod,
     paymentDay: value.paymentDay,
@@ -511,6 +602,7 @@ export function toPropietarioCreateData(
     importKey: row.importKey ?? "",
     vehicleNumber: row.vehicleNumber,
     rut: row.rut,
+    titularRut: row.titularRut,
     rowNumber: "rowNumber" in row ? row.rowNumber : undefined,
   });
 
@@ -534,6 +626,10 @@ export function toPropietarioCreateData(
     bankName: row.bankName,
     bankAccount: row.bankAccount,
     accountHolder: row.accountHolder,
+    titularRut: row.titularRut,
+    titularEmail: row.titularEmail,
+    titularBankName: row.titularBankName,
+    titularBankAccount: row.titularBankAccount,
     bankBic: row.bankBic,
     paymentMethod: row.paymentMethod,
     paymentDay: row.paymentDay,
@@ -586,6 +682,10 @@ export function downloadPropietariosExcel(
           <td>${escapeExcelHtml(row.bankName)}</td>
           <td>${escapeExcelHtml(row.bankAccount)}</td>
           <td>${escapeExcelHtml(row.accountHolder)}</td>
+          <td>${escapeExcelHtml(row.titularRut)}</td>
+          <td>${escapeExcelHtml(row.titularEmail)}</td>
+          <td>${escapeExcelHtml(row.titularBankName)}</td>
+          <td>${escapeExcelHtml(row.titularBankAccount)}</td>
           <td>${escapeExcelHtml(row.bankBic)}</td>
           <td>${escapeExcelHtml(row.paymentMethod)}</td>
           <td>${escapeExcelHtml(row.paymentDay)}</td>
@@ -620,9 +720,13 @@ export function downloadPropietariosExcel(
               <th>Código postal</th>
               <th>Población</th>
               <th>Provincia</th>
-              <th>Banco</th>
-              <th>Cuenta</th>
-              <th>Titular cuenta</th>
+              <th>Banco propietario</th>
+              <th>Cuenta propietario</th>
+              <th>Nombre titular</th>
+              <th>RUT titular</th>
+              <th>Correo titular</th>
+              <th>Banco titular</th>
+              <th>Cuenta titular</th>
               <th>BIC</th>
               <th>Forma de pago</th>
               <th>Día de pago</th>

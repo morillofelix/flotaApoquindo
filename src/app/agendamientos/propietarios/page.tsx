@@ -77,6 +77,10 @@ const emptyPropietarioForm: PropietarioForm = {
   bankName: "",
   bankAccount: "",
   accountHolder: "",
+  titularRut: "",
+  titularEmail: "",
+  titularBankName: "",
+  titularBankAccount: "",
   bankBic: "",
   paymentMethod: "",
   paymentDay: "",
@@ -914,13 +918,13 @@ export default function PropietariosPage() {
 
               <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
-                  Datos bancarios
+                  Datos bancarios del propietario
                 </h4>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Banco</span>
+                  <span className={labelClassName}>Banco propietario</span>
                   <input
                     type="text"
                     value={propietarioForm.bankName}
@@ -932,7 +936,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Cuenta bancaria</span>
+                  <span className={labelClassName}>Cuenta propietario</span>
                   <input
                     type="text"
                     value={propietarioForm.bankAccount}
@@ -942,14 +946,70 @@ export default function PropietariosPage() {
                     className={inputClassName}
                   />
                 </label>
+              </div>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Titular cuenta</span>
+              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
+                  Datos del titular de la cuenta
+                </h4>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Nombre titular</span>
                   <input
                     type="text"
                     value={propietarioForm.accountHolder}
                     onChange={(event) =>
                       updateFormField("accountHolder", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>RUT titular</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.titularRut}
+                    onChange={(event) =>
+                      updateFormField("titularRut", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Correo titular</span>
+                  <input
+                    type="email"
+                    value={propietarioForm.titularEmail}
+                    onChange={(event) =>
+                      updateFormField("titularEmail", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Banco titular</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.titularBankName}
+                    onChange={(event) =>
+                      updateFormField("titularBankName", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Cuenta titular</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.titularBankAccount}
+                    onChange={(event) =>
+                      updateFormField("titularBankAccount", event.target.value)
                     }
                     className={inputClassName}
                   />

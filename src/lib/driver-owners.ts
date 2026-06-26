@@ -582,10 +582,47 @@ function stripHtmlTags(value: string) {
   );
 }
 
+function repairAccessTableHtml(html: string) {
+  let repaired = html;
+  let previous = "";
+
+  while (repaired !== previous) {
+    previous = repaired;
+    repaired = repaired.replace(
+      /<td([^>]*)>([^<]*?)\s*<td([^>]*)>([^<]*?)<\/td>/gi,
+      (_match, attrs1, content1, attrs2, content2) => {
+        const trimmed2 = content2.trim();
+        const looksLikeDate = /^\d{1,2}-\d{1,2}-\d{4}/.test(trimmed2);
+
+        if (looksLikeDate) {
+          return `<td${attrs1}>${content1}</td><td${attrs2}>${content2}</td>`;
+        }
+
+        const merged = `${content1.trim()} ${trimmed2}`.trim();
+        return `<td${attrs1}>${merged}</td>`;
+      },
+    );
+  }
+
+  repaired = repaired.replace(
+    /<td([^>]*)>([^<]*?)(?=<\/tr>)/gi,
+    (match, attrs, content) => {
+      if (match.trimEnd().endsWith("</td>")) {
+        return match;
+      }
+
+      return `<td${attrs}>${content}</td>`;
+    },
+  );
+
+  return repaired;
+}
+
 function extractRowsFromTableHtml(tableHtml: string) {
+  const repairedTableHtml = repairAccessTableHtml(tableHtml);
   const rows: string[][] = [];
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let rowMatch = rowRegex.exec(tableHtml);
+  let rowMatch = rowRegex.exec(repairedTableHtml);
 
   while (rowMatch) {
     const rowHtml = rowMatch[1] ?? "";
@@ -602,7 +639,7 @@ function extractRowsFromTableHtml(tableHtml: string) {
       rows.push(cells);
     }
 
-    rowMatch = rowRegex.exec(tableHtml);
+    rowMatch = rowRegex.exec(repairedTableHtml);
   }
 
   return rows;

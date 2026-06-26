@@ -27,6 +27,10 @@ type PropietarioBody = {
   bankName?: unknown;
   bankAccount?: unknown;
   accountHolder?: unknown;
+  titularRut?: unknown;
+  titularEmail?: unknown;
+  titularBankName?: unknown;
+  titularBankAccount?: unknown;
   bankBic?: unknown;
   paymentMethod?: unknown;
   paymentDay?: unknown;
@@ -75,6 +79,10 @@ function parsePropietarioBody(body: PropietarioBody) {
     bankName: asString(body.bankName),
     bankAccount: asString(body.bankAccount),
     accountHolder: asString(body.accountHolder),
+    titularRut: asString(body.titularRut),
+    titularEmail: asString(body.titularEmail),
+    titularBankName: asString(body.titularBankName),
+    titularBankAccount: asString(body.titularBankAccount),
     bankBic: asString(body.bankBic),
     paymentMethod: asString(body.paymentMethod),
     paymentDay: asString(body.paymentDay),
