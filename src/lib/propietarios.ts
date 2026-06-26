@@ -45,6 +45,7 @@ export type PropietarioConfig = {
   branchOffice: string;
   area: string;
   costCenter: string;
+  accountingAccount: string;
   isVip: boolean;
   gender: string;
   recordStatus: string;
@@ -120,9 +121,15 @@ const headerAliases: Record<string, string> = {
   area: "area",
   centro_de_costo: "costCenter",
   centro_costo: "costCenter",
+  cuenta_contable: "accountingAccount",
+  telefono_propietario: "landlinePhone",
+  telefono_fijo_propietario: "landlinePhone",
+  telefono_movil_propietario: "mobilePhone",
+  direccion_propietario: "address",
+  comuna_propietario: "city",
+  region_propietario: "province",
   vip: "isVip",
   genero: "gender",
-  estado: "recordStatus",
   fecha_vencimiento_carnet: "licenseExpiryDate",
   fecha_vencimiento_cedula: "licenseExpiryDate",
   fecha_nacimiento: "birthDate",
@@ -315,6 +322,77 @@ function looksLikeEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function parseCombinedAccountField(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return {
+      accountNumber: "",
+      holderName: "",
+      email: "",
+    };
+  }
+
+  const withEmail = trimmed.match(/^([\d][\d-]*)\s+(.+?)\s*\(([^)]+)\)\s*$/);
+
+  if (withEmail) {
+    return {
+      accountNumber: withEmail[1] ?? "",
+      holderName: (withEmail[2] ?? "").trim(),
+      email: (withEmail[3] ?? "").trim(),
+    };
+  }
+
+  const accountAndName = trimmed.match(/^([\d][\d-]*)\s+(.+)$/);
+
+  if (accountAndName) {
+    return {
+      accountNumber: accountAndName[1] ?? "",
+      holderName: (accountAndName[2] ?? "").trim(),
+      email: "",
+    };
+  }
+
+  return {
+    accountNumber: trimmed,
+    holderName: "",
+    email: "",
+  };
+}
+
+function normalizeTitularFields(record: Record<string, string>) {
+  let fields = realignTitularFields(record);
+  const parsedTitularAccount = parseCombinedAccountField(fields.titularBankAccount);
+
+  if (parsedTitularAccount.accountNumber) {
+    fields = {
+      ...fields,
+      titularBankAccount: parsedTitularAccount.accountNumber,
+      accountHolder: parsedTitularAccount.holderName || fields.accountHolder,
+      titularEmail: parsedTitularAccount.email || fields.titularEmail,
+    };
+  }
+
+  if (looksLikeRut(fields.accountHolder)) {
+    fields.titularRut = fields.titularRut || fields.accountHolder;
+    if (!parsedTitularAccount.holderName) {
+      fields.accountHolder = "";
+    }
+  }
+
+  if (looksLikeEmail(fields.titularRut) && !fields.titularEmail) {
+    fields.titularEmail = fields.titularRut;
+    fields.titularRut = "";
+  }
+
+  return fields;
+}
+
+function normalizeOwnerBankAccount(value: string) {
+  const parsed = parseCombinedAccountField(value);
+  return parsed.accountNumber || value.trim();
+}
+
 function realignTitularFields(record: Record<string, string>) {
   const accountHolder = (record.accountHolder ?? "").trim();
   const titularRut = (record.titularRut ?? "").trim();
@@ -427,7 +505,7 @@ export function parsePropietariosCsv(content: string) {
     });
 
     const fullName = buildFullName(record);
-    const titularFields = realignTitularFields(record);
+    const titularFields = normalizeTitularFields(record);
     const rut = (record.rut ?? "").trim();
     const titularRut = titularFields.titularRut;
     const rawMobile = (record.vehicleNumber ?? "").trim();
@@ -467,7 +545,7 @@ export function parsePropietariosCsv(content: string) {
       city: (record.city ?? "").trim(),
       province: (record.province ?? "").trim(),
       bankName: (record.bankName ?? "").trim(),
-      bankAccount: (record.bankAccount ?? "").trim(),
+      bankAccount: normalizeOwnerBankAccount(record.bankAccount ?? ""),
       accountHolder: titularFields.accountHolder,
       titularRut,
       titularEmail: titularFields.titularEmail,
@@ -480,6 +558,7 @@ export function parsePropietariosCsv(content: string) {
       branchOffice: (record.branchOffice ?? "").trim(),
       area: (record.area ?? "").trim(),
       costCenter: (record.costCenter ?? "").trim(),
+      accountingAccount: (record.accountingAccount ?? "").trim(),
       isVip: normalizeVip(record.isVip ?? ""),
       gender: (record.gender ?? "").trim(),
       recordStatus: (record.recordStatus ?? "V").trim().toUpperCase() || "V",
@@ -540,6 +619,7 @@ export function toPropietario(value: {
   branchOffice: string;
   area: string;
   costCenter: string;
+  accountingAccount: string;
   isVip: boolean;
   gender: string;
   recordStatus: string;
@@ -585,6 +665,7 @@ export function toPropietario(value: {
     branchOffice: value.branchOffice,
     area: value.area,
     costCenter: value.costCenter,
+    accountingAccount: value.accountingAccount,
     isVip: value.isVip,
     gender: value.gender,
     recordStatus: value.recordStatus,
@@ -641,6 +722,7 @@ export function toPropietarioCreateData(
     branchOffice: row.branchOffice,
     area: row.area,
     costCenter: row.costCenter,
+    accountingAccount: row.accountingAccount,
     isVip: row.isVip,
     gender: row.gender,
     recordStatus: row.recordStatus,
@@ -690,16 +772,12 @@ export function downloadPropietariosExcel(
           <td>${escapeExcelHtml(row.titularEmail)}</td>
           <td>${escapeExcelHtml(row.titularBankName)}</td>
           <td>${escapeExcelHtml(row.titularBankAccount)}</td>
-          <td>${escapeExcelHtml(row.bankBic)}</td>
+          <td>${escapeExcelHtml(row.branchOffice)}</td>
+          <td>${escapeExcelHtml(row.accountingAccount)}</td>
+          <td>${escapeExcelHtml(row.costCenter)}</td>
           <td>${escapeExcelHtml(row.paymentMethod)}</td>
           <td>${escapeExcelHtml(row.paymentDay)}</td>
           <td>${escapeExcelHtml(row.notes)}</td>
-          <td>${escapeExcelHtml(row.branchOffice)}</td>
-          <td>${escapeExcelHtml(row.area)}</td>
-          <td>${escapeExcelHtml(row.costCenter)}</td>
-          <td>${escapeExcelHtml(row.isVip ? "Sí" : "No")}</td>
-          <td>${escapeExcelHtml(row.incorporationDate)}</td>
-          <td>${escapeExcelHtml(row.deactivationDate)}</td>
         </tr>`,
     )
     .join("");
@@ -730,17 +808,13 @@ export function downloadPropietariosExcel(
               <th>RUT titular</th>
               <th>Correo titular</th>
               <th>Banco titular</th>
-              <th>Cuenta titular</th>
-              <th>BIC</th>
-              <th>Forma de pago</th>
+              <th>N° cuenta titular</th>
+              <th>Sucursal</th>
+              <th>Cuenta contable</th>
+              <th>Centro de costo</th>
+              <th>Medio de pago</th>
               <th>Día de pago</th>
               <th>Observaciones</th>
-              <th>Sucursal</th>
-              <th>Área</th>
-              <th>Centro de costo</th>
-              <th>VIP</th>
-              <th>Fecha alta</th>
-              <th>Fecha baja</th>
             </tr>
           </thead>
           <tbody>${tableRows}</tbody>

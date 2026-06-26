@@ -38,6 +38,7 @@ type PropietarioBody = {
   branchOffice?: unknown;
   area?: unknown;
   costCenter?: unknown;
+  accountingAccount?: unknown;
   isVip?: unknown;
   gender?: unknown;
   recordStatus?: unknown;
@@ -90,6 +91,7 @@ function parsePropietarioBody(body: PropietarioBody) {
     branchOffice: asString(body.branchOffice),
     area: asString(body.area),
     costCenter: asString(body.costCenter),
+    accountingAccount: asString(body.accountingAccount),
     isVip: body.isVip === true,
     gender: asString(body.gender),
     recordStatus: asString(body.recordStatus).toUpperCase() || "V",

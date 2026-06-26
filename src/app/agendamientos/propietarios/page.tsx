@@ -88,6 +88,7 @@ const emptyPropietarioForm: PropietarioForm = {
   branchOffice: "",
   area: "",
   costCenter: "",
+  accountingAccount: "",
   isVip: false,
   gender: "",
   recordStatus: "V",
@@ -733,8 +734,7 @@ export default function PropietariosPage() {
                   Datos generales
                 </h4>
                 <p className="text-xs text-slate-500">
-                  Ficha del propietario con datos personales, bancarios y de
-                  contacto.
+                  Identificación del propietario según la plantilla de Access.
                 </p>
               </div>
 
@@ -768,7 +768,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Nombre completo</span>
+                  <span className={labelClassName}>Nombre / Razón social</span>
                   <input
                     type="text"
                     value={propietarioForm.fullName}
@@ -780,31 +780,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Apellido paterno</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.lastName}
-                    onChange={(event) =>
-                      updateFormField("lastName", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Apellido materno</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.secondLastName}
-                    onChange={(event) =>
-                      updateFormField("secondLastName", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>RUT</span>
+                  <span className={labelClassName}>RUT propietario</span>
                   <input
                     type="text"
                     value={propietarioForm.rut}
@@ -814,36 +790,12 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Correo</span>
+                  <span className={labelClassName}>Correo propietario</span>
                   <input
                     type="email"
                     value={propietarioForm.email}
                     onChange={(event) =>
                       updateFormField("email", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Fecha venc. carnet</span>
-                  <input
-                    type="date"
-                    value={propietarioForm.licenseExpiryDate}
-                    onChange={(event) =>
-                      updateFormField("licenseExpiryDate", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Fecha nacimiento</span>
-                  <input
-                    type="date"
-                    value={propietarioForm.birthDate}
-                    onChange={(event) =>
-                      updateFormField("birthDate", event.target.value)
                     }
                     className={inputClassName}
                   />
@@ -886,19 +838,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Código postal</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.postalCode}
-                    onChange={(event) =>
-                      updateFormField("postalCode", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Población / comuna</span>
+                  <span className={labelClassName}>Comuna</span>
                   <input
                     type="text"
                     value={propietarioForm.city}
@@ -907,8 +847,8 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Provincia / región</span>
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Región</span>
                   <input
                     type="text"
                     value={propietarioForm.province}
@@ -940,7 +880,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Cuenta propietario</span>
+                  <span className={labelClassName}>N° cuenta propietario</span>
                   <input
                     type="text"
                     value={propietarioForm.bankAccount}
@@ -1008,7 +948,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Cuenta titular</span>
+                  <span className={labelClassName}>N° cuenta titular</span>
                   <input
                     type="text"
                     value={propietarioForm.titularBankAccount}
@@ -1018,21 +958,17 @@ export default function PropietariosPage() {
                     className={inputClassName}
                   />
                 </label>
+              </div>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>BIC / SWIFT</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.bankBic}
-                    onChange={(event) =>
-                      updateFormField("bankBic", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
+              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
+                  Pago y contabilidad
+                </h4>
+              </div>
 
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Forma de pago</span>
+                  <span className={labelClassName}>Medio de pago</span>
                   <input
                     type="text"
                     value={propietarioForm.paymentMethod}
@@ -1054,26 +990,6 @@ export default function PropietariosPage() {
                     className={inputClassName}
                   />
                 </label>
-              </div>
-
-              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
-                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
-                  Otros datos
-                </h4>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Observaciones</span>
-                  <textarea
-                    value={propietarioForm.notes}
-                    onChange={(event) =>
-                      updateFormField("notes", event.target.value)
-                    }
-                    rows={3}
-                    className="rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                  />
-                </label>
 
                 <label className="flex flex-col gap-1.5">
                   <span className={labelClassName}>Sucursal</span>
@@ -1088,16 +1004,18 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Área</span>
+                  <span className={labelClassName}>Cuenta contable</span>
                   <input
                     type="text"
-                    value={propietarioForm.area}
-                    onChange={(event) => updateFormField("area", event.target.value)}
+                    value={propietarioForm.accountingAccount}
+                    onChange={(event) =>
+                      updateFormField("accountingAccount", event.target.value)
+                    }
                     className={inputClassName}
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5">
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
                   <span className={labelClassName}>Centro de costo</span>
                   <input
                     type="text"
@@ -1109,87 +1027,15 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]">
-                  VIP
-                  <input
-                    type="checkbox"
-                    checked={propietarioForm.isVip}
-                    onChange={(event) =>
-                      updateFormField("isVip", event.target.checked)
-                    }
-                    className="h-4 w-4 accent-[#0b5cab]"
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Género</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.gender}
-                    onChange={(event) =>
-                      updateFormField("gender", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Fecha alta</span>
-                  <input
-                    type="date"
-                    value={propietarioForm.incorporationDate}
-                    onChange={(event) =>
-                      updateFormField("incorporationDate", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Fecha baja</span>
-                  <input
-                    type="date"
-                    value={propietarioForm.deactivationDate}
-                    onChange={(event) =>
-                      updateFormField("deactivationDate", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Nombre contacto emergencia</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.emergencyContactName}
+                  <span className={labelClassName}>Observaciones</span>
+                  <textarea
+                    value={propietarioForm.notes}
                     onChange={(event) =>
-                      updateFormField("emergencyContactName", event.target.value)
+                      updateFormField("notes", event.target.value)
                     }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Correo emergencia</span>
-                  <input
-                    type="email"
-                    value={propietarioForm.emergencyContactEmail}
-                    onChange={(event) =>
-                      updateFormField("emergencyContactEmail", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Teléfono emergencia</span>
-                  <input
-                    type="tel"
-                    value={propietarioForm.emergencyContactPhone}
-                    onChange={(event) =>
-                      updateFormField("emergencyContactPhone", event.target.value)
-                    }
-                    className={inputClassName}
+                    rows={3}
+                    className="rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
               </div>

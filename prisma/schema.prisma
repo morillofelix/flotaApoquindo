@@ -136,6 +136,7 @@ model Propietario {
   branchOffice          String    @default("")
   area                  String    @default("")
   costCenter            String    @default("")
+  accountingAccount     String    @default("")
   isVip                 Boolean   @default(false)
   gender                String    @default("")
   recordStatus          String    @default("V")
