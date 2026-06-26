@@ -488,7 +488,7 @@ export default function PropietariosPage() {
                         Cargador masivo
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Sube CSV o SLK exportado desde Access. La carga reemplaza
+                        Sube XLS, CSV o SLK exportado desde Access. La carga reemplaza
                         por completo la base de propietarios e importa todas las
                         filas del archivo.
                       </p>
@@ -512,7 +512,7 @@ export default function PropietariosPage() {
                           : "Seleccionar archivo"}
                         <input
                           type="file"
-                          accept=".csv,.txt,.slk,text/csv"
+                          accept=".csv,.txt,.slk,.xls,.xlsx,text/csv,application/vnd.ms-excel"
                           onChange={handleBulkFileSelect}
                           disabled={
                             bulkUpload.phase === "reading" ||

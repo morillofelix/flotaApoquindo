@@ -555,9 +555,120 @@ function looksLikeSlkContent(content: string) {
   return sample.includes("ID;") && (sample.includes("C;Y") || sample.includes("C;X"));
 }
 
+function looksLikeHtmlSpreadsheet(content: string) {
+  const sample = content.slice(0, 12000).toLowerCase();
+
+  return sample.includes("<table") && (sample.includes("<td") || sample.includes("<th"));
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
+function stripHtmlTags(value: string) {
+  return decodeHtmlEntities(
+    value
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+function extractRowsFromTableHtml(tableHtml: string) {
+  const rows: string[][] = [];
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let rowMatch = rowRegex.exec(tableHtml);
+
+  while (rowMatch) {
+    const rowHtml = rowMatch[1] ?? "";
+    const cells: string[] = [];
+    const cellRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    let cellMatch = cellRegex.exec(rowHtml);
+
+    while (cellMatch) {
+      cells.push(stripHtmlTags(cellMatch[1] ?? ""));
+      cellMatch = cellRegex.exec(rowHtml);
+    }
+
+    if (cells.some((cell) => cell.length > 0)) {
+      rows.push(cells);
+    }
+
+    rowMatch = rowRegex.exec(tableHtml);
+  }
+
+  return rows;
+}
+
+function extractLargestTableRows(html: string) {
+  const tableRegex = /<table[\s\S]*?<\/table>/gi;
+  let bestRows: string[][] | null = null;
+  let bestScore = 0;
+  let tableMatch = tableRegex.exec(html);
+
+  while (tableMatch) {
+    const rows = extractRowsFromTableHtml(tableMatch[0] ?? "");
+
+    if (rows.length > bestScore) {
+      bestScore = rows.length;
+      bestRows = rows;
+    }
+
+    tableMatch = tableRegex.exec(html);
+  }
+
+  return bestRows;
+}
+
+function rowsToCsv(rows: string[][]) {
+  return rows.map((row) => row.map((cell) => escapeCsvCell(cell)).join(",")).join("\n");
+}
+
+export function parseHtmlSpreadsheetToCsv(content: string) {
+  if (!looksLikeHtmlSpreadsheet(content)) {
+    return null;
+  }
+
+  const rows = extractLargestTableRows(content);
+
+  if (!rows || rows.length < 2) {
+    return null;
+  }
+
+  return rowsToCsv(rows);
+}
+
+function looksLikeBinaryExcel(bytes: Uint8Array) {
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0
+  );
+}
+
+function looksLikeXlsxArchive(bytes: Uint8Array) {
+  return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+}
+
 export async function readDriverOwnerFileContent(file: File) {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
+
+  if (looksLikeBinaryExcel(bytes) || looksLikeXlsxArchive(bytes)) {
+    throw new Error(
+      'Este Excel es binario (.xls/.xlsx). En Access exporta como "Excel 97-2003 (.xls)" o guarda como CSV/SLK.',
+    );
+  }
 
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
     return new TextDecoder("utf-16le").decode(buffer);
@@ -654,6 +765,31 @@ export function prepareDriverOwnerUploadContent(
   rawContent: string,
 ) {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const spreadsheetExtensions = ["xls", "xlsx", "html", "htm"];
+  const isSpreadsheetExtension = spreadsheetExtensions.includes(extension);
+  const isHtmlSpreadsheet =
+    isSpreadsheetExtension || looksLikeHtmlSpreadsheet(rawContent);
+
+  if (isHtmlSpreadsheet && looksLikeHtmlSpreadsheet(rawContent)) {
+    const csvContent = parseHtmlSpreadsheetToCsv(rawContent);
+
+    if (!csvContent) {
+      return {
+        error:
+          "No se pudo leer la tabla del archivo Excel. Verifica que el XLS exportado desde Access incluya datos en formato de tabla.",
+      };
+    }
+
+    return { csvContent, format: "xls" as const };
+  }
+
+  if (isSpreadsheetExtension) {
+    return {
+      error:
+        'El archivo Excel no parece ser un XLS de Access en formato HTML. Exporta nuevamente como "Excel 97-2003" o usa CSV/SLK.',
+    };
+  }
+
   const isSlkFile = extension === "slk" || looksLikeSlkContent(rawContent);
 
   if (isSlkFile) {
@@ -662,7 +798,7 @@ export function prepareDriverOwnerUploadContent(
     if (!csvContent) {
       return {
         error:
-          "No se pudo interpretar el archivo SLK. En Access usa Archivo > Exportar > Archivo de texto o Excel, y guarda como CSV.",
+          "No se pudo interpretar el archivo SLK. En Access usa Archivo > Exportar > Archivo de texto, Excel o SLK.",
       };
     }
 
@@ -671,10 +807,10 @@ export function prepareDriverOwnerUploadContent(
 
   if (
     extension &&
-    !["csv", "txt"].includes(extension)
+    !["csv", "txt", ...spreadsheetExtensions].includes(extension)
   ) {
     return {
-      error: `El archivo ".${extension}" no es compatible. Usa CSV o SLK exportado desde Access.`,
+      error: `El archivo ".${extension}" no es compatible. Usa XLS, CSV o SLK exportado desde Access.`,
     };
   }
 
