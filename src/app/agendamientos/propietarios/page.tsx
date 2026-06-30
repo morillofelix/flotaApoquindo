@@ -21,7 +21,7 @@ import {
   matchesVehicleNumberSearch,
 } from "@/lib/maintainer-search";
 import { uiListRowClass } from "@/lib/ui-borders";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type PropietarioForm = PropietarioConfig & { id: string };
 
@@ -124,6 +124,8 @@ export default function PropietariosPage() {
   const [propietarioMessage, setPropietarioMessage] = useState("");
   const [propietarioError, setPropietarioError] = useState("");
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
+  const [highlightInactiveReason, setHighlightInactiveReason] = useState(false);
+  const inactiveReasonRef = useRef<HTMLDivElement>(null);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
 
   useEffect(() => {
@@ -177,12 +179,14 @@ export default function PropietariosPage() {
       id: propietario.id ?? "",
       ...propietario,
     });
+    setHighlightInactiveReason(!propietario.isActive);
     setPropietarioMessage("");
     setPropietarioError("");
   }
 
   function resetPropietarioForm() {
     setPropietarioForm(emptyPropietarioForm);
+    setHighlightInactiveReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -412,26 +416,32 @@ export default function PropietariosPage() {
       return;
     }
 
-    const formToSave = await ensureInactiveReasonBeforeSave();
+    if (!propietarioForm.isActive) {
+      const inactiveReason = (propietarioForm.inactiveReason ?? "").trim();
 
-    if (!formToSave) {
-      return;
-    }
-
-    if (formToSave !== propietarioForm) {
-      setPropietarioForm(formToSave);
+      if (inactiveReason.length < 5) {
+        setHighlightInactiveReason(true);
+        setPropietarioError(
+          "Completa el motivo de inactivación en el recuadro destacado antes de guardar.",
+        );
+        inactiveReasonRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        return;
+      }
     }
 
     setIsSavingPropietario(true);
 
     try {
       const response = await fetch("/api/propietarios", {
-        method: formToSave.id ? "PATCH" : "POST",
+        method: propietarioForm.id ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: adminFetchInit.credentials,
-        body: JSON.stringify(formToSave),
+        body: JSON.stringify(propietarioForm),
       });
 
       const data = (await response.json()) as {
@@ -540,35 +550,9 @@ export default function PropietariosPage() {
     }));
   }
 
-  async function promptInactiveReason(detail: string) {
-    return promptObservation({
-      title: "Inactivar propietario",
-      message:
-        "Indica el motivo por el cual se inactiva este convenio. Este campo es obligatorio.",
-      detail,
-      confirmLabel: "Inactivar",
-      placeholder: "Ej.: término de convenio, cambio de titular, etc.",
-      tone: "danger",
-    });
-  }
-
-  async function handleActiveStatusChange(nextActive: boolean) {
-    if (!nextActive && propietarioForm.isActive) {
-      const reason = await promptInactiveReason(propietarioForm.fullName);
-
-      if (!reason) {
-        return;
-      }
-
-      setPropietarioForm((currentForm) => ({
-        ...currentForm,
-        isActive: false,
-        inactiveReason: reason,
-      }));
-      return;
-    }
-
+  function handleActiveStatusChange(nextActive: boolean) {
     if (nextActive) {
+      setHighlightInactiveReason(false);
       setPropietarioForm((currentForm) => ({
         ...currentForm,
         isActive: true,
@@ -577,29 +561,27 @@ export default function PropietariosPage() {
       return;
     }
 
-    updateFormField("isActive", nextActive);
+    setPropietarioForm((currentForm) => ({
+      ...currentForm,
+      isActive: false,
+    }));
+    setHighlightInactiveReason(true);
+
+    requestAnimationFrame(() => {
+      inactiveReasonRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
   }
 
-  async function ensureInactiveReasonBeforeSave() {
+  const inactiveReasonIsInvalid = useMemo(() => {
     if (propietarioForm.isActive) {
-      return propietarioForm;
+      return false;
     }
 
-    if ((propietarioForm.inactiveReason ?? "").trim().length >= 5) {
-      return propietarioForm;
-    }
-
-    const reason = await promptInactiveReason(propietarioForm.fullName);
-
-    if (!reason) {
-      return null;
-    }
-
-    return {
-      ...propietarioForm,
-      inactiveReason: reason,
-    };
-  }
+    return (propietarioForm.inactiveReason ?? "").trim().length < 5;
+  }, [propietarioForm.inactiveReason, propietarioForm.isActive]);
 
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
@@ -878,23 +860,79 @@ export default function PropietariosPage() {
                   <select
                     value={propietarioForm.isActive ? "activo" : "inactivo"}
                     onChange={(event) =>
-                      void handleActiveStatusChange(event.target.value === "activo")
+                      handleActiveStatusChange(event.target.value === "activo")
                     }
-                    className={inputClassName}
+                    className={`${inputClassName} ${
+                      !propietarioForm.isActive
+                        ? "border-amber-400 bg-amber-50 font-semibold text-amber-950"
+                        : ""
+                    }`}
                   >
                     <option value="activo">Activo</option>
                     <option value="inactivo">Inactivo</option>
                   </select>
                 </label>
 
-                {!propietarioForm.isActive && propietarioForm.inactiveReason ? (
-                  <div className="sm:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                      Motivo de inactivación
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-amber-950">
-                      {propietarioForm.inactiveReason}
-                    </p>
+                {!propietarioForm.isActive ? (
+                  <div
+                    ref={inactiveReasonRef}
+                    className={`sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
+                      highlightInactiveReason && inactiveReasonIsInvalid
+                        ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-amber-50 shadow-lg shadow-red-100 ring-2 ring-red-200/70"
+                        : "border-amber-400 bg-gradient-to-br from-amber-50 via-white to-orange-50/80 shadow-md shadow-amber-100/80"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
+                          highlightInactiveReason && inactiveReasonIsInvalid
+                            ? "bg-red-500"
+                            : "bg-amber-500"
+                        }`}
+                      >
+                        !
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading text-sm font-bold tracking-tight text-amber-950">
+                          Motivo de inactivación
+                          <span className="ml-1 text-red-600">*</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-amber-900/85">
+                          Este campo es obligatorio para inactivar el convenio.
+                          Describe brevemente el motivo antes de guardar.
+                        </p>
+                        <textarea
+                          value={propietarioForm.inactiveReason}
+                          onChange={(event) => {
+                            updateFormField("inactiveReason", event.target.value);
+
+                            if (event.target.value.trim().length >= 5) {
+                              setHighlightInactiveReason(false);
+                              setPropietarioError("");
+                            }
+                          }}
+                          rows={4}
+                          placeholder="Ej.: término de convenio, cambio de titular, solicitud del propietario..."
+                          className={`mt-3 w-full rounded-2xl border-2 bg-white px-3 py-2.5 text-sm text-[#0f2747] shadow-inner outline-none transition focus:ring-2 ${
+                            highlightInactiveReason && inactiveReasonIsInvalid
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-amber-300 focus:border-[#0b5cab] focus:ring-[#0b5cab]/20"
+                          }`}
+                        />
+                        <p
+                          className={`mt-2 text-[11px] font-semibold ${
+                            highlightInactiveReason && inactiveReasonIsInvalid
+                              ? "text-red-600"
+                              : "text-amber-800"
+                          }`}
+                        >
+                          {highlightInactiveReason && inactiveReasonIsInvalid
+                            ? "Ingresa al menos 5 caracteres para poder guardar."
+                            : "Mínimo 5 caracteres · obligatorio"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ) : null}
 

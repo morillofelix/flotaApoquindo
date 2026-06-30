@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type ObservationPromptOptions = {
   title: string;
@@ -69,7 +70,7 @@ function ObservationPromptDialog({
     <div
       aria-labelledby="observation-prompt-title"
       aria-modal="true"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0f2747]/55 px-4 py-6 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0f2747]/60 px-4 py-6 backdrop-blur-sm"
       role="dialog"
       onClick={onCancel}
     >
@@ -217,20 +218,24 @@ export function useObservationPrompt() {
     });
   }, []);
 
-  const dialog = (
-    <ObservationPromptDialog
-      state={state}
-      onConfirm={handleConfirm}
-      onCancel={() => close(null)}
-      onChange={(value) =>
-        setState((current) => ({
-          ...current,
-          value,
-          error: "",
-        }))
-      }
-    />
-  );
+  const dialog =
+    typeof document === "undefined"
+      ? null
+      : createPortal(
+          <ObservationPromptDialog
+            state={state}
+            onConfirm={handleConfirm}
+            onCancel={() => close(null)}
+            onChange={(value) =>
+              setState((current) => ({
+                ...current,
+                value,
+                error: "",
+              }))
+            }
+          />,
+          document.body,
+        );
 
   return { promptObservation, dialog };
 }
