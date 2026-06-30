@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import {
   createPagoLineItem,
   getPropietarioKey,
@@ -38,6 +39,7 @@ type PagoBulkHeaderMatch = {
 
 function normalizeHeader(value: string) {
   return value
+    .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
     .trim()
     .toLowerCase()
     .normalize("NFD")
@@ -50,7 +52,11 @@ function normalizeMatrixCell(value: unknown) {
     return "";
   }
 
-  return String(value).trim();
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+
+  return String(value).replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").trim();
 }
 
 function parseCsvLine(line: string, delimiter: string) {
@@ -114,23 +120,52 @@ function isSpreadsheetFile(fileName: string) {
 function isTotalFacturarHeader(header: string, rawHeader = "") {
   const normalized = normalizeHeader(rawHeader || header);
 
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.includes("pagar") && !normalized.includes("factur")) {
+    return false;
+  }
+
+  const excludedFragments = [
+    "produccion",
+    "vales",
+    "efectivo",
+    "tarjeta",
+    "cristales",
+    "peajes",
+    "adicional",
+    "gasto",
+  ];
+
   if (
-    normalized.includes("pagar") &&
-    !normalized.includes("facturar")
+    excludedFragments.some((fragment) => normalized.includes(fragment)) &&
+    !normalized.includes("factur")
   ) {
     return false;
   }
 
   return (
-    normalized === "total_facturar" ||
-    normalized === "total_a_facturar" ||
-    normalized.includes("total_facturar") ||
-    (normalized.includes("total") && normalized.includes("facturar"))
+    normalized.includes("facturar") ||
+    normalized.includes("total_factura") ||
+    normalized.endsWith("_factura") ||
+    normalized === "factura"
   );
 }
 
 function isBlankHeader(value: string) {
-  return !value.trim();
+  return !normalizeHeader(value);
+}
+
+function isConductorHeader(value: string) {
+  return normalizeHeader(value).includes("conductor");
+}
+
+function isPeriodoHeader(value: string) {
+  const normalized = normalizeHeader(value);
+
+  return normalized === "periodo" || normalized.includes("periodo");
 }
 
 function countMobileValuesInColumn(
@@ -187,6 +222,38 @@ function findMobileColumnIndex(
 
   if (bestIndex !== -1 && bestScore > 0) {
     return bestIndex;
+  }
+
+  const conductorIndex = rawHeaders.findIndex((header) => isConductorHeader(header));
+
+  if (conductorIndex > 0 && conductorIndex < amountIndex) {
+    return conductorIndex - 1;
+  }
+
+  const periodoIndex = rawHeaders.findIndex((header) => isPeriodoHeader(header));
+
+  if (periodoIndex >= 0 && periodoIndex + 1 < amountIndex) {
+    return periodoIndex + 1;
+  }
+
+  let dataBestIndex = -1;
+  let dataBestScore = 0;
+
+  for (
+    let columnIndex = 0;
+    columnIndex < (amountIndex >= 0 ? amountIndex : rawHeaders.length);
+    columnIndex += 1
+  ) {
+    const score = countMobileValuesInColumn(matrix, columnIndex, headerIndex);
+
+    if (score > dataBestScore) {
+      dataBestScore = score;
+      dataBestIndex = columnIndex;
+    }
+  }
+
+  if (dataBestIndex !== -1 && dataBestScore > 0) {
+    return dataBestIndex;
   }
 
   if (candidates.length > 0) {
@@ -381,21 +448,7 @@ function padMatrix(matrix: string[][]) {
   });
 }
 
-async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
-  const XLSX = await import("xlsx");
-  const workbook = XLSX.read(buffer, {
-    type: "array",
-    cellDates: false,
-    dense: false,
-  });
-  const sheetName = workbook.SheetNames[0];
-
-  if (!sheetName) {
-    return [] as string[][];
-  }
-
-  const sheet = workbook.Sheets[sheetName];
-
+function readSheetMatrixFromXlsx(sheet: XLSX.WorkSheet) {
   if (!sheet || !sheet["!ref"]) {
     return [] as string[][];
   }
@@ -414,7 +467,7 @@ async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
       const cell = sheet[cellAddress] as { v?: unknown; w?: string } | undefined;
       const value =
         cell?.w ??
-        (cell?.v === null || cell?.v === undefined ? "" : String(cell.v));
+        (cell?.v === null || cell?.v === undefined ? "" : cell.v);
 
       row.push(normalizeMatrixCell(value));
     }
@@ -422,7 +475,62 @@ async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
     matrix.push(row);
   }
 
-  return padMatrix(matrix);
+  const jsonMatrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+  });
+
+  const normalizedJsonMatrix = padMatrix(
+    jsonMatrix.map((row) => (row ?? []).map((cell) => normalizeMatrixCell(cell))),
+  );
+  const normalizedRangeMatrix = padMatrix(matrix);
+
+  if (findPagoBulkHeaderInMatrix(normalizedRangeMatrix)) {
+    return normalizedRangeMatrix;
+  }
+
+  if (findPagoBulkHeaderInMatrix(normalizedJsonMatrix)) {
+    return normalizedJsonMatrix;
+  }
+
+  return normalizedRangeMatrix.length >= normalizedJsonMatrix.length
+    ? normalizedRangeMatrix
+    : normalizedJsonMatrix;
+}
+
+function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    cellDates: false,
+    dense: false,
+  });
+
+  let bestMatrix: string[][] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+
+    if (!sheet) {
+      continue;
+    }
+
+    const matrix = readSheetMatrixFromXlsx(sheet);
+
+    if (!matrixHasReadableData(matrix)) {
+      continue;
+    }
+
+    if (findPagoBulkHeaderInMatrix(matrix)) {
+      return matrix;
+    }
+
+    if (matrix.length > bestMatrix.length) {
+      bestMatrix = matrix;
+    }
+  }
+
+  return bestMatrix;
 }
 
 function decodeSpreadsheetBytes(bytes: Uint8Array) {
@@ -448,6 +556,48 @@ function decodeSpreadsheetBytes(bytes: Uint8Array) {
 
 function matrixHasReadableData(matrix: string[][]) {
   return matrix.some((row) => row.some((cell) => cell.trim().length > 0));
+}
+
+function describeHeaderSearchFailure(matrix: string[][]) {
+  if (!matrixHasReadableData(matrix)) {
+    return "El archivo no contiene datos legibles.";
+  }
+
+  const maxColumns = matrix.reduce(
+    (max, row) => Math.max(max, row.length),
+    0,
+  );
+
+  for (let rowIndex = 0; rowIndex < Math.min(matrix.length, 20); rowIndex += 1) {
+    const rawHeaders = padRow(matrix[rowIndex] ?? [], maxColumns);
+    const hasAmount = rawHeaders.some((header) =>
+      isTotalFacturarHeader(normalizeHeader(header), header),
+    );
+
+    if (!hasAmount) {
+      continue;
+    }
+
+    const visibleHeaders = rawHeaders
+      .map((header, columnIndex) =>
+        header.trim() ? `"${header.trim()}"` : `[vacía col ${columnIndex + 1}]`,
+      )
+      .join(", ");
+
+    return `Se encontró "Total Facturar" en la fila ${rowIndex + 1}, pero no la columna del móvil. Encabezados: ${visibleHeaders}.`;
+  }
+
+  const firstHeaders = padRow(matrix[0] ?? [], maxColumns)
+    .map((header) => header.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(", ");
+
+  if (firstHeaders) {
+    return `No se encontró la columna "Total Facturar". Primeros encabezados: ${firstHeaders}.`;
+  }
+
+  return "No se encontró la fila de encabezados esperada.";
 }
 
 async function readSpreadsheetMatrixFromFile(file: File) {
@@ -498,7 +648,7 @@ async function readSpreadsheetMatrixFromFile(file: File) {
   }
 
   throw new Error(
-    'No se pudo leer Preliquidaciones. Busca una columna sin título con el móvil y la columna "Total Facturar" (no usa "Total a pagar").',
+    `No se pudo leer Preliquidaciones. ${describeHeaderSearchFailure(bestMatrix)}`,
   );
 }
 
