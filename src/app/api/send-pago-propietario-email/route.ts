@@ -10,7 +10,7 @@ import {
 import {
   requireAdminSession,
   sanitizeServerErrorMessage,
-} from "@/lib/admin-api";
+} from "@/lib/admin-api-server";
 import { NextResponse, type NextRequest } from "next/server";
 
 const MAX_ITEMS_PER_SEND = 100;

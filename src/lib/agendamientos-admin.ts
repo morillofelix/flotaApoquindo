@@ -1,4 +1,4 @@
-import { adminFetchInit } from "@/lib/admin-api";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import {
   type Appointment,
   type AppointmentReasonConfig,

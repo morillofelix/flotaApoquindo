@@ -2,7 +2,7 @@
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
-import { adminFetchInit } from "@/lib/admin-api";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import { loadPropietarios } from "@/lib/agendamientos-admin";
 import {
   displayVehicleNumber,

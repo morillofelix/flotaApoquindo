@@ -1,4 +1,4 @@
-import { requireAdminSession } from "@/lib/admin-api";
+import { requireAdminSession } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
 import {
   toPropietario,

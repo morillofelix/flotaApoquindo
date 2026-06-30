@@ -1,4 +1,4 @@
-import { requireAdminSession } from "@/lib/admin-api";
+import { requireAdminSession } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
