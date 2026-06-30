@@ -149,6 +149,7 @@ model Propietario {
   emergencyContactPhone String    @default("")
   isActive              Boolean   @default(true)
   inactiveReason          String    @default("")
+  activationReason        String    @default("")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

@@ -103,53 +103,91 @@ type PropietarioUpdateNotificationInput = {
   vehicleNumber: string;
   changes: PropietarioChangeRecord[];
   inactiveReason?: string;
+  activationReason?: string;
 };
 
-function buildInactiveReasonEmailLines(inactiveReason?: string) {
-  const reason = inactiveReason?.trim();
+function buildStatusReasonEmailLines(label: string, reason?: string) {
+  const normalizedReason = reason?.trim();
 
-  if (!reason) {
+  if (!normalizedReason) {
     return [];
   }
 
-  return ["", "Motivo de inactivación:", reason];
+  return ["", `${label}:`, normalizedReason];
+}
+
+function buildUpdateEmailSubject(input: PropietarioUpdateNotificationInput) {
+  if (input.inactiveReason?.trim() && input.activationReason?.trim()) {
+    return "Cambio de estado de propietario - Transportes Apoquindo";
+  }
+
+  if (input.inactiveReason?.trim()) {
+    return "Inactivación de propietario - Transportes Apoquindo";
+  }
+
+  if (input.activationReason?.trim()) {
+    return "Activación de propietario - Transportes Apoquindo";
+  }
+
+  return "Actualización de propietario - Transportes Apoquindo";
+}
+
+function buildUpdateEmailIntro(input: PropietarioUpdateNotificationInput) {
+  if (input.inactiveReason?.trim() && input.activationReason?.trim()) {
+    return "Se informa que se actualizó el estado de un registro en el módulo de Propietarios.";
+  }
+
+  if (input.inactiveReason?.trim()) {
+    return "Se informa que se inactivó un registro en el módulo de Propietarios.";
+  }
+
+  if (input.activationReason?.trim()) {
+    return "Se informa que se activó un registro en el módulo de Propietarios.";
+  }
+
+  return "Se informa que se actualizó un registro en el módulo de Propietarios.";
 }
 
 export async function sendPropietarioUpdateNotification(
   input: PropietarioUpdateNotificationInput,
 ) {
-  if (!input.changes.length && !input.inactiveReason?.trim()) {
+  if (
+    !input.changes.length &&
+    !input.inactiveReason?.trim() &&
+    !input.activationReason?.trim()
+  ) {
     return;
   }
 
   const timestamp = formatSantiagoTimestamp();
   const changeLines = formatPropietarioChangesForEmail(input.changes);
-  const motivoLines = buildInactiveReasonEmailLines(input.inactiveReason);
-
-  await sendPropietariosNotification(
-    input.inactiveReason?.trim()
-      ? "Inactivación / actualización de propietario - Transportes Apoquindo"
-      : "Actualización de propietario - Transportes Apoquindo",
-    [
-      "Estimados,",
-      "",
-      input.inactiveReason?.trim()
-        ? "Se informa que se inactivó o actualizó un registro en el módulo de Propietarios."
-        : "Se informa que se actualizó un registro en el módulo de Propietarios.",
-      "",
-      `Fecha y hora: ${timestamp}`,
-      `Usuario que realizó el cambio: ${input.actor}`,
-      `Propietario: ${input.fullName || "(sin nombre)"}`,
-      `RUT: ${input.rut || "(sin RUT)"}`,
-      `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
-      ...motivoLines,
-      ...(changeLines.length
-        ? ["", "Detalle de modificaciones:", "", ...changeLines]
-        : []),
-      "",
-      "Este mensaje fue generado automáticamente por el sistema.",
-    ],
+  const inactiveReasonLines = buildStatusReasonEmailLines(
+    "Motivo de inactivación",
+    input.inactiveReason,
   );
+  const activationReasonLines = buildStatusReasonEmailLines(
+    "Motivo de activación",
+    input.activationReason,
+  );
+
+  await sendPropietariosNotification(buildUpdateEmailSubject(input), [
+    "Estimados,",
+    "",
+    buildUpdateEmailIntro(input),
+    "",
+    `Fecha y hora: ${timestamp}`,
+    `Usuario que realizó el cambio: ${input.actor}`,
+    `Propietario: ${input.fullName || "(sin nombre)"}`,
+    `RUT: ${input.rut || "(sin RUT)"}`,
+    `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
+    ...inactiveReasonLines,
+    ...activationReasonLines,
+    ...(changeLines.length
+      ? ["", "Detalle de modificaciones:", "", ...changeLines]
+      : []),
+    "",
+    "Este mensaje fue generado automáticamente por el sistema.",
+  ]);
 }
 
 type PropietarioBulkNotificationInput = {
@@ -200,7 +238,11 @@ export async function notifyPropietarioUpdateSafely(
     return false;
   }
 
-  if (!input.changes.length && !input.inactiveReason?.trim()) {
+  if (
+    !input.changes.length &&
+    !input.inactiveReason?.trim() &&
+    !input.activationReason?.trim()
+  ) {
     return false;
   }
 

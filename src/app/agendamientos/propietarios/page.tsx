@@ -103,6 +103,7 @@ const emptyPropietarioForm: PropietarioForm = {
   emergencyContactPhone: "",
   isActive: true,
   inactiveReason: "",
+  activationReason: "",
 };
 
 const inputClassName =
@@ -125,7 +126,10 @@ export default function PropietariosPage() {
   const [propietarioError, setPropietarioError] = useState("");
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
   const [highlightInactiveReason, setHighlightInactiveReason] = useState(false);
+  const [highlightActivationReason, setHighlightActivationReason] = useState(false);
+  const [requiresActivationReason, setRequiresActivationReason] = useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
+  const activationReasonRef = useRef<HTMLDivElement>(null);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
 
   useEffect(() => {
@@ -180,6 +184,8 @@ export default function PropietariosPage() {
       ...propietario,
     });
     setHighlightInactiveReason(!propietario.isActive);
+    setHighlightActivationReason(false);
+    setRequiresActivationReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -187,6 +193,8 @@ export default function PropietariosPage() {
   function resetPropietarioForm() {
     setPropietarioForm(emptyPropietarioForm);
     setHighlightInactiveReason(false);
+    setHighlightActivationReason(false);
+    setRequiresActivationReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -432,6 +440,22 @@ export default function PropietariosPage() {
       }
     }
 
+    if (requiresActivationReason && propietarioForm.isActive) {
+      const activationReason = (propietarioForm.activationReason ?? "").trim();
+
+      if (activationReason.length < 5) {
+        setHighlightActivationReason(true);
+        setPropietarioError(
+          "Completa el motivo de activación en el recuadro destacado antes de guardar.",
+        );
+        activationReasonRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        return;
+      }
+    }
+
     setIsSavingPropietario(true);
 
     try {
@@ -552,18 +576,37 @@ export default function PropietariosPage() {
 
   function handleActiveStatusChange(nextActive: boolean) {
     if (nextActive) {
+      const wasInactive = !propietarioForm.isActive;
+
       setHighlightInactiveReason(false);
       setPropietarioForm((currentForm) => ({
         ...currentForm,
         isActive: true,
         inactiveReason: "",
+        activationReason: wasInactive ? "" : currentForm.activationReason,
       }));
+
+      if (wasInactive) {
+        setRequiresActivationReason(true);
+        setHighlightActivationReason(true);
+
+        requestAnimationFrame(() => {
+          activationReasonRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        });
+      }
+
       return;
     }
 
+    setRequiresActivationReason(false);
+    setHighlightActivationReason(false);
     setPropietarioForm((currentForm) => ({
       ...currentForm,
       isActive: false,
+      activationReason: "",
     }));
     setHighlightInactiveReason(true);
 
@@ -582,6 +625,18 @@ export default function PropietariosPage() {
 
     return (propietarioForm.inactiveReason ?? "").trim().length < 5;
   }, [propietarioForm.inactiveReason, propietarioForm.isActive]);
+
+  const activationReasonIsInvalid = useMemo(() => {
+    if (!requiresActivationReason || !propietarioForm.isActive) {
+      return false;
+    }
+
+    return (propietarioForm.activationReason ?? "").trim().length < 5;
+  }, [
+    propietarioForm.activationReason,
+    propietarioForm.isActive,
+    requiresActivationReason,
+  ]);
 
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
@@ -865,7 +920,9 @@ export default function PropietariosPage() {
                     className={`${inputClassName} ${
                       !propietarioForm.isActive
                         ? "border-amber-400 bg-amber-50 font-semibold text-amber-950"
-                        : ""
+                        : requiresActivationReason
+                          ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-950"
+                          : ""
                     }`}
                   >
                     <option value="activo">Activo</option>
@@ -928,6 +985,69 @@ export default function PropietariosPage() {
                           }`}
                         >
                           {highlightInactiveReason && inactiveReasonIsInvalid
+                            ? "Ingresa al menos 5 caracteres para poder guardar."
+                            : "Mínimo 5 caracteres · obligatorio"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {requiresActivationReason && propietarioForm.isActive ? (
+                  <div
+                    ref={activationReasonRef}
+                    className={`sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
+                      highlightActivationReason && activationReasonIsInvalid
+                        ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-emerald-50 shadow-lg shadow-red-100 ring-2 ring-red-200/70"
+                        : "border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-green-50/80 shadow-md shadow-emerald-100/80"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
+                          highlightActivationReason && activationReasonIsInvalid
+                            ? "bg-red-500"
+                            : "bg-emerald-500"
+                        }`}
+                      >
+                        !
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading text-sm font-bold tracking-tight text-emerald-950">
+                          Motivo de activación
+                          <span className="ml-1 text-red-600">*</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-emerald-900/85">
+                          Este campo es obligatorio para reactivar el convenio.
+                          Describe brevemente el motivo antes de guardar.
+                        </p>
+                        <textarea
+                          value={propietarioForm.activationReason}
+                          onChange={(event) => {
+                            updateFormField("activationReason", event.target.value);
+
+                            if (event.target.value.trim().length >= 5) {
+                              setHighlightActivationReason(false);
+                              setPropietarioError("");
+                            }
+                          }}
+                          rows={4}
+                          placeholder="Ej.: reincorporación, renovación de convenio, regularización documental..."
+                          className={`mt-3 w-full rounded-2xl border-2 bg-white px-3 py-2.5 text-sm text-[#0f2747] shadow-inner outline-none transition focus:ring-2 ${
+                            highlightActivationReason && activationReasonIsInvalid
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-emerald-300 focus:border-[#0b5cab] focus:ring-[#0b5cab]/20"
+                          }`}
+                        />
+                        <p
+                          className={`mt-2 text-[11px] font-semibold ${
+                            highlightActivationReason && activationReasonIsInvalid
+                              ? "text-red-600"
+                              : "text-emerald-800"
+                          }`}
+                        >
+                          {highlightActivationReason && activationReasonIsInvalid
                             ? "Ingresa al menos 5 caracteres para poder guardar."
                             : "Mínimo 5 caracteres · obligatorio"}
                         </p>

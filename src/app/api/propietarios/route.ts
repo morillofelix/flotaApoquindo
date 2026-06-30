@@ -56,6 +56,7 @@ type PropietarioBody = {
   emergencyContactPhone?: unknown;
   isActive?: unknown;
   inactiveReason?: unknown;
+  activationReason?: unknown;
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -110,6 +111,7 @@ function parsePropietarioBody(body: PropietarioBody) {
     emergencyContactPhone: asPhone(body.emergencyContactPhone),
     isActive: body.isActive === undefined ? true : body.isActive === true,
     inactiveReason: asString(body.inactiveReason),
+    activationReason: asString(body.activationReason),
     importKey: "",
   };
 }
@@ -130,6 +132,22 @@ function resolveInactiveReason(
   return bodyReason;
 }
 
+function resolveActivationReason(
+  input: ReturnType<typeof parsePropietarioBody>,
+  existing: { isActive: boolean; activationReason: string } | null,
+  bodyReason: string,
+) {
+  if (!input.isActive) {
+    return "";
+  }
+
+  if (existing?.isActive === true) {
+    return bodyReason || existing.activationReason;
+  }
+
+  return bodyReason;
+}
+
 function validateInactiveReason(
   input: ReturnType<typeof parsePropietarioBody>,
   existing: { isActive: boolean } | null,
@@ -140,6 +158,20 @@ function validateInactiveReason(
 
   if ((isDeactivating || isCreatingInactive) && inactiveReason.length < 5) {
     return "Debes indicar el motivo de inactivación (mínimo 5 caracteres).";
+  }
+
+  return null;
+}
+
+function validateActivationReason(
+  input: ReturnType<typeof parsePropietarioBody>,
+  existing: { isActive: boolean } | null,
+  activationReason: string,
+) {
+  const isReactivating = existing?.isActive === false && input.isActive;
+
+  if (isReactivating && activationReason.length < 5) {
+    return "Debes indicar el motivo de activación (mínimo 5 caracteres).";
   }
 
   return null;
@@ -206,15 +238,26 @@ export async function POST(request: NextRequest) {
   }
 
   const inactiveReason = resolveInactiveReason(input, null, input.inactiveReason);
+  const activationReason = resolveActivationReason(input, null, input.activationReason);
   const inactiveReasonMessage = validateInactiveReason(input, null, inactiveReason);
+  const activationReasonMessage = validateActivationReason(
+    input,
+    null,
+    activationReason,
+  );
 
   if (inactiveReasonMessage) {
     return NextResponse.json({ message: inactiveReasonMessage }, { status: 400 });
   }
 
+  if (activationReasonMessage) {
+    return NextResponse.json({ message: activationReasonMessage }, { status: 400 });
+  }
+
   const createData = toPropietarioCreateData({
     ...input,
     inactiveReason,
+    activationReason,
   });
 
   const existingPropietario = await prisma.propietario.findUnique({
@@ -288,30 +331,54 @@ export async function PATCH(request: NextRequest) {
     existingPropietario,
     input.inactiveReason,
   );
+  const activationReason = resolveActivationReason(
+    input,
+    existingPropietario,
+    input.activationReason,
+  );
   const inactiveReasonMessage = validateInactiveReason(
     input,
     existingPropietario,
     inactiveReason,
+  );
+  const activationReasonMessage = validateActivationReason(
+    input,
+    existingPropietario,
+    activationReason,
   );
 
   if (inactiveReasonMessage) {
     return NextResponse.json({ message: inactiveReasonMessage }, { status: 400 });
   }
 
+  if (activationReasonMessage) {
+    return NextResponse.json({ message: activationReasonMessage }, { status: 400 });
+  }
+
   const createData = toPropietarioCreateData({
     ...input,
     importKey: existingPropietario.importKey,
     inactiveReason,
+    activationReason,
   });
   const changes = diffPropietarioChanges(existingPropietario, createData);
   const wasDeactivated =
     existingPropietario.isActive && createData.isActive === false;
+  const wasReactivated =
+    existingPropietario.isActive === false && createData.isActive === true;
   const inactiveReasonChanged =
     (existingPropietario.inactiveReason ?? "").trim() !== inactiveReason.trim();
+  const activationReasonChanged =
+    (existingPropietario.activationReason ?? "").trim() !== activationReason.trim();
   const inactiveReasonForEmail =
     inactiveReason.trim() &&
     (wasDeactivated || (createData.isActive === false && inactiveReasonChanged))
       ? inactiveReason.trim()
+      : undefined;
+  const activationReasonForEmail =
+    activationReason.trim() &&
+    (wasReactivated || (createData.isActive === true && activationReasonChanged))
+      ? activationReason.trim()
       : undefined;
 
   try {
@@ -327,6 +394,7 @@ export async function PATCH(request: NextRequest) {
       vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
       changes,
       inactiveReason: inactiveReasonForEmail,
+      activationReason: activationReasonForEmail,
     });
 
     return NextResponse.json({

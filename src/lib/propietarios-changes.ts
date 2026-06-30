@@ -39,10 +39,11 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   emergencyContactPhone: "Teléfono emergencia",
   isActive: "Estado",
   inactiveReason: "Motivo de inactivación",
+  activationReason: "Motivo de activación",
 };
 
 const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS).filter(
-  (field) => field !== "inactiveReason",
+  (field) => field !== "inactiveReason" && field !== "activationReason",
 );
 
 const PHONE_FIELDS = new Set([
@@ -115,6 +116,10 @@ function displayComparableValue(
         return `Inactivo — Motivo: ${String(record.inactiveReason).trim()}`;
       }
 
+      if (value && record?.activationReason) {
+        return `Activo — Motivo: ${String(record.activationReason).trim()}`;
+      }
+
       return value ? "Activo" : "Inactivo";
     }
 
@@ -171,6 +176,25 @@ export function diffPropietarioChanges(
         label: PROPIETARIO_FIELD_LABELS.inactiveReason ?? "Motivo de inactivación",
         before: displayValue(beforeReason),
         after: displayValue(afterReason),
+      });
+    }
+  }
+
+  const beforeActivationReason = String(before.activationReason ?? "").trim();
+  const afterActivationReason = String(after.activationReason ?? "").trim();
+
+  if (beforeActivationReason !== afterActivationReason && afterActivationReason) {
+    const alreadyInStatusChange = changes.some(
+      (change) =>
+        change.field === "isActive" && change.after.includes(afterActivationReason),
+    );
+
+    if (!alreadyInStatusChange) {
+      changes.push({
+        field: "activationReason",
+        label: PROPIETARIO_FIELD_LABELS.activationReason ?? "Motivo de activación",
+        before: displayValue(beforeActivationReason),
+        after: displayValue(afterActivationReason),
       });
     }
   }
