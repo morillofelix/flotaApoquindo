@@ -827,40 +827,88 @@ function looksLikeXlsxArchive(bytes: Uint8Array) {
   return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
 }
 
-export async function readDriverOwnerFileContent(file: File) {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
+export function isBinarySpreadsheetBytes(bytes: Uint8Array) {
+  return looksLikeBinaryExcel(bytes) || looksLikeXlsxArchive(bytes);
+}
 
+function looksLikeUtf16LeText(bytes: Uint8Array) {
+  if (bytes.length < 8) {
+    return false;
+  }
+
+  let asciiPairs = 0;
+
+  for (let index = 0; index < Math.min(bytes.length - 1, 400); index += 2) {
+    const highByte = bytes[index + 1];
+    const lowByte = bytes[index];
+
+    if (
+      highByte === 0 &&
+      lowByte !== undefined &&
+      lowByte >= 0x09 &&
+      lowByte <= 0x7e
+    ) {
+      asciiPairs += 1;
+    }
+  }
+
+  return asciiPairs >= 12;
+}
+
+export function readSpreadsheetTextContent(bytes: Uint8Array) {
   if (looksLikeBinaryExcel(bytes) || looksLikeXlsxArchive(bytes)) {
-    throw new Error(
-      'Este Excel es binario (.xls/.xlsx). En Access exporta como "Excel 97-2003 (.xls)" o guarda como CSV/SLK.',
-    );
+    throw new Error("BINARY_SPREADSHEET");
   }
 
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
-    return new TextDecoder("utf-16le").decode(buffer);
+    return new TextDecoder("utf-16le").decode(bytes).replace(/^\uFEFF/, "");
   }
 
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
-    return new TextDecoder("utf-16be").decode(buffer);
+    return new TextDecoder("utf-16be").decode(bytes).replace(/^\uFEFF/, "");
   }
 
-  const utf8Content = new TextDecoder("utf-8").decode(buffer);
+  if (looksLikeUtf16LeText(bytes)) {
+    return new TextDecoder("utf-16le").decode(bytes).replace(/^\uFEFF/, "");
+  }
+
+  const utf8Content = new TextDecoder("utf-8").decode(bytes).replace(/^\uFEFF/, "");
 
   if (
     looksLikeSlkContent(utf8Content) ||
-    utf8Content.trimStart().startsWith("ID;")
+    utf8Content.trimStart().startsWith("ID;") ||
+    looksLikeAccessTextSpreadsheet(utf8Content)
   ) {
     return utf8Content;
   }
 
-  const latinContent = new TextDecoder("latin1").decode(buffer);
+  const latinContent = new TextDecoder("latin1").decode(bytes).replace(/^\uFEFF/, "");
 
-  if (looksLikeSlkContent(latinContent)) {
+  if (
+    looksLikeSlkContent(latinContent) ||
+    looksLikeAccessTextSpreadsheet(latinContent)
+  ) {
     return latinContent;
   }
 
-  return utf8Content.replace(/^\uFEFF/, "");
+  return utf8Content;
+}
+
+export async function readDriverOwnerFileContent(file: File) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  try {
+    return readSpreadsheetTextContent(bytes);
+  } catch (error) {
+    if (error instanceof Error && error.message === "BINARY_SPREADSHEET") {
+      throw new Error(
+        'Este Excel es binario (.xls/.xlsx). En Access exporta como "Excel 97-2003 (.xls)" o guarda como CSV/SLK.',
+      );
+    }
+
+    throw error;
+  }
 }
 
 export function parseSlkToCsv(content: string) {

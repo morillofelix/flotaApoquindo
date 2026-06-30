@@ -23,7 +23,7 @@ import {
 } from "@/lib/pago-propietario";
 import {
   importPagoBulkRows,
-  readPagoPropietarioBulkFile,
+  type PagoBulkParseResult,
 } from "@/lib/pago-propietario-bulk";
 import { downloadPagoComprobantePdf } from "@/lib/pago-propietario-pdf";
 import {
@@ -169,7 +169,26 @@ export default function PagoPropietarioPage() {
         throw new Error("Define un período de pago válido (desde y hasta) antes de cargar el archivo.");
       }
 
-      const parsed = await readPagoPropietarioBulkFile(file);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/pago-propietario/parse-bulk", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as PagoBulkParseResult & {
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message ?? "No se pudo leer el archivo Excel.");
+      }
+
+      const parsed: PagoBulkParseResult = {
+        rows: payload.rows ?? [],
+        errors: payload.errors ?? [],
+      };
       const importResult = importPagoBulkRows(
         parsed.rows,
         propietarios,

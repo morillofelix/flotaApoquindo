@@ -6,6 +6,8 @@ import {
   parseDateValue,
   parseSpreadsheetContentToMatrix,
   looksLikeAccessTextSpreadsheet,
+  readSpreadsheetTextContent,
+  isBinarySpreadsheetBytes,
   prepareDriverOwnerUploadContent,
   readDriverOwnerFileContent,
 } from "@/lib/driver-owners";
@@ -16,6 +18,8 @@ export {
   normalizeVehicleNumber,
   parseSpreadsheetContentToMatrix,
   looksLikeAccessTextSpreadsheet,
+  readSpreadsheetTextContent,
+  isBinarySpreadsheetBytes,
   prepareDriverOwnerUploadContent as preparePropietarioUploadContent,
   readDriverOwnerFileContent as readPropietarioFileContent,
 };
