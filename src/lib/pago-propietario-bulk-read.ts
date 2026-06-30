@@ -13,6 +13,49 @@ import {
   readSpreadsheetTextContent,
 } from "@/lib/propietarios";
 
+const EMBEDDED_MARKERS = [
+  "<?xml",
+  "<html",
+  "<table",
+  "office:spreadsheet",
+  "schemas-microsoft-com:office:spreadsheet",
+];
+
+function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
+  const slices: string[] = [];
+  const seen = new Set<string>();
+  const decoders = [
+    () => new TextDecoder("utf-16le").decode(bytes),
+    () => new TextDecoder("utf-8").decode(bytes),
+    () => new TextDecoder("latin1").decode(bytes),
+  ];
+
+  for (const decode of decoders) {
+    let text = "";
+
+    try {
+      text = decode();
+    } catch {
+      continue;
+    }
+
+    const lower = text.toLowerCase();
+
+    for (const marker of EMBEDDED_MARKERS) {
+      const index = lower.indexOf(marker);
+
+      if (index === -1 || seen.has(`${marker}:${index}`)) {
+        continue;
+      }
+
+      seen.add(`${marker}:${index}`);
+      slices.push(text.slice(index));
+    }
+  }
+
+  return slices;
+}
+
 function collectTextVariants(bytes: Uint8Array) {
   const variants: string[] = [];
   const seen = new Set<string>();
@@ -28,10 +71,14 @@ function collectTextVariants(bytes: Uint8Array) {
     variants.push(normalized);
   };
 
+  for (const slice of extractEmbeddedSpreadsheetMarkup(bytes)) {
+    addVariant(slice);
+  }
+
   try {
     addVariant(readSpreadsheetTextContent(bytes));
   } catch {
-    // Binary or unreadable as text; handled elsewhere.
+    // Binary OLE; embedded slices above should cover it.
   }
 
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
@@ -133,19 +180,33 @@ function tryParseAccessTextSpreadsheet(
   return null;
 }
 
+function buildPagoBulkReadFailureMessage(bytes: Uint8Array) {
+  const latin = new TextDecoder("latin1").decode(bytes).toLowerCase();
+  const utf16 = new TextDecoder("utf-16le").decode(bytes).toLowerCase();
+  const haystack = `${latin}\n${utf16}`;
+  const hasTotalFacturar =
+    haystack.includes("total facturar") || haystack.includes("total factura");
+  const hasSpreadsheetMarkup =
+    haystack.includes("<table") ||
+    haystack.includes("office:spreadsheet") ||
+    haystack.includes("schemas-microsoft-com:office:spreadsheet");
+
+  if (hasTotalFacturar && hasSpreadsheetMarkup) {
+    return 'El archivo contiene "Total Facturar", pero Access lo exportó en un formato que no se pudo armar. Guarda el archivo en la carpeta del proyecto o reexpórtalo desde Access como "Excel 97-2003 (.xls)".';
+  }
+
+  if (!hasTotalFacturar) {
+    return 'No se encontró la columna "Total Facturar" dentro del archivo. Confirma que estás subiendo Preliquidaciones exportado desde Access.';
+  }
+
+  return 'Verifica que el archivo tenga una columna sin título con el móvil y la columna "Total Facturar".';
+}
+
 export function readPagoPropietarioBulkFromBuffer(
   fileName: string,
   buffer: ArrayBuffer,
 ): PagoBulkParseResult {
   const bytes = new Uint8Array(buffer);
-
-  if (isBinarySpreadsheetBytes(bytes)) {
-    const matrix = readBinarySpreadsheetMatrix(buffer);
-
-    if (hasPagoBulkHeaderMatch(matrix)) {
-      return parsePagoPropietarioBulkMatrix(matrix);
-    }
-  }
 
   for (const rawContent of collectTextVariants(bytes)) {
     const parsed = tryParseAccessTextSpreadsheet(fileName, rawContent);
@@ -157,15 +218,14 @@ export function readPagoPropietarioBulkFromBuffer(
 
   if (isBinarySpreadsheetBytes(bytes)) {
     const matrix = readBinarySpreadsheetMatrix(buffer);
-    const parsed = parsePagoPropietarioBulkMatrix(matrix);
 
-    if (parsed.rows.length > 0) {
-      return parsed;
+    if (hasPagoBulkHeaderMatch(matrix)) {
+      return parsePagoPropietarioBulkMatrix(matrix);
     }
   }
 
   throw new Error(
-    'No se pudo leer Preliquidaciones. Verifica que el archivo tenga una columna sin título con el móvil y la columna "Total Facturar".',
+    `No se pudo leer Preliquidaciones. ${buildPagoBulkReadFailureMessage(bytes)}`,
   );
 }
 

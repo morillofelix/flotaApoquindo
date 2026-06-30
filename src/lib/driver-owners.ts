@@ -718,11 +718,11 @@ function extractAllHtmlTableRows(html: string) {
 }
 
 function parseOfficeSpreadsheetXmlMatrix(content: string) {
-  const sample = content.slice(0, 8000).toLowerCase();
+  const normalized = content.toLowerCase();
 
   if (
-    !sample.includes("office:spreadsheet") &&
-    !sample.includes("schemas-microsoft-com:office:spreadsheet")
+    !normalized.includes("office:spreadsheet") &&
+    !normalized.includes("schemas-microsoft-com:office:spreadsheet")
   ) {
     return null;
   }
@@ -757,6 +757,25 @@ function parseOfficeSpreadsheetXmlMatrix(content: string) {
       const value = stripHtmlTags(dataMatch?.[1] ?? cellBody);
       cells.push(value);
       cellMatch = cellRegex.exec(rowHtml);
+    }
+
+    const selfClosingCellRegex = /<(?:[a-zA-Z0-9]+:)?Cell\b([^>]*)\/>/gi;
+    let selfClosingMatch = selfClosingCellRegex.exec(rowHtml);
+
+    while (selfClosingMatch) {
+      const attrs = selfClosingMatch[1] ?? "";
+      const indexMatch = attrs.match(/(?:ss:)?Index="(\d+)"/i);
+
+      if (indexMatch) {
+        const targetIndex = Number(indexMatch[1]) - 1;
+
+        while (cells.length < targetIndex) {
+          cells.push("");
+        }
+      }
+
+      cells.push("");
+      selfClosingMatch = selfClosingCellRegex.exec(rowHtml);
     }
 
     if (cells.some((cell) => cell.length > 0)) {
@@ -999,6 +1018,12 @@ export function prepareDriverOwnerUploadContent(
   }
 
   if (isSpreadsheetExtension) {
+    const matrix = parseSpreadsheetContentToMatrix(rawContent);
+
+    if (matrix) {
+      return { csvContent: rowsToCsv(matrix), format: "xls" as const };
+    }
+
     return {
       error:
         'El archivo Excel no parece ser un XLS de Access en formato HTML. Exporta nuevamente como "Excel 97-2003" o usa CSV/SLK.',
