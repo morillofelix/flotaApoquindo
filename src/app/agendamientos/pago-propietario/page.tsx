@@ -19,8 +19,15 @@ import {
   sendPagoPropietarioEmails,
   type PagoPropietarioLineItem,
 } from "@/lib/pago-propietario";
+import {
+  importPagoBulkRows,
+  readPagoPropietarioBulkFile,
+} from "@/lib/pago-propietario-bulk";
 import { downloadPagoComprobantePdf } from "@/lib/pago-propietario-pdf";
-import { displayVehicleNumber, type PropietarioConfig } from "@/lib/propietarios";
+import {
+  displayVehicleNumber,
+  type PropietarioConfig,
+} from "@/lib/propietarios";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const inputClassName =
@@ -71,6 +78,9 @@ export default function PagoPropietarioPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSendingBulk, setIsSendingBulk] = useState(false);
+  const [isLoadingBulkFile, setIsLoadingBulkFile] = useState(false);
+  const [bulkFileName, setBulkFileName] = useState("");
+  const [bulkAlerts, setBulkAlerts] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -135,6 +145,61 @@ export default function PagoPropietarioPage() {
   function clearFeedback() {
     setMessage("");
     setError("");
+    setBulkAlerts([]);
+  }
+
+  async function handleBulkFileSelect(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    clearFeedback();
+    setBulkFileName(file.name);
+    setIsLoadingBulkFile(true);
+
+    try {
+      if (!periodIsValid) {
+        throw new Error("Define un período de pago válido (desde y hasta) antes de cargar el archivo.");
+      }
+
+      const parsed = await readPagoPropietarioBulkFile(file);
+      const importResult = importPagoBulkRows(
+        parsed.rows,
+        propietarios,
+        lineItems,
+      );
+      const allAlerts = [...parsed.errors, ...importResult.errors];
+
+      if (importResult.items.length > 0) {
+        setLineItems((current) => [...current, ...importResult.items]);
+        setMessage(
+          `Carga masiva completada: ${importResult.items.length} propietario${
+            importResult.items.length === 1 ? "" : "s"
+          } agregado${importResult.items.length === 1 ? "" : "s"} al comprobante.`,
+        );
+      } else if (!allAlerts.length) {
+        throw new Error("No se pudo importar ninguna fila del archivo.");
+      } else {
+        setError("No se pudo importar ninguna fila válida del archivo.");
+      }
+
+      if (allAlerts.length > 0) {
+        setBulkAlerts(allAlerts);
+      }
+    } catch (bulkError) {
+      setError(
+        bulkError instanceof Error
+          ? bulkError.message
+          : "No se pudo cargar el archivo Excel.",
+      );
+    } finally {
+      setIsLoadingBulkFile(false);
+      event.target.value = "";
+    }
   }
 
   function selectPropietario(propietario: PropietarioConfig) {
@@ -533,6 +598,39 @@ export default function PagoPropietarioPage() {
                 </span>
               </div>
             </div>
+
+            <div className="mt-3 rounded-2xl border border-[#c5d8eb] bg-white px-3 py-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-[#173b68]">
+                    Cargador masivo Excel
+                  </p>
+                  <p className="text-[11px] leading-5 text-slate-500">
+                    Usa la columna con encabezado en blanco para el móvil y
+                    &quot;total facturar&quot; para el monto. Los demás datos se
+                    toman de propietarios. Solo carga al comprobante, no envía
+                    correos.
+                  </p>
+                  {bulkFileName ? (
+                    <p className="mt-1 text-[11px] font-medium text-[#0b5cab]">
+                      Último archivo: {bulkFileName}
+                      {isLoadingBulkFile ? " · procesando..." : ""}
+                    </p>
+                  ) : null}
+                </div>
+
+                <label className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-sm font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60">
+                  {isLoadingBulkFile ? "Cargando..." : "Seleccionar Excel"}
+                  <input
+                    type="file"
+                    accept=".csv,.txt,.slk,.xls,.xlsx,text/csv,application/vnd.ms-excel"
+                    onChange={handleBulkFileSelect}
+                    disabled={isLoadingBulkFile || isSendingBulk}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
 
           <div className="px-3 py-4 sm:px-4">
@@ -580,6 +678,19 @@ export default function PagoPropietarioPage() {
               <p className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
                 {error}
               </p>
+            ) : null}
+
+            {bulkAlerts.length > 0 ? (
+              <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-900">
+                  Alertas de la carga masiva
+                </p>
+                <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-sm text-amber-950">
+                  {bulkAlerts.map((alert) => (
+                    <li key={alert}>• {alert}</li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
 
             <div className="overflow-x-auto rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)]">

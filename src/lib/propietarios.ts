@@ -11,6 +11,7 @@ import {
 export {
   displayVehicleNumber,
   formatFileSize,
+  normalizeVehicleNumber,
   prepareDriverOwnerUploadContent as preparePropietarioUploadContent,
   readDriverOwnerFileContent as readPropietarioFileContent,
 };
