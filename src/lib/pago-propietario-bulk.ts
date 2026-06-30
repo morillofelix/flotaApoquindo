@@ -10,7 +10,6 @@ import {
   displayVehicleNumber,
   normalizeVehicleNumber,
   parseSpreadsheetContentToMatrix,
-  preparePropietarioUploadContent,
   type PropietarioConfig,
 } from "@/lib/propietarios";
 
@@ -115,6 +114,13 @@ function isSpreadsheetFile(fileName: string) {
 function isTotalFacturarHeader(header: string, rawHeader = "") {
   const normalized = normalizeHeader(rawHeader || header);
 
+  if (
+    normalized.includes("pagar") &&
+    !normalized.includes("facturar")
+  ) {
+    return false;
+  }
+
   return (
     normalized === "total_facturar" ||
     normalized === "total_a_facturar" ||
@@ -123,49 +129,118 @@ function isTotalFacturarHeader(header: string, rawHeader = "") {
   );
 }
 
-function findMobileColumnIndex(rawHeaders: string[], amountIndex: number) {
-  const blankBeforeAmount = rawHeaders
-    .slice(0, amountIndex >= 0 ? amountIndex : rawHeaders.length)
-    .findIndex((header) => !header.trim());
+function isBlankHeader(value: string) {
+  return !value.trim();
+}
 
-  if (blankBeforeAmount !== -1) {
-    return blankBeforeAmount;
+function countMobileValuesInColumn(
+  matrix: string[][],
+  columnIndex: number,
+  headerIndex: number,
+) {
+  let count = 0;
+
+  for (
+    let rowIndex = headerIndex + 1;
+    rowIndex < Math.min(matrix.length, headerIndex + 40);
+    rowIndex += 1
+  ) {
+    const rawValue = (matrix[rowIndex]?.[columnIndex] ?? "").trim();
+
+    if (normalizeVehicleNumber(rawValue)) {
+      count += 1;
+    }
   }
 
-  const anyBlank = rawHeaders.findIndex((header) => !header.trim());
+  return count;
+}
 
-  if (anyBlank !== -1) {
-    return anyBlank;
+function findMobileColumnIndex(
+  rawHeaders: string[],
+  amountIndex: number,
+  matrix: string[][],
+  headerIndex: number,
+) {
+  const candidates: number[] = [];
+
+  for (
+    let columnIndex = 0;
+    columnIndex < (amountIndex >= 0 ? amountIndex : rawHeaders.length);
+    columnIndex += 1
+  ) {
+    if (isBlankHeader(rawHeaders[columnIndex] ?? "")) {
+      candidates.push(columnIndex);
+    }
+  }
+
+  let bestIndex = -1;
+  let bestScore = 0;
+
+  for (const columnIndex of candidates) {
+    const score = countMobileValuesInColumn(matrix, columnIndex, headerIndex);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = columnIndex;
+    }
+  }
+
+  if (bestIndex !== -1 && bestScore > 0) {
+    return bestIndex;
+  }
+
+  if (candidates.length > 0) {
+    return candidates[0] ?? -1;
   }
 
   return amountIndex > 0 ? 0 : -1;
 }
 
+function padRow(row: string[], minLength: number) {
+  const paddedRow = [...row];
+
+  while (paddedRow.length < minLength) {
+    paddedRow.push("");
+  }
+
+  return paddedRow;
+}
+
 function findPagoBulkHeaderInMatrix(matrix: string[][]): PagoBulkHeaderMatch | null {
   const maxScan = Math.min(matrix.length, 120);
+  const maxColumns = matrix.reduce(
+    (max, row) => Math.max(max, row.length),
+    0,
+  );
 
   for (let headerIndex = 0; headerIndex < maxScan; headerIndex += 1) {
-    const rawHeaders = matrix[headerIndex] ?? [];
-    const headers = rawHeaders.map((header) => normalizeHeader(header));
-    const amountIndex = headers.findIndex((header, index) =>
-      isTotalFacturarHeader(header, rawHeaders[index] ?? ""),
-    );
+    const rawHeaders = padRow(matrix[headerIndex] ?? [], maxColumns);
 
-    if (amountIndex === -1) {
-      continue;
+    for (let columnIndex = 0; columnIndex < rawHeaders.length; columnIndex += 1) {
+      const rawHeader = rawHeaders[columnIndex] ?? "";
+      const header = normalizeHeader(rawHeader);
+
+      if (!isTotalFacturarHeader(header, rawHeader)) {
+        continue;
+      }
+
+      const mobileIndex = findMobileColumnIndex(
+        rawHeaders,
+        columnIndex,
+        matrix,
+        headerIndex,
+      );
+
+      if (mobileIndex === -1) {
+        continue;
+      }
+
+      return {
+        headerIndex,
+        mobileIndex,
+        amountIndex: columnIndex,
+      };
     }
-
-    const mobileIndex = findMobileColumnIndex(rawHeaders, amountIndex);
-
-    if (mobileIndex === -1) {
-      continue;
-    }
-
-    return {
-      headerIndex,
-      mobileIndex,
-      amountIndex,
-    };
   }
 
   return null;
@@ -208,7 +283,7 @@ export function parsePagoPropietarioBulkMatrix(
     return {
       rows: [],
       errors: [
-        'No se encontró la fila de encabezados con una columna en blanco para el móvil y la columna "total facturar".',
+        'No se encontró la fila de encabezados con una columna sin título para el móvil y la columna "Total Facturar".',
       ],
     };
   }
@@ -289,12 +364,29 @@ export function parsePagoPropietarioBulkCsv(content: string): PagoBulkParseResul
   return parsePagoPropietarioBulkMatrix(csvContentToMatrix(content));
 }
 
+function padMatrix(matrix: string[][]) {
+  const maxColumns = matrix.reduce(
+    (max, row) => Math.max(max, row.length),
+    0,
+  );
+
+  return matrix.map((row) => {
+    const paddedRow = [...row];
+
+    while (paddedRow.length < maxColumns) {
+      paddedRow.push("");
+    }
+
+    return paddedRow;
+  });
+}
+
 async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
   const XLSX = await import("xlsx");
   const workbook = XLSX.read(buffer, {
     type: "array",
     cellDates: false,
-    dense: true,
+    dense: false,
   });
   const sheetName = workbook.SheetNames[0];
 
@@ -304,17 +396,33 @@ async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
 
   const sheet = workbook.Sheets[sheetName];
 
-  if (!sheet) {
+  if (!sheet || !sheet["!ref"]) {
     return [] as string[][];
   }
 
-  const matrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-  });
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const matrix: string[][] = [];
 
-  return matrix.map((row) => (row ?? []).map((cell) => normalizeMatrixCell(cell)));
+  for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex += 1) {
+    const row: string[] = [];
+
+    for (let columnIndex = range.s.c; columnIndex <= range.e.c; columnIndex += 1) {
+      const cellAddress = XLSX.utils.encode_cell({
+        r: rowIndex,
+        c: columnIndex,
+      });
+      const cell = sheet[cellAddress] as { v?: unknown; w?: string } | undefined;
+      const value =
+        cell?.w ??
+        (cell?.v === null || cell?.v === undefined ? "" : String(cell.v));
+
+      row.push(normalizeMatrixCell(value));
+    }
+
+    matrix.push(row);
+  }
+
+  return padMatrix(matrix);
 }
 
 function decodeSpreadsheetBytes(bytes: Uint8Array) {
@@ -351,36 +459,29 @@ async function readSpreadsheetMatrixFromFile(file: File) {
     looksLikeBinaryExcel(bytes) ||
     looksLikeXlsxArchive(bytes);
 
-  const attempts: Array<() => Promise<string[][]> | string[][]> = [
-    () => parseSpreadsheetContentToMatrix(textContent) ?? [],
-    () => {
-      const prepared = preparePropietarioUploadContent(file.name, textContent);
-
-      if ("error" in prepared) {
-        return [];
-      }
-
-      return csvContentToMatrix(prepared.csvContent);
-    },
-  ];
+  const attempts: Array<() => Promise<string[][]> | string[][]> = [];
 
   if (shouldTryXlsx) {
-    attempts.unshift(() => readSpreadsheetMatrixWithXlsx(buffer));
+    attempts.push(() => readSpreadsheetMatrixWithXlsx(buffer));
   }
 
+  attempts.push(() => padMatrix(parseSpreadsheetContentToMatrix(textContent) ?? []));
+
   let bestMatrix: string[][] = [];
-  let bestScore = 0;
+  let bestHeaderMatch: PagoBulkHeaderMatch | null = null;
 
   for (const attempt of attempts) {
     try {
-      const matrix = (await attempt()).map((row) =>
-        row.map((cell) => normalizeMatrixCell(cell)),
+      const matrix = padMatrix(
+        (await attempt()).map((row) => row.map((cell) => normalizeMatrixCell(cell))),
       );
       const headerMatch = findPagoBulkHeaderInMatrix(matrix);
-      const score = headerMatch ? 100 : matrixHasReadableData(matrix) ? 1 : 0;
 
-      if (score > bestScore) {
-        bestScore = score;
+      if (headerMatch) {
+        return matrix;
+      }
+
+      if (matrixHasReadableData(matrix) && matrix.length > bestMatrix.length) {
         bestMatrix = matrix;
       }
     } catch {
@@ -388,12 +489,16 @@ async function readSpreadsheetMatrixFromFile(file: File) {
     }
   }
 
-  if (bestScore > 0) {
-    return bestMatrix;
+  if (bestMatrix.length >= 2) {
+    bestHeaderMatch = findPagoBulkHeaderInMatrix(bestMatrix);
+
+    if (bestHeaderMatch) {
+      return bestMatrix;
+    }
   }
 
   throw new Error(
-    'No se pudo leer el archivo Excel. Verifica que incluya una columna en blanco para el móvil y la columna "total facturar".',
+    'No se pudo leer Preliquidaciones. Busca una columna sin título con el móvil y la columna "Total Facturar" (no usa "Total a pagar").',
   );
 }
 
