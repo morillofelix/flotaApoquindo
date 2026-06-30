@@ -455,10 +455,11 @@ export default function PagoPropietarioPage() {
                     </p>
                   ) : (
                     filteredPropietarios.slice(0, 80).map((propietario) => {
-                      const isSelected =
+                      const isSelected = Boolean(
                         selectedPropietario &&
-                        getPropietarioKey(selectedPropietario) ===
-                          getPropietarioKey(propietario);
+                          getPropietarioKey(selectedPropietario) ===
+                            getPropietarioKey(propietario),
+                      );
                       const alreadyAdded = lineItems.some(
                         (item) =>
                           item.propietarioId === getPropietarioKey(propietario),
