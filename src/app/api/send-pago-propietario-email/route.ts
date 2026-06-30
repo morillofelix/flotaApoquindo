@@ -3,8 +3,11 @@ import {
   type SendPagoPropietarioEmailItem,
   type SendPagoPropietarioEmailPayload,
 } from "@/lib/pago-propietario";
+import {
+  createPagoPropietarioMailTransporter,
+  getPagoPropietarioSmtpConfig,
+} from "@/lib/pago-propietario-mail";
 import { NextResponse, type NextRequest } from "next/server";
-import nodemailer from "nodemailer";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -93,15 +96,15 @@ function createEmailText(input: {
 }
 
 export async function POST(request: NextRequest) {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPassword = process.env.SMTP_PASSWORD;
-  const emailFrom = process.env.EMAIL_FROM;
+  const smtp = getPagoPropietarioSmtpConfig();
+  const transporter = createPagoPropietarioMailTransporter();
 
-  if (!smtpHost || !smtpUser || !smtpPassword || !emailFrom) {
+  if (!smtp || !transporter) {
     return NextResponse.json(
-      { message: "Servicio de correo no configurado." },
+      {
+        message:
+          "Correo de pagos a propietarios no configurado. Revisa PAGO_SMTP_* en el servidor.",
+      },
       { status: 500 },
     );
   }
@@ -124,23 +127,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPassword,
-    },
-  });
-
   const results = [];
 
   for (const item of body.items) {
     try {
       const mailResult = await transporter.sendMail({
-        from: emailFrom,
+        from: `"Facturación Móviles" <${smtp.from}>`,
         to: item.to.trim(),
+        replyTo: smtp.from,
         subject: "Comprobante de pago — Transportes Apoquindo",
         html: createEmailHtml({
           titularName: item.titularName.trim(),
