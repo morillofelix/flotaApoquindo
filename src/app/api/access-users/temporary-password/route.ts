@@ -1,13 +1,9 @@
-import { generateAccessTemporaryPassword } from "@/lib/access-users-server";
+import {
+  canIssueAccessUserTemporaryPassword,
+  issueAccessUserTemporaryPassword,
+} from "@/lib/access-users-server";
 import { requireSuperAdminSession } from "@/lib/admin-api-server";
-import {
-  isAccessUserMailConfigured,
-  sendAccessUserTemporaryPasswordEmail,
-} from "@/lib/access-user-mail";
-import {
-  canSendTemporaryPassword,
-  hashPassword,
-} from "@/lib/password-utils";
+import { isAccessUserMailConfigured } from "@/lib/access-user-mail";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -71,7 +67,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!canSendTemporaryPassword(accessUser.tempPasswordSentAt)) {
+  if (!canIssueAccessUserTemporaryPassword(accessUser.tempPasswordSentAt)) {
     return NextResponse.json(
       {
         message:
@@ -81,23 +77,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const temporaryPassword = generateAccessTemporaryPassword();
-
   try {
-    await sendAccessUserTemporaryPasswordEmail({
-      to: accessUser.email.trim(),
-      fullName: accessUser.fullName,
-      temporaryPassword,
-    });
-
-    await prisma.accessUser.update({
-      where: { id: accessUser.id },
-      data: {
-        passwordHash: hashPassword(temporaryPassword),
-        mustChangePassword: true,
-        tempPasswordSentAt: new Date(),
-      },
-    });
+    await issueAccessUserTemporaryPassword(accessUser);
 
     return NextResponse.json({
       message: `Clave temporal enviada a ${accessUser.email.trim()}.`,

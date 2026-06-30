@@ -1,6 +1,7 @@
 import {
   ensureSuperAdminUser,
   getSuperAdminEmail,
+  issueAccessUserTemporaryPassword,
 } from "@/lib/access-users-server";
 import {
   permissionsToDbData,
@@ -11,6 +12,7 @@ import {
   requireSuperAdminSession,
   sanitizeServerErrorMessage,
 } from "@/lib/admin-api-server";
+import { isAccessUserMailConfigured } from "@/lib/access-user-mail";
 import { normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -118,9 +120,36 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    if (isAccessUserMailConfigured()) {
+      try {
+        await issueAccessUserTemporaryPassword(created, { isNewUser: true });
+
+        return NextResponse.json({
+          user: toPublicAccessUser(
+            await prisma.accessUser.findUniqueOrThrow({
+              where: { id: created.id },
+            }),
+          ),
+          message: `Usuario creado. Se envió la clave temporal a ${email}.`,
+        });
+      } catch (error) {
+        return NextResponse.json(
+          {
+            user: toPublicAccessUser(created),
+            message: sanitizeServerErrorMessage(
+              error,
+              "Usuario creado, pero no se pudo enviar la clave temporal. Reenvíala manualmente.",
+            ),
+          },
+          { status: 201 },
+        );
+      }
+    }
+
     return NextResponse.json({
       user: toPublicAccessUser(created),
-      message: "Usuario creado. Envía la clave temporal por correo.",
+      message:
+        "Usuario creado. El correo no está configurado; envía la clave temporal manualmente.",
     });
   } catch (error) {
     return NextResponse.json(
