@@ -2,74 +2,36 @@
 
 import AccessChangePasswordScreen from "@/components/AccessChangePasswordScreen";
 import ExecutiveAccessLoginScreen, {
-  ADMIN_ACCESS_STORAGE_KEY,
   type LoginAccessUser,
 } from "@/components/ExecutiveAccessLoginScreen";
-import type { AccessPermissionKey, AccessPermissions } from "@/lib/access-users";
+import type { AccessPermissions } from "@/lib/access-users";
+import {
+  ADMIN_NAV_ITEMS,
+  canAccessAdminNavItem,
+  clearAdminSessionClient,
+  fetchAdminSessionClient,
+  findActiveAdminNavItem,
+  getFirstPermittedAdminRoute,
+} from "@/lib/admin-auth-client";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-
-type NavItem = {
-  label: string;
-  href: string;
-  permission: AccessPermissionKey;
-  isActive: (pathname: string, vista: string | null) => boolean;
-};
-
-const navItems: NavItem[] = [
-  {
-    label: "Solicitudes",
-    href: "/agendamientos",
-    permission: "solicitudes",
-    isActive: (pathname, vista) =>
-      pathname === "/agendamientos" && vista !== "calendario",
-  },
-  {
-    label: "Calendario",
-    href: "/agendamientos?vista=calendario",
-    permission: "calendario",
-    isActive: (pathname, vista) =>
-      pathname === "/agendamientos" && vista === "calendario",
-  },
-  {
-    label: "Motivos",
-    href: "/agendamientos/motivos",
-    permission: "motivos",
-    isActive: (pathname) => pathname.startsWith("/agendamientos/motivos"),
-  },
-  {
-    label: "Ejecutivos",
-    href: "/agendamientos/ejecutivos",
-    permission: "ejecutivos",
-    isActive: (pathname) => pathname.startsWith("/agendamientos/ejecutivos"),
-  },
-  {
-    label: "Conductores",
-    href: "/agendamientos/conductores",
-    permission: "conductores",
-    isActive: (pathname) => pathname.startsWith("/agendamientos/conductores"),
-  },
-  {
-    label: "Propietarios",
-    href: "/agendamientos/propietarios",
-    permission: "propietarios",
-    isActive: (pathname) => pathname.startsWith("/agendamientos/propietarios"),
-  },
-  {
-    label: "Pago propietario",
-    href: "/agendamientos/pago-propietario",
-    permission: "pagoPropietario",
-    isActive: (pathname) =>
-      pathname.startsWith("/agendamientos/pago-propietario"),
-  },
-];
 
 type AdminSessionState = {
   permissions: AccessPermissions;
   isSuperAdmin: boolean;
   canManageAccesos: boolean;
 };
+
+const emptyPermissions = (): AccessPermissions => ({
+  solicitudes: false,
+  calendario: false,
+  motivos: false,
+  ejecutivos: false,
+  conductores: false,
+  propietarios: false,
+  pagoPropietario: false,
+});
 
 function AdminNavigation({
   onLogout,
@@ -86,26 +48,37 @@ function AdminNavigation({
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
 
-  const visibleNavItems = navItems.filter(
-    (item) => isSuperAdmin || permissions[item.permission],
-  );
-
   return (
     <nav className="border-b border-[#b7cce4] bg-[#d7e7f8] shadow-sm shadow-slate-200/40">
       <div className="mx-auto flex w-full max-w-[1540px] flex-col gap-3 px-3 py-3 sm:px-6 xl:px-10">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-1">
-            {visibleNavItems.map((item) => {
+            {ADMIN_NAV_ITEMS.map((item) => {
               const active = item.isActive(pathname, vista);
+              const allowed = canAccessAdminNavItem(
+                permissions,
+                item.permission,
+                isSuperAdmin,
+              );
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-disabled={!allowed}
+                  title={
+                    allowed
+                      ? item.label
+                      : `${item.label} (sin permiso de acceso)`
+                  }
                   className={`inline-flex h-9 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
-                    active
-                      ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
-                      : "text-[#173b68] hover:bg-white/75"
+                    allowed
+                      ? active
+                        ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
+                        : "text-[#173b68] hover:bg-white/75"
+                      : active
+                        ? "cursor-not-allowed border border-[#c5d8eb] bg-white/50 text-slate-400"
+                        : "cursor-not-allowed text-slate-400/90 hover:bg-white/40"
                   }`}
                 >
                   {item.label}
@@ -127,7 +100,7 @@ function AdminNavigation({
               href="/"
               className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px"
             >
-              Nueva solicitud
+              Portal conductores
             </Link>
             <button
               type="button"
@@ -149,6 +122,7 @@ function AdminShellInner({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -162,24 +136,13 @@ function AdminShellInner({
   } | null>(null);
 
   async function refreshSession() {
-    const response = await fetch("/api/accesos/session", {
-      credentials: "include",
-      cache: "no-store",
-    });
+    const data = await fetchAdminSessionClient();
 
-    if (!response.ok) {
+    if (!data) {
       setIsAuthenticated(false);
       setSessionState(null);
-      window.sessionStorage.removeItem(ADMIN_ACCESS_STORAGE_KEY);
       return false;
     }
-
-    const data = (await response.json()) as {
-      mustChangePassword?: boolean;
-      permissions?: AccessPermissions;
-      isSuperAdmin?: boolean;
-      canManageAccesos?: boolean;
-    };
 
     if (data.mustChangePassword) {
       setIsAuthenticated(false);
@@ -187,38 +150,23 @@ function AdminShellInner({
       return false;
     }
 
-    setSessionState({
-      permissions: data.permissions ?? {
-        solicitudes: false,
-        calendario: false,
-        motivos: false,
-        ejecutivos: false,
-        conductores: false,
-        propietarios: false,
-        pagoPropietario: false,
-      },
+    const nextSession: AdminSessionState = {
+      permissions: data.permissions ?? emptyPermissions(),
       isSuperAdmin: Boolean(data.isSuperAdmin),
       canManageAccesos: Boolean(data.canManageAccesos),
-    });
+    };
+
+    setSessionState(nextSession);
     setIsAuthenticated(true);
-    window.sessionStorage.setItem(ADMIN_ACCESS_STORAGE_KEY, "true");
     return true;
   }
 
   useEffect(() => {
-    const hasLocalFlag =
-      window.sessionStorage.getItem(ADMIN_ACCESS_STORAGE_KEY) === "true";
-
-    if (hasLocalFlag) {
-      refreshSession().finally(() => setAuthChecked(true));
-      return;
-    }
-
-    setAuthChecked(true);
+    refreshSession().finally(() => setAuthChecked(true));
   }, []);
 
   const currentNavItem = useMemo(
-    () => navItems.find((item) => item.isActive(pathname, vista)),
+    () => findActiveAdminNavItem(pathname, vista),
     [pathname, vista],
   );
 
@@ -227,20 +175,19 @@ function AdminShellInner({
       return true;
     }
 
-    return (
-      sessionState.isSuperAdmin ||
-      sessionState.permissions[currentNavItem.permission]
+    return canAccessAdminNavItem(
+      sessionState.permissions,
+      currentNavItem.permission,
+      sessionState.isSuperAdmin,
     );
   }, [currentNavItem, sessionState]);
 
   async function handleLogout() {
-    await fetch("/api/accesos/session", {
-      method: "POST",
-      credentials: "include",
-    });
-    window.sessionStorage.removeItem(ADMIN_ACCESS_STORAGE_KEY);
+    await clearAdminSessionClient();
     setIsAuthenticated(false);
     setSessionState(null);
+    setPendingPasswordChange(null);
+    window.location.assign("/agendamientos");
   }
 
   if (!authChecked) {
@@ -255,7 +202,22 @@ function AdminShellInner({
         currentPassword={pendingPasswordChange.currentPassword}
         onCompleted={async () => {
           setPendingPasswordChange(null);
-          await refreshSession();
+          const authenticated = await refreshSession();
+
+          if (!authenticated) {
+            return;
+          }
+
+          const data = await fetchAdminSessionClient();
+
+          if (data?.permissions) {
+            router.replace(
+              getFirstPermittedAdminRoute(
+                data.permissions,
+                Boolean(data.isSuperAdmin),
+              ),
+            );
+          }
         }}
         onCancel={() => setPendingPasswordChange(null)}
       />
@@ -265,13 +227,41 @@ function AdminShellInner({
   if (!isAuthenticated) {
     return (
       <ExecutiveAccessLoginScreen
-        storageKey={ADMIN_ACCESS_STORAGE_KEY}
         eyebrow="Acceso ejecutivo"
         title="Administración de citas"
         description="Ingresa usuario o correo y clave para revisar las solicitudes enviadas."
         showCredentialHint
         onAuthenticated={async () => {
-          await refreshSession();
+          const authenticated = await refreshSession();
+
+          if (!authenticated) {
+            return;
+          }
+
+          const data = await fetchAdminSessionClient();
+
+          if (!data?.permissions) {
+            router.replace("/agendamientos");
+            return;
+          }
+
+          const current = findActiveAdminNavItem(pathname, vista);
+          const allowed = current
+            ? canAccessAdminNavItem(
+                data.permissions,
+                current.permission,
+                Boolean(data.isSuperAdmin),
+              )
+            : true;
+
+          if (!allowed) {
+            router.replace(
+              getFirstPermittedAdminRoute(
+                data.permissions,
+                Boolean(data.isSuperAdmin),
+              ),
+            );
+          }
         }}
         onMustChangePassword={(accessUser, currentPassword) => {
           setPendingPasswordChange({ accessUser, currentPassword });
@@ -285,17 +275,7 @@ function AdminShellInner({
       <Suspense fallback={null}>
         <AdminNavigation
           onLogout={handleLogout}
-          permissions={
-            sessionState?.permissions ?? {
-              solicitudes: false,
-              calendario: false,
-              motivos: false,
-              ejecutivos: false,
-              conductores: false,
-              propietarios: false,
-              pagoPropietario: false,
-            }
-          }
+          permissions={sessionState?.permissions ?? emptyPermissions()}
           isSuperAdmin={Boolean(sessionState?.isSuperAdmin)}
           canManageAccesos={Boolean(sessionState?.canManageAccesos)}
         />
@@ -307,9 +287,24 @@ function AdminShellInner({
             Sin permiso para este módulo
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Tu usuario no tiene acceso a esta sección. Contacta al administrador
-            si necesitas permisos adicionales.
+            Puedes ver el menú completo, pero tu usuario no tiene acceso a esta
+            sección. Contacta al administrador si necesitas permisos
+            adicionales.
           </p>
+          <button
+            type="button"
+            onClick={() =>
+              router.replace(
+                getFirstPermittedAdminRoute(
+                  sessionState?.permissions ?? emptyPermissions(),
+                  Boolean(sessionState?.isSuperAdmin),
+                ),
+              )
+            }
+            className="mt-6 inline-flex h-10 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white transition hover:bg-[#084a8c]"
+          >
+            Ir a un módulo permitido
+          </button>
         </div>
       ) : (
         children

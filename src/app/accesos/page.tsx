@@ -1,10 +1,12 @@
 "use client";
 
 import AccessChangePasswordScreen from "@/components/AccessChangePasswordScreen";
-import ExecutiveAccessLoginScreen, {
-  ADMIN_ACCESS_STORAGE_KEY,
-} from "@/components/ExecutiveAccessLoginScreen";
+import ExecutiveAccessLoginScreen from "@/components/ExecutiveAccessLoginScreen";
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
+import {
+  clearAdminSessionClient,
+  fetchAdminSessionClient,
+} from "@/lib/admin-auth-client";
 import {
   ACCESS_PERMISSION_KEYS,
   ACCESS_PERMISSION_LABELS,
@@ -74,28 +76,15 @@ export default function AccesosPage() {
   }
 
   async function bootstrapSession() {
-    const response = await fetch("/api/accesos/session", {
-      credentials: "include",
-      cache: "no-store",
-    });
+    const data = await fetchAdminSessionClient();
 
-    if (!response.ok) {
+    if (!data) {
       setView("login");
       return;
     }
 
-    const data = (await response.json()) as {
-      canManageAccesos?: boolean;
-      mustChangePassword?: boolean;
-      email?: string;
-    };
-
     if (!data.canManageAccesos) {
-      await fetch("/api/accesos/session", {
-        method: "POST",
-        credentials: "include",
-      });
-      window.sessionStorage.removeItem(ADMIN_ACCESS_STORAGE_KEY);
+      await clearAdminSessionClient();
       setError("Solo el administrador principal puede gestionar accesos.");
       setView("login");
       return;
@@ -278,14 +267,10 @@ export default function AccesosPage() {
   }
 
   async function handleLogout() {
-    await fetch("/api/accesos/session", {
-      method: "POST",
-      credentials: "include",
-    });
-    window.sessionStorage.removeItem(ADMIN_ACCESS_STORAGE_KEY);
+    await clearAdminSessionClient();
     resetForm();
     setUsers([]);
-    setView("login");
+    window.location.assign("/accesos");
   }
 
   if (view === "bootstrapping") {
@@ -295,7 +280,6 @@ export default function AccesosPage() {
   if (view === "login") {
     return (
       <ExecutiveAccessLoginScreen
-        storageKey={ADMIN_ACCESS_STORAGE_KEY}
         eyebrow="Super administrador"
         title="Gestión de accesos"
         description="Ingresa con tu correo y clave para administrar usuarios y permisos."
@@ -326,9 +310,8 @@ export default function AccesosPage() {
         title="Define tu clave de super administrador"
         description="Ingresaste con la clave temporal inicial. Crea tu clave definitiva para continuar."
         onCompleted={async () => {
-          window.sessionStorage.setItem(ADMIN_ACCESS_STORAGE_KEY, "true");
           setPendingPasswordChange(null);
-          await bootstrapSession();
+          window.location.assign("/accesos");
         }}
         onCancel={() => {
           setPendingPasswordChange(null);

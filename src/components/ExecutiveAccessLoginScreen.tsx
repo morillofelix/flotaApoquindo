@@ -15,7 +15,7 @@ export type LoginAccessUser = {
 };
 
 type ExecutiveAccessLoginScreenProps = {
-  storageKey: string;
+  storageKey?: string;
   eyebrow: string;
   title: string;
   description: string;
@@ -90,7 +90,9 @@ export default function ExecutiveAccessLoginScreen({
         return;
       }
 
-      window.sessionStorage.setItem(storageKey, "true");
+      if (storageKey) {
+        window.sessionStorage.setItem(storageKey, "true");
+      }
       setLoginValues({ user: "", password: "" });
       setIsPasswordVisible(false);
       onAuthenticated();
