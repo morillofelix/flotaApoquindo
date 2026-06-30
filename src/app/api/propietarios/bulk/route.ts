@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/lib/admin-api";
 import {
   parsePropietariosCsv,
   toPropietario,
@@ -28,6 +29,12 @@ function isParsedRow(value: unknown): value is ParsedPropietarioRow {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: BulkBody;
 
   try {

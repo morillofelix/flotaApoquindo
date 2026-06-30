@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/lib/admin-api";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -7,7 +8,13 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const unauthorized = requireAdminSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const { id } = await context.params;
 
   if (!id) {

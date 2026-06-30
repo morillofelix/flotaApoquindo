@@ -1,3 +1,4 @@
+import { adminFetchInit } from "@/lib/admin-api";
 import {
   type Appointment,
   type AppointmentReasonConfig,
@@ -73,6 +74,7 @@ export async function loadDriverOwners() {
 export async function loadPropietarios() {
   const response = await fetch("/api/propietarios", {
     cache: "no-store",
+    credentials: adminFetchInit.credentials,
   });
 
   if (!response.ok) {

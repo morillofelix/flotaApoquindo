@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/lib/admin-api";
 import { parseDateValue } from "@/lib/driver-owners";
 import {
   toPropietario,
@@ -126,7 +127,13 @@ function validatePropietarioInput(input: ReturnType<typeof parsePropietarioBody>
   return null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const propietarios = await prisma.propietario.findMany({
     orderBy: [{ fullName: "asc" }],
   });
@@ -137,6 +144,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: PropietarioBody;
 
   try {
@@ -189,6 +202,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: PropietarioBody;
 
   try {

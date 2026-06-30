@@ -2,6 +2,7 @@
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
+import { adminFetchInit } from "@/lib/admin-api";
 import { loadPropietarios } from "@/lib/agendamientos-admin";
 import {
   displayVehicleNumber,
@@ -282,6 +283,7 @@ export default function PropietariosPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: adminFetchInit.credentials,
         body: JSON.stringify({ rows: bulkUpload.parsedRows }),
       });
 
@@ -408,6 +410,7 @@ export default function PropietariosPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: adminFetchInit.credentials,
         body: JSON.stringify(propietarioForm),
       });
 
@@ -451,6 +454,7 @@ export default function PropietariosPage() {
     try {
       const response = await fetch(`/api/propietarios/${propietarioForm.id}`, {
         method: "DELETE",
+        credentials: adminFetchInit.credentials,
       });
 
       if (!response.ok) {

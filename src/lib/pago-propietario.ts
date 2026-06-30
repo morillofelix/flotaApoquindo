@@ -1,5 +1,8 @@
-import type { PropietarioConfig } from "@/lib/propietarios";
-import { displayVehicleNumber } from "@/lib/propietarios";
+import { adminFetchInit } from "@/lib/admin-api";
+import {
+  displayVehicleNumber,
+  type PropietarioConfig,
+} from "@/lib/propietarios";
 
 export type PagoPropietarioLineItem = {
   id: string;
@@ -132,6 +135,7 @@ export async function sendPagoPropietarioEmails(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: adminFetchInit.credentials,
     body: JSON.stringify(payload),
   });
 

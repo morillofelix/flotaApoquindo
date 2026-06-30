@@ -7,7 +7,13 @@ import {
   createPagoPropietarioMailTransporter,
   getPagoPropietarioSmtpConfig,
 } from "@/lib/pago-propietario-mail";
+import {
+  requireAdminSession,
+  sanitizeServerErrorMessage,
+} from "@/lib/admin-api";
 import { NextResponse, type NextRequest } from "next/server";
+
+const MAX_ITEMS_PER_SEND = 100;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,6 +63,7 @@ function isValidPayload(value: unknown): value is SendPagoPropietarioEmailPayloa
     isValidDate(payload.periodTo) &&
     Array.isArray(payload.items) &&
     payload.items.length > 0 &&
+    payload.items.length <= MAX_ITEMS_PER_SEND &&
     payload.items.every(isValidItem)
   );
 }
@@ -96,6 +103,12 @@ function createEmailText(input: {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const smtp = getPagoPropietarioSmtpConfig();
   const transporter = createPagoPropietarioMailTransporter();
 
@@ -103,7 +116,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message:
-          "Correo de pagos a propietarios no configurado. Revisa PAGO_SMTP_* en el servidor.",
+          process.env.NODE_ENV === "production"
+            ? "Servicio de correo de pagos no disponible."
+            : "Correo de pagos a propietarios no configurado. Revisa PAGO_SMTP_* en el servidor.",
       },
       { status: 500 },
     );
@@ -159,10 +174,10 @@ export async function POST(request: NextRequest) {
       results.push({
         id: item.id,
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo enviar el correo.",
+        error: sanitizeServerErrorMessage(
+          error,
+          "No se pudo enviar el correo.",
+        ),
       });
     }
   }
