@@ -1,3 +1,5 @@
+import type { AccessPermissionKey, AccessPermissions } from "@/lib/access-users";
+import { FULL_ACCESS_PERMISSIONS } from "@/lib/access-users";
 import type { NextRequest, NextResponse } from "next/server";
 import {
   getSessionSecret,
@@ -18,6 +20,12 @@ export type DriverSession = {
 
 export type AdminSession = {
   user: string;
+  email?: string;
+  accessUserId?: string;
+  isLegacyAdmin?: boolean;
+  isSuperAdmin?: boolean;
+  mustChangePassword?: boolean;
+  permissions: AccessPermissions;
 };
 
 function getCookieOptions(maxAgeSeconds: number) {
@@ -27,6 +35,40 @@ function getCookieOptions(maxAgeSeconds: number) {
     sameSite: "lax" as const,
     path: "/",
     maxAge: maxAgeSeconds,
+  };
+}
+
+export function normalizeAdminSession(
+  session: Partial<AdminSession> & { user: string },
+): AdminSession {
+  if (session.isLegacyAdmin || session.isSuperAdmin) {
+    return {
+      user: session.user,
+      email: session.email,
+      accessUserId: session.accessUserId,
+      isLegacyAdmin: session.isLegacyAdmin,
+      isSuperAdmin: session.isSuperAdmin,
+      mustChangePassword: session.mustChangePassword,
+      permissions: FULL_ACCESS_PERMISSIONS,
+    };
+  }
+
+  return {
+    user: session.user,
+    email: session.email,
+    accessUserId: session.accessUserId,
+    isLegacyAdmin: session.isLegacyAdmin,
+    isSuperAdmin: session.isSuperAdmin,
+    mustChangePassword: session.mustChangePassword,
+    permissions: session.permissions ?? {
+      solicitudes: false,
+      calendario: false,
+      motivos: false,
+      ejecutivos: false,
+      conductores: false,
+      propietarios: false,
+      pagoPropietario: false,
+    },
   };
 }
 
@@ -74,7 +116,10 @@ export function readDriverSession(request: NextRequest): DriverSession | null {
   return verifyCookieValue<DriverSession>(value, secret);
 }
 
-export function setAdminSessionCookie(response: NextResponse, user: string) {
+export function setAdminSessionCookie(
+  response: NextResponse,
+  session: AdminSession,
+) {
   const secret = getSessionSecret();
 
   if (!secret) {
@@ -83,11 +128,25 @@ export function setAdminSessionCookie(response: NextResponse, user: string) {
 
   response.cookies.set(
     ADMIN_SESSION_COOKIE,
-    signCookieValue({ user } satisfies AdminSession, secret),
+    signCookieValue(normalizeAdminSession(session), secret),
     getCookieOptions(60 * 60 * 12),
   );
 
   return true;
+}
+
+export function clearAdminSessionCookie(response: NextResponse) {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  };
+
+  response.cookies.set(ADMIN_SESSION_COOKIE, "", cookieOptions);
+  response.cookies.delete(ADMIN_SESSION_COOKIE);
 }
 
 export function readAdminSession(request: NextRequest): AdminSession | null {
@@ -98,7 +157,24 @@ export function readAdminSession(request: NextRequest): AdminSession | null {
     return null;
   }
 
-  return verifyCookieValue<AdminSession>(value, secret);
+  const session = verifyCookieValue<AdminSession>(value, secret);
+
+  if (!session?.user) {
+    return null;
+  }
+
+  return normalizeAdminSession(session);
+}
+
+export function hasAdminPermission(
+  session: AdminSession,
+  permission: AccessPermissionKey,
+) {
+  if (session.isLegacyAdmin || session.isSuperAdmin) {
+    return true;
+  }
+
+  return Boolean(session.permissions[permission]);
 }
 
 export function toPublicDriverOwner(driverOwner: {

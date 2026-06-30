@@ -10,7 +10,7 @@ import {
   getPagoPropietarioSmtpConfig,
 } from "@/lib/pago-propietario-mail";
 import {
-  requireAdminSession,
+  requireAdminPermission,
   sanitizeServerErrorMessage,
 } from "@/lib/admin-api-server";
 import { NextResponse, type NextRequest } from "next/server";
@@ -116,7 +116,7 @@ function createEmailText(input: {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = requireAdminSession(request);
+  const unauthorized = requireAdminPermission(request, "pagoPropietario");
 
   if (unauthorized) {
     return unauthorized;

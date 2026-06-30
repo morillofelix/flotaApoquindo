@@ -1,4 +1,4 @@
-import { requireAdminSession } from "@/lib/admin-api-server";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import {
   parsePropietariosCsv,
   toPropietario,
@@ -29,7 +29,7 @@ function isParsedRow(value: unknown): value is ParsedPropietarioRow {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = requireAdminSession(request);
+  const unauthorized = requireAdminPermission(request, "propietarios");
 
   if (unauthorized) {
     return unauthorized;

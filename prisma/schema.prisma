@@ -155,3 +155,26 @@ model Propietario {
   @@index([fullName])
   @@index([rut])
 }
+
+model AccessUser {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  fullName           String    @default("")
+  passwordHash       String?
+  isSuperAdmin       Boolean   @default(false)
+  mustChangePassword Boolean   @default(false)
+  tempPasswordSentAt DateTime?
+  isActive           Boolean   @default(true)
+  canSolicitudes     Boolean   @default(false)
+  canCalendario      Boolean   @default(false)
+  canMotivos         Boolean   @default(false)
+  canEjecutivos      Boolean   @default(false)
+  canConductores     Boolean   @default(false)
+  canPropietarios    Boolean   @default(false)
+  canPagoPropietario Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([isSuperAdmin])
+}

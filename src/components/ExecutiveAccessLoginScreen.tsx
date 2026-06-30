@@ -9,13 +9,24 @@ const LOGIN_CARD_SHELL =
   "rounded-[22px] border-2 border-[#7a9fc4] bg-white shadow-lg shadow-slate-400/30 ring-1 ring-[#b7cce4]/60 sm:rounded-[24px]";
 const LOGIN_FIELD_CLASS = `border-2 border-[#7a9fc4] bg-white ${UI_FIELD_SHADOW} ${UI_FIELD_FOCUS}`;
 
+export type LoginAccessUser = {
+  email: string;
+  fullName: string;
+};
+
 type ExecutiveAccessLoginScreenProps = {
   storageKey: string;
   eyebrow: string;
   title: string;
   description: string;
   showCredentialHint?: boolean;
+  userLabel?: string;
+  userPlaceholder?: string;
   onAuthenticated: () => void;
+  onMustChangePassword?: (
+    accessUser: LoginAccessUser,
+    currentPassword: string,
+  ) => void;
 };
 
 export default function ExecutiveAccessLoginScreen({
@@ -24,7 +35,10 @@ export default function ExecutiveAccessLoginScreen({
   title,
   description,
   showCredentialHint = false,
+  userLabel = "Usuario o correo",
+  userPlaceholder = "Usuario ejecutivo o correo",
   onAuthenticated,
+  onMustChangePassword,
 }: ExecutiveAccessLoginScreenProps) {
   const [loginValues, setLoginValues] = useState({ user: "", password: "" });
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -36,27 +50,50 @@ export default function ExecutiveAccessLoginScreen({
     setIsLoggingIn(true);
     setLoginError("");
 
+    const user = loginValues.user.trim();
+    const password = loginValues.password;
+
+    if (!user || !password) {
+      setLoginError("Ingresa usuario o correo y clave.");
+      setIsLoggingIn(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/admin-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
-          user: loginValues.user.trim(),
-          password: loginValues.password,
+          user,
+          password,
         }),
       });
 
-      if (response.ok) {
-        window.sessionStorage.setItem(storageKey, "true");
-        setLoginValues({ user: "", password: "" });
-        setIsPasswordVisible(false);
-        onAuthenticated();
+      const data = (await response.json()) as {
+        message?: string;
+        mustChangePassword?: boolean;
+        accessUser?: LoginAccessUser;
+      };
+
+      if (!response.ok) {
+        setLoginError(data.message ?? "Usuario o clave incorrectos.");
         return;
       }
 
-      setLoginError("Usuario o clave incorrectos.");
+      if (data.mustChangePassword && data.accessUser) {
+        onMustChangePassword?.(data.accessUser, password);
+        setLoginValues({ user: "", password: "" });
+        setIsPasswordVisible(false);
+        return;
+      }
+
+      window.sessionStorage.setItem(storageKey, "true");
+      setLoginValues({ user: "", password: "" });
+      setIsPasswordVisible(false);
+      onAuthenticated();
     } catch {
       setLoginError("No se pudo validar el acceso. Intenta nuevamente.");
     } finally {
@@ -94,7 +131,7 @@ export default function ExecutiveAccessLoginScreen({
 
         <form noValidate onSubmit={handleLogin} className="grid gap-5">
           <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-[#173b68]">Usuario</span>
+            <span className="text-sm font-semibold text-[#173b68]">{userLabel}</span>
             <input
               type="text"
               value={loginValues.user}
@@ -105,7 +142,7 @@ export default function ExecutiveAccessLoginScreen({
                 }))
               }
               className={`h-12 rounded-2xl px-4 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
-              placeholder="Usuario ejecutivo"
+              placeholder={userPlaceholder}
               autoComplete="username"
             />
           </label>
@@ -152,8 +189,8 @@ export default function ExecutiveAccessLoginScreen({
 
         {showCredentialHint ? (
           <p className="mt-5 rounded-2xl border-2 border-[#9fb8d9] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-slate-600">
-            Acceso temporal: usuario <strong>ejecutivo</strong>, clave{" "}
-            <strong>Apoquindo2026</strong>.
+            También puedes ingresar con usuario <strong>ejecutivo</strong> o con
+            tu correo si ya tienes acceso asignado.
           </p>
         ) : null}
       </section>

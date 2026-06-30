@@ -1,4 +1,4 @@
-import { readAdminSession } from "@/lib/driver-auth";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import {
   canSendTemporaryPassword,
   getTemporaryPasswordFromRut,
@@ -18,8 +18,10 @@ type TemporaryPasswordBody = {
 };
 
 export async function POST(request: NextRequest) {
-  if (!readAdminSession(request)) {
-    return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  const unauthorized = requireAdminPermission(request, "conductores");
+
+  if (unauthorized) {
+    return unauthorized;
   }
 
   let body: TemporaryPasswordBody;

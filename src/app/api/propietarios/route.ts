@@ -1,4 +1,4 @@
-import { requireAdminSession } from "@/lib/admin-api-server";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
 import {
   toPropietario,
@@ -128,7 +128,7 @@ function validatePropietarioInput(input: ReturnType<typeof parsePropietarioBody>
 }
 
 export async function GET(request: NextRequest) {
-  const unauthorized = requireAdminSession(request);
+  const unauthorized = requireAdminPermission(request, "propietarios");
 
   if (unauthorized) {
     return unauthorized;
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = requireAdminSession(request);
+  const unauthorized = requireAdminPermission(request, "propietarios");
 
   if (unauthorized) {
     return unauthorized;
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const unauthorized = requireAdminSession(request);
+  const unauthorized = requireAdminPermission(request, "propietarios");
 
   if (unauthorized) {
     return unauthorized;
