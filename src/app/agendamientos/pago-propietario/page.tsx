@@ -21,7 +21,7 @@ import {
 } from "@/lib/pago-propietario";
 import { displayVehicleNumber, type PropietarioConfig } from "@/lib/propietarios";
 import { uiListRowClass } from "@/lib/ui-borders";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const inputClassName =
   "h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
@@ -71,6 +71,8 @@ export default function PagoPropietarioPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSendingBulk, setIsSendingBulk] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadPropietarios()
@@ -82,16 +84,30 @@ export default function PagoPropietarioPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setSearchOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
   const filteredPropietarios = useMemo(() => {
     const normalizedSearch = search.trim();
     const normalizedSearchLower = normalizedSearch.toLowerCase();
     const digitOnlySearch = isDigitOnlySearch(normalizedSearch);
 
-    return propietarios.filter((propietario) => {
-      if (!normalizedSearch) {
-        return true;
-      }
+    if (!normalizedSearch) {
+      return [];
+    }
 
+    return propietarios.filter((propietario) => {
       if (digitOnlySearch) {
         return matchesVehicleNumberSearch(
           propietario.vehicleNumber,
@@ -123,6 +139,15 @@ export default function PagoPropietarioPage() {
 
   function selectPropietario(propietario: PropietarioConfig) {
     setSelectedPropietario(propietario);
+    setSearch("");
+    setSearchOpen(false);
+    clearFeedback();
+  }
+
+  function clearSelectedPropietario() {
+    setSelectedPropietario(null);
+    setSearch("");
+    setSearchOpen(false);
     clearFeedback();
   }
 
@@ -356,116 +381,134 @@ export default function PagoPropietarioPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 border-b border-[#c5d8eb] p-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
-            <div className="flex flex-col gap-3">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Buscar propietario</span>
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Móvil, nombre, RUT o titular"
-                    className={inputClassName}
-                  />
-                </label>
+          <div className="border-b border-[#c5d8eb] p-4 sm:px-5">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_auto] lg:items-end">
+              <div ref={searchContainerRef} className="relative flex flex-col gap-1.5">
+                <span className={labelClassName}>Buscar propietario</span>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Monto a pagar</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={amountInput}
-                    onChange={(event) => setAmountInput(event.target.value)}
-                    placeholder="$0"
-                    className={inputClassName}
-                  />
-                </label>
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={addLineItem}
-                    className={`${primaryButtonClassName} w-full sm:w-auto`}
-                  >
-                    Agregar
-                  </button>
-                </div>
-              </div>
-
-              {selectedPropietario ? (
-                <div className="rounded-2xl border border-[#0b5cab]/20 bg-[#eef5fc] px-4 py-3 text-sm text-[#173b68]">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
-                    Seleccionado
-                  </p>
-                  <p className="font-semibold">{selectedPropietario.fullName}</p>
-                  <p className="text-xs text-slate-600">
-                    Móvil{" "}
-                    {displayVehicleNumber(selectedPropietario.vehicleNumber) ||
-                      "—"}{" "}
-                    · Titular {getTitularName(selectedPropietario)}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-[#f8fbff]">
-              <div className="border-b border-[#c5d8eb] px-4 py-2.5">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
-                  Propietarios
-                </p>
-              </div>
-
-              <div className="max-h-[220px] overflow-y-auto">
-                {isLoading ? (
-                  <p className="px-4 py-6 text-sm text-slate-500">
-                    Cargando propietarios...
-                  </p>
-                ) : loadError ? (
-                  <p className="px-4 py-6 text-sm text-red-600">{loadError}</p>
-                ) : filteredPropietarios.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-slate-500">
-                    No hay propietarios que coincidan con la búsqueda.
-                  </p>
+                {selectedPropietario ? (
+                  <div className="flex h-10 items-center gap-2 rounded-2xl border border-[#0b5cab]/25 bg-[#eef5fc] px-3 text-sm text-[#173b68]">
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="font-semibold text-[#0b5cab]">
+                        Móvil{" "}
+                        {displayVehicleNumber(
+                          selectedPropietario.vehicleNumber,
+                        ) || "—"}
+                      </span>
+                      <span className="text-slate-500"> · </span>
+                      <span className="font-medium">
+                        {selectedPropietario.fullName}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearSelectedPropietario}
+                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-[#0b5cab] transition hover:bg-white/80"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
                 ) : (
-                  filteredPropietarios.slice(0, 80).map((propietario) => {
-                    const isSelected = Boolean(
-                      selectedPropietario &&
-                        getPropietarioKey(selectedPropietario) ===
-                          getPropietarioKey(propietario),
-                    );
-                    const alreadyAdded = lineItems.some(
-                      (item) =>
-                        item.propietarioId === getPropietarioKey(propietario),
-                    );
+                  <>
+                    <input
+                      type="search"
+                      value={search}
+                      onChange={(event) => {
+                        setSearch(event.target.value);
+                        setSearchOpen(true);
+                        clearFeedback();
+                      }}
+                      onFocus={() => {
+                        if (search.trim()) {
+                          setSearchOpen(true);
+                        }
+                      }}
+                      placeholder="Escribe móvil, nombre, RUT o titular..."
+                      className={inputClassName}
+                      autoComplete="off"
+                    />
 
-                    return (
-                      <button
-                        key={getPropietarioKey(propietario)}
-                        type="button"
-                        onClick={() => selectPropietario(propietario)}
-                        disabled={alreadyAdded}
-                        className={`flex w-full flex-col gap-0.5 border-b border-[#d9e5f2] px-4 py-2.5 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-50 ${uiListRowClass(isSelected)}`}
-                      >
-                        <span className="text-sm font-semibold text-[#0f2747]">
-                          {propietario.fullName}
-                        </span>
-                        <span className="text-xs text-slate-600">
-                          Móvil{" "}
-                          {displayVehicleNumber(propietario.vehicleNumber) ||
-                            "—"}
-                        </span>
-                        {alreadyAdded ? (
-                          <span className="text-[11px] font-semibold text-emerald-700">
-                            Ya en el comprobante
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })
+                    {searchOpen && search.trim() ? (
+                      <div className="absolute top-[calc(100%+4px)] z-20 max-h-56 w-full overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white shadow-lg shadow-slate-300/30">
+                        {isLoading ? (
+                          <p className="px-4 py-3 text-sm text-slate-500">
+                            Cargando...
+                          </p>
+                        ) : loadError ? (
+                          <p className="px-4 py-3 text-sm text-red-600">
+                            {loadError}
+                          </p>
+                        ) : filteredPropietarios.length === 0 ? (
+                          <p className="px-4 py-3 text-sm text-slate-500">
+                            Sin resultados para &quot;{search.trim()}&quot;
+                          </p>
+                        ) : (
+                          filteredPropietarios.slice(0, 12).map((propietario) => {
+                            const alreadyAdded = lineItems.some(
+                              (item) =>
+                                item.propietarioId ===
+                                getPropietarioKey(propietario),
+                            );
+
+                            return (
+                              <button
+                                key={getPropietarioKey(propietario)}
+                                type="button"
+                                onClick={() => selectPropietario(propietario)}
+                                disabled={alreadyAdded}
+                                className={`flex w-full flex-col gap-0.5 border-b border-[#e8eef5] px-3 py-2.5 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-50 ${uiListRowClass(false)}`}
+                              >
+                                <span className="truncate text-sm font-semibold text-[#0f2747]">
+                                  {propietario.fullName}
+                                </span>
+                                <span className="text-xs text-slate-600">
+                                  Móvil{" "}
+                                  {displayVehicleNumber(
+                                    propietario.vehicleNumber,
+                                  ) || "—"}{" "}
+                                  · {getTitularName(propietario)}
+                                </span>
+                                {alreadyAdded ? (
+                                  <span className="text-[11px] font-semibold text-emerald-700">
+                                    Ya en el comprobante
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </div>
+
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClassName}>Monto a pagar</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={amountInput}
+                  onChange={(event) => setAmountInput(event.target.value)}
+                  placeholder="$0"
+                  className={inputClassName}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={addLineItem}
+                className={`${primaryButtonClassName} w-full lg:w-auto`}
+              >
+                Agregar
+              </button>
             </div>
+
+            {!selectedPropietario && !search.trim() ? (
+              <p className="mt-2 text-xs text-slate-500">
+                Escribe en el buscador para ver propietarios y seleccionar uno.
+              </p>
+            ) : null}
           </div>
 
           <div className="px-4 py-4 sm:px-5">
