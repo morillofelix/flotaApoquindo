@@ -19,6 +19,7 @@ import {
   sendPagoPropietarioEmails,
   type PagoPropietarioLineItem,
 } from "@/lib/pago-propietario";
+import { downloadPagoComprobantePdf } from "@/lib/pago-propietario-pdf";
 import { displayVehicleNumber, type PropietarioConfig } from "@/lib/propietarios";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -278,16 +279,46 @@ export default function PagoPropietarioPage() {
 
       const successCount = results.filter((result) => result.ok).length;
       const failedCount = results.length - successCount;
+      const sentAt = new Date();
+      const successfulItems = itemsToSend.filter((item) =>
+        results.some((result) => result.id === item.id && result.ok),
+      );
+
+      if (successfulItems.length > 0) {
+        try {
+          await downloadPagoComprobantePdf({
+            sentAt,
+            periodFrom,
+            periodTo,
+            items: successfulItems.map((item) => ({
+              vehicleNumber: item.vehicleNumber,
+              fullName: item.fullName,
+              titularName: item.titularName,
+              titularEmail: item.titularEmail,
+              amount: item.amount,
+            })),
+          });
+        } catch {
+          if (successCount > 0) {
+            setMessage(
+              successCount === 1
+                ? "Correo enviado, pero no se pudo descargar el PDF de respaldo."
+                : `${successCount} correos enviados, pero no se pudo descargar el PDF de respaldo.`,
+            );
+            return;
+          }
+        }
+      }
 
       if (successCount && !failedCount) {
         setMessage(
           successCount === 1
-            ? "Correo enviado correctamente."
-            : `${successCount} correos enviados correctamente.`,
+            ? "Correo enviado y comprobante PDF descargado."
+            : `${successCount} correos enviados y comprobante PDF descargado.`,
         );
       } else if (successCount && failedCount) {
         setMessage(
-          `${successCount} enviados, ${failedCount} con error. Revisa los ítems marcados.`,
+          `${successCount} enviados con PDF de respaldo, ${failedCount} con error. Revisa los ítems marcados.`,
         );
       } else {
         setError("No se pudo enviar ningún correo.");
