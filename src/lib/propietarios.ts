@@ -4,6 +4,7 @@ import {
   normalizeCatalogActive,
   normalizeVehicleNumber,
   parseDateValue,
+  parseSpreadsheetContentToMatrix,
   prepareDriverOwnerUploadContent,
   readDriverOwnerFileContent,
 } from "@/lib/driver-owners";
@@ -12,6 +13,7 @@ export {
   displayVehicleNumber,
   formatFileSize,
   normalizeVehicleNumber,
+  parseSpreadsheetContentToMatrix,
   prepareDriverOwnerUploadContent as preparePropietarioUploadContent,
   readDriverOwnerFileContent as readPropietarioFileContent,
 };

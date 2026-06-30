@@ -665,18 +665,118 @@ function extractLargestTableRows(html: string) {
   return bestRows;
 }
 
+function extractAllHtmlTableRows(html: string) {
+  const rows: string[][] = [];
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let rowMatch = rowRegex.exec(html);
+
+  while (rowMatch) {
+    const rowHtml = rowMatch[1] ?? "";
+    const cells: string[] = [];
+    const cellRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    let cellMatch = cellRegex.exec(rowHtml);
+
+    while (cellMatch) {
+      cells.push(stripHtmlTags(cellMatch[1] ?? ""));
+      cellMatch = cellRegex.exec(rowHtml);
+    }
+
+    if (cells.some((cell) => cell.length > 0)) {
+      rows.push(cells);
+    }
+
+    rowMatch = rowRegex.exec(html);
+  }
+
+  return rows;
+}
+
+function parseOfficeSpreadsheetXmlMatrix(content: string) {
+  const sample = content.slice(0, 8000).toLowerCase();
+
+  if (
+    !sample.includes("office:spreadsheet") &&
+    !sample.includes("schemas-microsoft-com:office:spreadsheet")
+  ) {
+    return null;
+  }
+
+  const rows: string[][] = [];
+  const rowRegex = /<(?:[a-zA-Z0-9]+:)?Row\b[^>]*>([\s\S]*?)<\/(?:[a-zA-Z0-9]+:)?Row>/gi;
+  let rowMatch = rowRegex.exec(content);
+
+  while (rowMatch) {
+    const rowHtml = rowMatch[1] ?? "";
+    const cells: string[] = [];
+    const cellRegex =
+      /<(?:[a-zA-Z0-9]+:)?Cell\b([^>]*)>([\s\S]*?)<\/(?:[a-zA-Z0-9]+:)?Cell>/gi;
+    let cellMatch = cellRegex.exec(rowHtml);
+
+    while (cellMatch) {
+      const attrs = cellMatch[1] ?? "";
+      const indexMatch = attrs.match(/(?:ss:)?Index="(\d+)"/i);
+
+      if (indexMatch) {
+        const targetIndex = Number(indexMatch[1]) - 1;
+
+        while (cells.length < targetIndex) {
+          cells.push("");
+        }
+      }
+
+      const cellBody = cellMatch[2] ?? "";
+      const dataMatch = cellBody.match(
+        /<(?:[a-zA-Z0-9]+:)?Data\b[^>]*>([\s\S]*?)<\/(?:[a-zA-Z0-9]+:)?Data>/i,
+      );
+      const value = stripHtmlTags(dataMatch?.[1] ?? cellBody);
+      cells.push(value);
+      cellMatch = cellRegex.exec(rowHtml);
+    }
+
+    if (cells.some((cell) => cell.length > 0)) {
+      rows.push(cells);
+    }
+
+    rowMatch = rowRegex.exec(content);
+  }
+
+  return rows.length >= 2 ? rows : null;
+}
+
+export function parseSpreadsheetContentToMatrix(content: string) {
+  const trimmed = content.replace(/^\uFEFF/, "");
+
+  const officeXmlRows = parseOfficeSpreadsheetXmlMatrix(trimmed);
+
+  if (officeXmlRows) {
+    return officeXmlRows;
+  }
+
+  if (looksLikeHtmlSpreadsheet(trimmed)) {
+    const largestTableRows = extractLargestTableRows(trimmed);
+
+    if (largestTableRows && largestTableRows.length >= 2) {
+      return largestTableRows;
+    }
+
+    const allHtmlRows = extractAllHtmlTableRows(trimmed);
+
+    if (allHtmlRows.length >= 2) {
+      return allHtmlRows;
+    }
+  }
+
+  return null;
+}
+
 function rowsToCsv(rows: string[][]) {
   return rows.map((row) => row.map((cell) => escapeCsvCell(cell)).join(",")).join("\n");
 }
 
 export function parseHtmlSpreadsheetToCsv(content: string) {
-  if (!looksLikeHtmlSpreadsheet(content)) {
-    return null;
-  }
+  const rows = parseSpreadsheetContentToMatrix(content);
 
-  const rows = extractLargestTableRows(content);
-
-  if (!rows || rows.length < 2) {
+  if (!rows) {
     return null;
   }
 

@@ -9,8 +9,8 @@ import {
 import {
   displayVehicleNumber,
   normalizeVehicleNumber,
+  parseSpreadsheetContentToMatrix,
   preparePropietarioUploadContent,
-  readPropietarioFileContent,
   type PropietarioConfig,
 } from "@/lib/propietarios";
 
@@ -123,8 +123,26 @@ function isTotalFacturarHeader(header: string, rawHeader = "") {
   );
 }
 
+function findMobileColumnIndex(rawHeaders: string[], amountIndex: number) {
+  const blankBeforeAmount = rawHeaders
+    .slice(0, amountIndex >= 0 ? amountIndex : rawHeaders.length)
+    .findIndex((header) => !header.trim());
+
+  if (blankBeforeAmount !== -1) {
+    return blankBeforeAmount;
+  }
+
+  const anyBlank = rawHeaders.findIndex((header) => !header.trim());
+
+  if (anyBlank !== -1) {
+    return anyBlank;
+  }
+
+  return amountIndex > 0 ? 0 : -1;
+}
+
 function findPagoBulkHeaderInMatrix(matrix: string[][]): PagoBulkHeaderMatch | null {
-  const maxScan = Math.min(matrix.length, 80);
+  const maxScan = Math.min(matrix.length, 120);
 
   for (let headerIndex = 0; headerIndex < maxScan; headerIndex += 1) {
     const rawHeaders = matrix[headerIndex] ?? [];
@@ -137,7 +155,7 @@ function findPagoBulkHeaderInMatrix(matrix: string[][]): PagoBulkHeaderMatch | n
       continue;
     }
 
-    const mobileIndex = rawHeaders.findIndex((header) => !header.trim());
+    const mobileIndex = findMobileColumnIndex(rawHeaders, amountIndex);
 
     if (mobileIndex === -1) {
       continue;
@@ -299,63 +317,84 @@ async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
   return matrix.map((row) => (row ?? []).map((cell) => normalizeMatrixCell(cell)));
 }
 
+function decodeSpreadsheetBytes(bytes: Uint8Array) {
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder("utf-16le").decode(bytes);
+  }
+
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder("utf-16be").decode(bytes);
+  }
+
+  const utf8Content = new TextDecoder("utf-8").decode(bytes).replace(/^\uFEFF/, "");
+
+  if (
+    utf8Content.toLowerCase().includes("<table") ||
+    utf8Content.toLowerCase().includes("office:spreadsheet")
+  ) {
+    return utf8Content;
+  }
+
+  return new TextDecoder("latin1").decode(bytes).replace(/^\uFEFF/, "");
+}
+
+function matrixHasReadableData(matrix: string[][]) {
+  return matrix.some((row) => row.some((cell) => cell.trim().length > 0));
+}
+
 async function readSpreadsheetMatrixFromFile(file: File) {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
+  const textContent = decodeSpreadsheetBytes(bytes);
   const shouldTryXlsx =
     isSpreadsheetFile(file.name) ||
     looksLikeBinaryExcel(bytes) ||
     looksLikeXlsxArchive(bytes);
 
-  if (shouldTryXlsx) {
-    try {
-      const matrix = await readSpreadsheetMatrixWithXlsx(buffer);
+  const attempts: Array<() => Promise<string[][]> | string[][]> = [
+    () => parseSpreadsheetContentToMatrix(textContent) ?? [],
+    () => {
+      const prepared = preparePropietarioUploadContent(file.name, textContent);
 
-      if (matrix.length >= 2) {
-        return matrix;
+      if ("error" in prepared) {
+        return [];
+      }
+
+      return csvContentToMatrix(prepared.csvContent);
+    },
+  ];
+
+  if (shouldTryXlsx) {
+    attempts.unshift(() => readSpreadsheetMatrixWithXlsx(buffer));
+  }
+
+  let bestMatrix: string[][] = [];
+  let bestScore = 0;
+
+  for (const attempt of attempts) {
+    try {
+      const matrix = (await attempt()).map((row) =>
+        row.map((cell) => normalizeMatrixCell(cell)),
+      );
+      const headerMatch = findPagoBulkHeaderInMatrix(matrix);
+      const score = headerMatch ? 100 : matrixHasReadableData(matrix) ? 1 : 0;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatrix = matrix;
       }
     } catch {
-      // Fallback to text-based parsers below.
+      continue;
     }
   }
 
-  let rawContent = "";
-
-  try {
-    rawContent = await readPropietarioFileContent(file);
-  } catch (error) {
-    if (shouldTryXlsx) {
-      const matrix = await readSpreadsheetMatrixWithXlsx(buffer);
-
-      if (matrix.length >= 2) {
-        return matrix;
-      }
-    }
-
-    throw error instanceof Error
-      ? error
-      : new Error("No se pudo leer el archivo Excel.");
+  if (bestScore > 0) {
+    return bestMatrix;
   }
 
-  const prepared = preparePropietarioUploadContent(file.name, rawContent);
-
-  if ("error" in prepared) {
-    if (shouldTryXlsx) {
-      try {
-        const matrix = await readSpreadsheetMatrixWithXlsx(buffer);
-
-        if (matrix.length >= 2) {
-          return matrix;
-        }
-      } catch {
-        throw new Error(prepared.error);
-      }
-    }
-
-    throw new Error(prepared.error);
-  }
-
-  return csvContentToMatrix(prepared.csvContent);
+  throw new Error(
+    'No se pudo leer el archivo Excel. Verifica que incluya una columna en blanco para el móvil y la columna "total facturar".',
+  );
 }
 
 export async function readPagoPropietarioBulkFile(file: File) {
