@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     orderBy: [{ fullName: "asc" }],
   });
 
-  void notifyPropietarioBulkImportSafely({
+  const notificationSent = await notifyPropietarioBulkImportSafely({
     actor: getPropietarioNotifyActor(request),
     importedCount: rows.length,
     warningCount: errors.length,
@@ -124,5 +124,6 @@ export async function POST(request: NextRequest) {
     },
     errors,
     propietarios: propietarios.map(toPropietario),
+    notificationSent,
   });
 }

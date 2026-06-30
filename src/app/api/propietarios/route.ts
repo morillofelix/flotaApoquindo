@@ -252,7 +252,7 @@ export async function PATCH(request: NextRequest) {
       data: createData,
     });
 
-    void notifyPropietarioUpdateSafely({
+    const notificationSent = await notifyPropietarioUpdateSafely({
       actor: getPropietarioNotifyActor(request),
       fullName: propietario.fullName,
       rut: propietario.rut,
@@ -262,6 +262,8 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       propietario: toPropietario(propietario) as PropietarioConfig,
+      notificationSent,
+      changesDetected: changes.length,
     });
   } catch {
     return NextResponse.json(

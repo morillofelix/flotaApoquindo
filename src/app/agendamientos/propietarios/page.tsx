@@ -414,15 +414,31 @@ export default function PropietariosPage() {
         body: JSON.stringify(propietarioForm),
       });
 
+      const data = (await response.json()) as {
+        message?: string;
+        notificationSent?: boolean;
+        changesDetected?: number;
+      };
+
       if (!response.ok) {
-        const data = (await response.json()) as { message?: string };
         throw new Error(data.message ?? "No se pudo guardar el registro.");
       }
 
       const loadedPropietarios = await loadPropietarios();
       setPropietarios(loadedPropietarios);
       setPropietarioForm(emptyPropietarioForm);
-      setPropietarioMessage("Registro guardado correctamente.");
+
+      if (data.notificationSent) {
+        setPropietarioMessage(
+          "Registro guardado correctamente. Se envió la notificación por correo.",
+        );
+      } else if ((data.changesDetected ?? 0) > 0) {
+        setPropietarioMessage(
+          "Registro guardado. No se pudo confirmar el envío del correo de notificación.",
+        );
+      } else {
+        setPropietarioMessage("Registro guardado correctamente.");
+      }
     } catch (error) {
       setPropietarioError(
         error instanceof Error

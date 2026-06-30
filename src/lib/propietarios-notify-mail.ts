@@ -12,15 +12,30 @@ const DEFAULT_NOTIFY_RECIPIENTS = [
 ];
 
 function getSmtpConfig() {
-  const host = (process.env.SMTP_HOST ?? "").trim();
-  const port = Number((process.env.SMTP_PORT ?? "587").trim());
-  const user = (process.env.SMTP_USER ?? "").trim();
+  const host = (
+    process.env.NOTIFICA_SMTP_HOST ??
+    process.env.SMTP_HOST ??
+    ""
+  ).trim();
+  const port = Number(
+    (process.env.NOTIFICA_SMTP_PORT ?? process.env.SMTP_PORT ?? "587").trim(),
+  );
+  const user = (
+    process.env.NOTIFICA_SMTP_USER ??
+    process.env.SMTP_USER ??
+    ""
+  ).trim();
   const pass = (
+    process.env.NOTIFICA_SMTP_PASSWORD ??
     process.env.SMTP_PASSWORD ??
     process.env.SMTP_PASS ??
     ""
   ).trim();
-  const from = (process.env.EMAIL_FROM ?? user).trim();
+  const from = (
+    process.env.NOTIFICA_EMAIL_FROM ??
+    process.env.EMAIL_FROM ??
+    user
+  ).trim();
 
   if (!host || !user || !pass || !from) {
     return null;
@@ -66,13 +81,19 @@ async function sendPropietariosNotification(subject: string, lines: string[]) {
     "\n",
   );
 
-  await transporter.sendMail({
-    from: smtp.from,
-    to: getPropietariosNotifyRecipients().join(", "),
-    bcc: smtp.auth.user,
-    subject,
-    text,
-  });
+  const recipients = getPropietariosNotifyRecipients();
+
+  await Promise.all(
+    recipients.map((recipient) =>
+      transporter.sendMail({
+        from: smtp.from,
+        to: recipient,
+        bcc: smtp.auth.user,
+        subject,
+        text,
+      }),
+    ),
+  );
 }
 
 type PropietarioUpdateNotificationInput = {
@@ -159,13 +180,20 @@ export async function notifyPropietarioUpdateSafely(
   input: PropietarioUpdateNotificationInput,
 ) {
   if (!isPropietariosNotifyMailConfigured()) {
-    return;
+    console.warn("Propietario update notification skipped: SMTP no configurado.");
+    return false;
+  }
+
+  if (!input.changes.length) {
+    return false;
   }
 
   try {
     await sendPropietarioUpdateNotification(input);
+    return true;
   } catch (error) {
     console.error("Propietario update notification failed:", error);
+    return false;
   }
 }
 
@@ -173,12 +201,15 @@ export async function notifyPropietarioBulkImportSafely(
   input: PropietarioBulkNotificationInput,
 ) {
   if (!isPropietariosNotifyMailConfigured()) {
-    return;
+    console.warn("Propietario bulk notification skipped: SMTP no configurado.");
+    return false;
   }
 
   try {
     await sendPropietarioBulkImportNotification(input);
+    return true;
   } catch (error) {
     console.error("Propietario bulk notification failed:", error);
+    return false;
   }
 }

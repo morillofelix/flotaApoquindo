@@ -42,6 +42,12 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
 
 const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS);
 
+const PHONE_FIELDS = new Set([
+  "landlinePhone",
+  "mobilePhone",
+  "emergencyContactPhone",
+]);
+
 export type PropietarioChangeRecord = {
   field: string;
   label: string;
@@ -57,7 +63,7 @@ function formatDateValue(value: Date | null | undefined) {
   return value.toISOString().split("T")[0] ?? "";
 }
 
-function normalizeComparableValue(value: unknown) {
+function normalizeComparableValue(value: unknown, field?: string) {
   if (value === null || value === undefined) {
     return "";
   }
@@ -70,7 +76,39 @@ function normalizeComparableValue(value: unknown) {
     return value ? "Sí" : "No";
   }
 
-  return String(value).trim();
+  const normalized = String(value).trim();
+
+  if (field && PHONE_FIELDS.has(field)) {
+    return normalized.replace(/\D/g, "");
+  }
+
+  if (field === "vehicleNumber") {
+    return normalized.replace(/\D/g, "").replace(/^0+/, "") || "";
+  }
+
+  return normalized;
+}
+
+function displayComparableValue(value: unknown, field?: string) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return formatDateValue(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+
+  const normalized = String(value).trim();
+
+  if (field && PHONE_FIELDS.has(field) && normalized) {
+    return normalized.replace(/\D/g, "");
+  }
+
+  return normalized;
 }
 
 function displayValue(value: string) {
@@ -84,8 +122,8 @@ export function diffPropietarioChanges(
   const changes: PropietarioChangeRecord[] = [];
 
   for (const field of TRACKED_FIELDS) {
-    const previousValue = normalizeComparableValue(before[field]);
-    const nextValue = normalizeComparableValue(after[field]);
+    const previousValue = normalizeComparableValue(before[field], field);
+    const nextValue = normalizeComparableValue(after[field], field);
 
     if (previousValue === nextValue) {
       continue;
@@ -94,8 +132,8 @@ export function diffPropietarioChanges(
     changes.push({
       field,
       label: PROPIETARIO_FIELD_LABELS[field] ?? field,
-      before: displayValue(previousValue),
-      after: displayValue(nextValue),
+      before: displayValue(displayComparableValue(before[field], field)),
+      after: displayValue(displayComparableValue(after[field], field)),
     });
   }
 
