@@ -1,19 +1,42 @@
-import { SITE_CONFIG } from "@/lib/constants";
+const PRODUCTION_APP_URL = "https://flota-apoquindo.vercel.app";
+
+function normalizeBaseUrl(value: string) {
+  const trimmed = value.trim().replace(/\/$/, "");
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+}
+
+function isLocalAppUrl(value: string) {
+  return /localhost|127\.0\.0\.1/i.test(value);
+}
+
+function isPreviewVercelUrl(value: string) {
+  return (
+    value.includes("-projects.vercel.app") ||
+    /flota-apoquindo-[a-z0-9]+-/.test(value)
+  );
+}
 
 export function getAdminPlatformUrl() {
-  const configured = (process.env.NEXT_PUBLIC_APP_URL ?? SITE_CONFIG.url).trim();
+  const configured = normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL ?? "");
 
-  if (configured && configured !== "http://localhost:3000") {
-    return configured.replace(/\/$/, "");
+  if (configured && !isLocalAppUrl(configured) && !isPreviewVercelUrl(configured)) {
+    return configured;
   }
 
-  const vercelUrl = (process.env.VERCEL_URL ?? "").trim();
+  const productionUrl = normalizeBaseUrl(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "",
+  );
 
-  if (vercelUrl) {
-    return `https://${vercelUrl.replace(/\/$/, "")}`;
+  if (productionUrl && !isPreviewVercelUrl(productionUrl)) {
+    return productionUrl;
   }
 
-  return "https://flota-apoquindo.vercel.app";
+  return PRODUCTION_APP_URL;
 }
 
 export function getAdminLoginUrl() {
