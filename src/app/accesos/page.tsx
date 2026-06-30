@@ -85,18 +85,18 @@ export default function AccesosPage() {
     }
 
     const data = (await response.json()) as {
-      isSuperAdmin?: boolean;
+      canManageAccesos?: boolean;
       mustChangePassword?: boolean;
       email?: string;
     };
 
-    if (!data.isSuperAdmin) {
+    if (!data.canManageAccesos) {
       await fetch("/api/accesos/session", {
         method: "POST",
         credentials: "include",
       });
       window.sessionStorage.removeItem(ADMIN_ACCESS_STORAGE_KEY);
-      setError("Solo el super administrador puede gestionar accesos.");
+      setError("Solo el administrador principal puede gestionar accesos.");
       setView("login");
       return;
     }

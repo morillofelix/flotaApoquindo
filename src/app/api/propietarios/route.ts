@@ -1,6 +1,10 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
+import { diffPropietarioChanges } from "@/lib/propietarios-changes";
+import { notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
+import { getPropietarioNotifyActor } from "@/lib/propietarios-notify";
 import {
+  displayVehicleNumber,
   toPropietario,
   toPropietarioCreateData,
   type PropietarioConfig,
@@ -240,11 +244,20 @@ export async function PATCH(request: NextRequest) {
     ...input,
     importKey: existingPropietario.importKey,
   });
+  const changes = diffPropietarioChanges(existingPropietario, createData);
 
   try {
     const propietario = await prisma.propietario.update({
       where: { id },
       data: createData,
+    });
+
+    void notifyPropietarioUpdateSafely({
+      actor: getPropietarioNotifyActor(request),
+      fullName: propietario.fullName,
+      rut: propietario.rut,
+      vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
+      changes,
     });
 
     return NextResponse.json({

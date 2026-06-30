@@ -68,16 +68,19 @@ const navItems: NavItem[] = [
 type AdminSessionState = {
   permissions: AccessPermissions;
   isSuperAdmin: boolean;
+  canManageAccesos: boolean;
 };
 
 function AdminNavigation({
   onLogout,
   permissions,
   isSuperAdmin,
+  canManageAccesos,
 }: {
   onLogout: () => void;
   permissions: AccessPermissions;
   isSuperAdmin: boolean;
+  canManageAccesos: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -112,7 +115,7 @@ function AdminNavigation({
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            {isSuperAdmin ? (
+            {canManageAccesos ? (
               <Link
                 href="/accesos"
                 className="inline-flex h-9 items-center justify-center rounded-2xl bg-white px-5 text-sm font-semibold text-[#173b68] transition hover:bg-white/80"
@@ -175,6 +178,7 @@ function AdminShellInner({
       mustChangePassword?: boolean;
       permissions?: AccessPermissions;
       isSuperAdmin?: boolean;
+      canManageAccesos?: boolean;
     };
 
     if (data.mustChangePassword) {
@@ -194,6 +198,7 @@ function AdminShellInner({
         pagoPropietario: false,
       },
       isSuperAdmin: Boolean(data.isSuperAdmin),
+      canManageAccesos: Boolean(data.canManageAccesos),
     });
     setIsAuthenticated(true);
     window.sessionStorage.setItem(ADMIN_ACCESS_STORAGE_KEY, "true");
@@ -292,6 +297,7 @@ function AdminShellInner({
             }
           }
           isSuperAdmin={Boolean(sessionState?.isSuperAdmin)}
+          canManageAccesos={Boolean(sessionState?.canManageAccesos)}
         />
       </Suspense>
 

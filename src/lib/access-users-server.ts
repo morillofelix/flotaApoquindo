@@ -1,16 +1,12 @@
 import {
   FULL_ACCESS_PERMISSIONS,
+  getSuperAdminEmail,
   permissionsToDbData,
 } from "@/lib/access-users";
 import { hashPassword, normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 
-export function getSuperAdminEmail() {
-  return normalizeEmail(
-    process.env.ACCESS_SUPER_ADMIN_EMAIL ??
-      "fmorillo@transportesapoquindo.cl",
-  );
-}
+export { getSuperAdminEmail };
 
 export function getSuperAdminTempPassword() {
   return (process.env.ACCESS_SUPER_ADMIN_TEMP_PASSWORD ?? "1818").trim();
@@ -36,7 +32,14 @@ export async function ensureSuperAdminUser() {
   });
 
   if (existing) {
-    return existing;
+    return prisma.accessUser.update({
+      where: { email },
+      data: {
+        isSuperAdmin: true,
+        isActive: true,
+        ...permissionsToDbData(FULL_ACCESS_PERMISSIONS),
+      },
+    });
   }
 
   const tempPassword = getSuperAdminTempPassword();

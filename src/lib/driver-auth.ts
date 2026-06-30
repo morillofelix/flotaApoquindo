@@ -1,5 +1,9 @@
 import type { AccessPermissionKey, AccessPermissions } from "@/lib/access-users";
-import { FULL_ACCESS_PERMISSIONS } from "@/lib/access-users";
+import {
+  canManageAccesos,
+  FULL_ACCESS_PERMISSIONS,
+  isSuperAdminEmail,
+} from "@/lib/access-users";
 import type { NextRequest, NextResponse } from "next/server";
 import {
   getSessionSecret,
@@ -41,13 +45,21 @@ function getCookieOptions(maxAgeSeconds: number) {
 export function normalizeAdminSession(
   session: Partial<AdminSession> & { user: string },
 ): AdminSession {
-  if (session.isLegacyAdmin || session.isSuperAdmin) {
+  const sessionEmail = session.email ?? session.user;
+  const hasFullAccess =
+    session.isLegacyAdmin ||
+    session.isSuperAdmin ||
+    isSuperAdminEmail(sessionEmail);
+
+  if (hasFullAccess) {
     return {
       user: session.user,
       email: session.email,
       accessUserId: session.accessUserId,
       isLegacyAdmin: session.isLegacyAdmin,
-      isSuperAdmin: session.isSuperAdmin,
+      isSuperAdmin:
+        Boolean(session.isLegacyAdmin || session.isSuperAdmin) ||
+        isSuperAdminEmail(sessionEmail),
       mustChangePassword: session.mustChangePassword,
       permissions: FULL_ACCESS_PERMISSIONS,
     };
@@ -170,12 +182,18 @@ export function hasAdminPermission(
   session: AdminSession,
   permission: AccessPermissionKey,
 ) {
-  if (session.isLegacyAdmin || session.isSuperAdmin) {
+  if (
+    session.isLegacyAdmin ||
+    session.isSuperAdmin ||
+    isSuperAdminEmail(session.email ?? session.user)
+  ) {
     return true;
   }
 
   return Boolean(session.permissions[permission]);
 }
+
+export { canManageAccesos };
 
 export function toPublicDriverOwner(driverOwner: {
   vehicleNumber: string;

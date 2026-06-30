@@ -1,5 +1,6 @@
 import {
   type AccessPermissionKey,
+  canManageAccesos,
   FULL_ACCESS_PERMISSIONS,
 } from "@/lib/access-users";
 import {
@@ -56,7 +57,7 @@ export function requireSuperAdminSession(request: NextRequest) {
     return NextResponse.json({ message: "No autorizado." }, { status: 401 });
   }
 
-  if (!session.isLegacyAdmin && !session.isSuperAdmin) {
+  if (!canManageAccesos(session)) {
     return NextResponse.json({ message: "Acceso restringido." }, { status: 403 });
   }
 

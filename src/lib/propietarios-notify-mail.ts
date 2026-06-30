@@ -1,0 +1,184 @@
+import nodemailer from "nodemailer";
+import {
+  formatPropietarioChangesForEmail,
+  formatSantiagoTimestamp,
+  type PropietarioChangeRecord,
+} from "@/lib/propietarios-changes";
+
+const DEFAULT_NOTIFY_RECIPIENTS = [
+  "fmorillo@transportesapoquindo.cl",
+  "maneva@transportesapoquindo.cl",
+  "administracion@transportesapoquindo.cl",
+];
+
+function getSmtpConfig() {
+  const host = (process.env.SMTP_HOST ?? "").trim();
+  const port = Number((process.env.SMTP_PORT ?? "587").trim());
+  const user = (process.env.SMTP_USER ?? "").trim();
+  const pass = (
+    process.env.SMTP_PASSWORD ??
+    process.env.SMTP_PASS ??
+    ""
+  ).trim();
+  const from = (process.env.EMAIL_FROM ?? user).trim();
+
+  if (!host || !user || !pass || !from) {
+    return null;
+  }
+
+  return {
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    from,
+  };
+}
+
+export function getPropietariosNotifyRecipients() {
+  const configured = (process.env.PROPIETARIOS_NOTIFY_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
+  return configured.length > 0 ? configured : DEFAULT_NOTIFY_RECIPIENTS;
+}
+
+export function isPropietariosNotifyMailConfigured() {
+  return getSmtpConfig() !== null;
+}
+
+async function sendPropietariosNotification(subject: string, lines: string[]) {
+  const smtp = getSmtpConfig();
+
+  if (!smtp) {
+    throw new Error("Correo SMTP no configurado en el servidor.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.auth,
+  });
+
+  const text = [...lines, "", "Transportes Apoquindo", "Sistema de gestión de flota"].join(
+    "\n",
+  );
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to: getPropietariosNotifyRecipients().join(", "),
+    bcc: smtp.auth.user,
+    subject,
+    text,
+  });
+}
+
+type PropietarioUpdateNotificationInput = {
+  actor: string;
+  fullName: string;
+  rut: string;
+  vehicleNumber: string;
+  changes: PropietarioChangeRecord[];
+};
+
+export async function sendPropietarioUpdateNotification(
+  input: PropietarioUpdateNotificationInput,
+) {
+  if (!input.changes.length) {
+    return;
+  }
+
+  const timestamp = formatSantiagoTimestamp();
+  const changeLines = formatPropietarioChangesForEmail(input.changes);
+
+  await sendPropietariosNotification(
+    "Actualización de propietario - Transportes Apoquindo",
+    [
+      "Estimados,",
+      "",
+      "Se informa que se actualizó un registro en el módulo de Propietarios.",
+      "",
+      `Fecha y hora: ${timestamp}`,
+      `Usuario que realizó el cambio: ${input.actor}`,
+      `Propietario: ${input.fullName || "(sin nombre)"}`,
+      `RUT: ${input.rut || "(sin RUT)"}`,
+      `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
+      "",
+      "Detalle de modificaciones:",
+      "",
+      ...changeLines,
+      "",
+      "Este mensaje fue generado automáticamente por el sistema.",
+    ],
+  );
+}
+
+type PropietarioBulkNotificationInput = {
+  actor: string;
+  importedCount: number;
+  warningCount: number;
+  sampleNames: string[];
+};
+
+export async function sendPropietarioBulkImportNotification(
+  input: PropietarioBulkNotificationInput,
+) {
+  const timestamp = formatSantiagoTimestamp();
+  const sampleLines =
+    input.sampleNames.length > 0
+      ? [
+          "",
+          "Ejemplos de propietarios importados:",
+          ...input.sampleNames.map((name, index) => `${index + 1}. ${name}`),
+        ]
+      : [];
+
+  await sendPropietariosNotification(
+    "Carga masiva de propietarios - Transportes Apoquindo",
+    [
+      "Estimados,",
+      "",
+      "Se informa que se actualizó la base de propietarios mediante carga masiva.",
+      "",
+      `Fecha y hora: ${timestamp}`,
+      `Usuario que realizó la carga: ${input.actor}`,
+      `Registros importados: ${input.importedCount}`,
+      `Advertencias de validación: ${input.warningCount}`,
+      "",
+      "La operación reemplazó la base completa de propietarios con los datos del archivo cargado.",
+      ...sampleLines,
+      "",
+      "Este mensaje fue generado automáticamente por el sistema.",
+    ],
+  );
+}
+
+export async function notifyPropietarioUpdateSafely(
+  input: PropietarioUpdateNotificationInput,
+) {
+  if (!isPropietariosNotifyMailConfigured()) {
+    return;
+  }
+
+  try {
+    await sendPropietarioUpdateNotification(input);
+  } catch (error) {
+    console.error("Propietario update notification failed:", error);
+  }
+}
+
+export async function notifyPropietarioBulkImportSafely(
+  input: PropietarioBulkNotificationInput,
+) {
+  if (!isPropietariosNotifyMailConfigured()) {
+    return;
+  }
+
+  try {
+    await sendPropietarioBulkImportNotification(input);
+  } catch (error) {
+    console.error("Propietario bulk notification failed:", error);
+  }
+}

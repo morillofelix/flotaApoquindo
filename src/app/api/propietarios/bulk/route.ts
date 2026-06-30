@@ -1,4 +1,6 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { notifyPropietarioBulkImportSafely } from "@/lib/propietarios-notify-mail";
+import { getPropietarioNotifyActor } from "@/lib/propietarios-notify";
 import {
   parsePropietariosCsv,
   toPropietario,
@@ -101,6 +103,16 @@ export async function POST(request: NextRequest) {
 
   const propietarios = await prisma.propietario.findMany({
     orderBy: [{ fullName: "asc" }],
+  });
+
+  void notifyPropietarioBulkImportSafely({
+    actor: getPropietarioNotifyActor(request),
+    importedCount: rows.length,
+    warningCount: errors.length,
+    sampleNames: rows
+      .slice(0, 10)
+      .map((row) => row.fullName.trim())
+      .filter(Boolean),
   });
 
   return NextResponse.json({

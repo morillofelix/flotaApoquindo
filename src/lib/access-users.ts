@@ -33,6 +33,28 @@ export const FULL_ACCESS_PERMISSIONS: AccessPermissions = {
   pagoPropietario: true,
 };
 
+export function normalizeAccessEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function getSuperAdminEmail() {
+  return normalizeAccessEmail(
+    process.env.ACCESS_SUPER_ADMIN_EMAIL ??
+      "fmorillo@transportesapoquindo.cl",
+  );
+}
+
+export function isSuperAdminEmail(email: string) {
+  return normalizeAccessEmail(email) === getSuperAdminEmail();
+}
+
+export function canManageAccesos(session: {
+  email?: string;
+  user: string;
+}) {
+  return isSuperAdminEmail(session.email ?? session.user);
+}
+
 export type PublicAccessUser = {
   id: string;
   email: string;

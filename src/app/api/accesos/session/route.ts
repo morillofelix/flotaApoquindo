@@ -1,4 +1,5 @@
 import { ensureSuperAdminUser } from "@/lib/access-users-server";
+import { canManageAccesos } from "@/lib/access-users";
 import {
   clearAdminSessionCookie,
   readAdminSession,
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
     email: session.email ?? session.user,
     isLegacyAdmin: Boolean(session.isLegacyAdmin),
     isSuperAdmin: Boolean(session.isLegacyAdmin || session.isSuperAdmin),
+    canManageAccesos: canManageAccesos(session),
     mustChangePassword: Boolean(session.mustChangePassword),
     permissions: session.permissions,
   });
