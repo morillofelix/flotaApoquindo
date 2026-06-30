@@ -1,5 +1,5 @@
+import { getSuperAdminEmail } from "@/lib/access-users-server";
 import {
-  getSuperAdminEmail,
   permissionsToDbData,
   toPublicAccessUser,
   type AccessPermissions,

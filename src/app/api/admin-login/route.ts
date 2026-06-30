@@ -1,9 +1,11 @@
 import {
-  findActiveAccessUserByEmail,
   FULL_ACCESS_PERMISSIONS,
   permissionsFromAccessUser,
-  ensureSuperAdminUser,
 } from "@/lib/access-users";
+import {
+  ensureSuperAdminUser,
+  findActiveAccessUserByEmail,
+} from "@/lib/access-users-server";
 import {
   setAdminSessionCookie,
   type AdminSession,

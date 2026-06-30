@@ -1,4 +1,4 @@
-import { ensureSuperAdminUser } from "@/lib/access-users";
+import { ensureSuperAdminUser } from "@/lib/access-users-server";
 import {
   clearAdminSessionCookie,
   readAdminSession,

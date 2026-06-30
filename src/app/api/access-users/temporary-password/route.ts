@@ -1,4 +1,4 @@
-import { generateAccessTemporaryPassword } from "@/lib/access-users";
+import { generateAccessTemporaryPassword } from "@/lib/access-users-server";
 import { requireSuperAdminSession } from "@/lib/admin-api-server";
 import {
   isAccessUserMailConfigured,
