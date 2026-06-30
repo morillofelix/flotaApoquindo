@@ -46,6 +46,12 @@ const navItems: NavItem[] = [
     href: "/agendamientos/propietarios",
     isActive: (pathname) => pathname.startsWith("/agendamientos/propietarios"),
   },
+  {
+    label: "Pago propietario",
+    href: "/agendamientos/pago-propietario",
+    isActive: (pathname) =>
+      pathname.startsWith("/agendamientos/pago-propietario"),
+  },
 ];
 
 function AdminNavigation({
