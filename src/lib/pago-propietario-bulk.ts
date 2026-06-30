@@ -132,6 +132,19 @@ function isTotalFacturarHeader(header: string, rawHeader = "") {
   );
 }
 
+function isMobileColumnHeader(value: string) {
+  const normalized = normalizeHeader(value);
+
+  return (
+    normalized.includes("movil") ||
+    normalized.includes("conductor")
+  );
+}
+
+function isPreliqHeader(value: string) {
+  return normalizeHeader(value).includes("preliq");
+}
+
 function isBlankHeader(value: string) {
   return !normalizeHeader(value);
 }
@@ -174,22 +187,52 @@ function findMobileColumnIndex(
   matrix: string[][],
   headerIndex: number,
 ) {
-  const candidates: number[] = [];
+  const searchLimit = amountIndex >= 0 ? amountIndex : rawHeaders.length;
+  const namedMobileIndices: number[] = [];
+  const blankIndices: number[] = [];
 
-  for (
-    let columnIndex = 0;
-    columnIndex < (amountIndex >= 0 ? amountIndex : rawHeaders.length);
-    columnIndex += 1
-  ) {
-    if (isBlankHeader(rawHeaders[columnIndex] ?? "")) {
-      candidates.push(columnIndex);
+  for (let columnIndex = 0; columnIndex < searchLimit; columnIndex += 1) {
+    const header = rawHeaders[columnIndex] ?? "";
+
+    if (isMobileColumnHeader(header)) {
+      namedMobileIndices.push(columnIndex);
+    }
+
+    if (isBlankHeader(header)) {
+      blankIndices.push(columnIndex);
     }
   }
 
   let bestIndex = -1;
   let bestScore = 0;
 
-  for (const columnIndex of candidates) {
+  for (const columnIndex of namedMobileIndices) {
+    const score = countMobileValuesInColumn(matrix, columnIndex, headerIndex);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = columnIndex;
+    }
+  }
+
+  if (bestIndex !== -1 && bestScore > 0) {
+    return bestIndex;
+  }
+
+  const hasPreliquidacionesLayout = rawHeaders.some((header) => isPreliqHeader(header));
+
+  if (hasPreliquidacionesLayout && 3 < searchLimit) {
+    const scoreAtD = countMobileValuesInColumn(matrix, 3, headerIndex);
+
+    if (scoreAtD > 0) {
+      return 3;
+    }
+  }
+
+  bestIndex = -1;
+  bestScore = 0;
+
+  for (const columnIndex of blankIndices) {
     const score = countMobileValuesInColumn(matrix, columnIndex, headerIndex);
 
     if (score > bestScore) {
@@ -204,8 +247,20 @@ function findMobileColumnIndex(
 
   const conductorIndex = rawHeaders.findIndex((header) => isConductorHeader(header));
 
-  if (conductorIndex > 0 && conductorIndex < amountIndex) {
-    return conductorIndex - 1;
+  if (conductorIndex >= 0 && conductorIndex < amountIndex) {
+    const conductorScore = countMobileValuesInColumn(
+      matrix,
+      conductorIndex,
+      headerIndex,
+    );
+
+    if (conductorScore > 0) {
+      return conductorIndex;
+    }
+
+    if (conductorIndex > 0) {
+      return conductorIndex - 1;
+    }
   }
 
   const periodoIndex = rawHeaders.findIndex((header) => isPeriodoHeader(header));
@@ -217,11 +272,7 @@ function findMobileColumnIndex(
   let dataBestIndex = -1;
   let dataBestScore = 0;
 
-  for (
-    let columnIndex = 0;
-    columnIndex < (amountIndex >= 0 ? amountIndex : rawHeaders.length);
-    columnIndex += 1
-  ) {
+  for (let columnIndex = 0; columnIndex < searchLimit; columnIndex += 1) {
     const score = countMobileValuesInColumn(matrix, columnIndex, headerIndex);
 
     if (score > dataBestScore) {
@@ -234,8 +285,12 @@ function findMobileColumnIndex(
     return dataBestIndex;
   }
 
-  if (candidates.length > 0) {
-    return candidates[0] ?? -1;
+  if (blankIndices.length > 0) {
+    return blankIndices[0] ?? -1;
+  }
+
+  if (hasPreliquidacionesLayout && 3 < searchLimit) {
+    return 3;
   }
 
   return amountIndex > 0 ? 0 : -1;
@@ -328,7 +383,7 @@ export function parsePagoPropietarioBulkMatrix(
     return {
       rows: [],
       errors: [
-        'No se encontró la fila de encabezados con una columna sin título para el móvil y la columna "Total Facturar".',
+        'No se encontró la fila de encabezados con la columna del móvil (columna D / Móviles o Conductor) y la columna "Total Facturar".',
       ],
     };
   }

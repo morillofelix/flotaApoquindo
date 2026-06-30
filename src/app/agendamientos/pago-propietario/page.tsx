@@ -670,8 +670,8 @@ export default function PagoPropietarioPage() {
                     Cargador masivo Excel
                   </p>
                   <p className="text-[11px] leading-5 text-slate-500">
-                    Usa la columna con encabezado en blanco para el móvil y
-                    &quot;total facturar&quot; para el monto. Los demás datos se
+                    Usa la columna D (Móviles o Conductor) para el móvil y
+                    &quot;Total Facturar&quot; (columna Q) para el monto. Los demás datos se
                     toman de propietarios. Al enviar masivo, cada titular recibe
                     su correo y se descarga un PDF con el detalle completo del
                     lote enviado.
