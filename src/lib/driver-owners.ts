@@ -556,9 +556,16 @@ function looksLikeSlkContent(content: string) {
 }
 
 function looksLikeHtmlSpreadsheet(content: string) {
-  const sample = content.slice(0, 12000).toLowerCase();
+  const sample = content.slice(0, 16000).toLowerCase();
 
-  return sample.includes("<table") && (sample.includes("<td") || sample.includes("<th"));
+  return (
+    (sample.includes("<table") && (sample.includes("<td") || sample.includes("<th"))) ||
+    sample.includes("office:spreadsheet") ||
+    sample.includes("schemas-microsoft-com:office:spreadsheet") ||
+    sample.includes("<workbook") ||
+    sample.trimStart().startsWith("<?xml") ||
+    sample.trimStart().startsWith("<html")
+  );
 }
 
 function decodeHtmlEntities(value: string) {
@@ -653,9 +660,28 @@ function extractLargestTableRows(html: string) {
 
   while (tableMatch) {
     const rows = extractRowsFromTableHtml(tableMatch[0] ?? "");
+    let score = rows.length;
 
-    if (rows.length > bestScore) {
-      bestScore = rows.length;
+    for (const row of rows.slice(0, 6)) {
+      for (const cell of row) {
+        const lower = cell.toLowerCase();
+
+        if (lower.includes("facturar") || lower.includes("factura")) {
+          score += 200;
+        }
+
+        if (lower.includes("preliq")) {
+          score += 80;
+        }
+
+        if (lower.includes("periodo")) {
+          score += 40;
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
       bestRows = rows;
     }
 
@@ -767,6 +793,10 @@ export function parseSpreadsheetContentToMatrix(content: string) {
   }
 
   return null;
+}
+
+export function looksLikeAccessTextSpreadsheet(content: string) {
+  return looksLikeHtmlSpreadsheet(content);
 }
 
 function rowsToCsv(rows: string[][]) {

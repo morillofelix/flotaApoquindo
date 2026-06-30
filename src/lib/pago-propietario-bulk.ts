@@ -9,8 +9,10 @@ import {
 } from "@/lib/pago-propietario";
 import {
   displayVehicleNumber,
+  looksLikeAccessTextSpreadsheet,
   normalizeVehicleNumber,
   parseSpreadsheetContentToMatrix,
+  preparePropietarioUploadContent,
   type PropietarioConfig,
 } from "@/lib/propietarios";
 
@@ -533,6 +535,101 @@ function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
   return bestMatrix;
 }
 
+function looksLikeTextSpreadsheetBytes(bytes: Uint8Array) {
+  const preview = new TextDecoder("latin1")
+    .decode(bytes.slice(0, 4096))
+    .replace(/^\uFEFF/, "")
+    .trimStart()
+    .toLowerCase();
+
+  return looksLikeAccessTextSpreadsheet(preview);
+}
+
+function matrixLooksLikeHtmlGarbage(matrix: string[][]) {
+  const firstRow = matrix[0] ?? [];
+  const garbageCells = firstRow.filter((cell) =>
+    /^[<>&+]$|^&lt$|^&gt$/i.test(cell.trim()),
+  ).length;
+
+  return garbageCells >= 2;
+}
+
+function scoreMatrixForPagoBulk(matrix: string[][]) {
+  if (!matrixHasReadableData(matrix) || matrixLooksLikeHtmlGarbage(matrix)) {
+    return -1000;
+  }
+
+  if (findPagoBulkHeaderInMatrix(matrix)) {
+    return 10000;
+  }
+
+  let score = matrix.length;
+
+  for (let rowIndex = 0; rowIndex < Math.min(matrix.length, 30); rowIndex += 1) {
+    for (const cell of matrix[rowIndex] ?? []) {
+      const rawHeader = cell.trim();
+
+      if (!rawHeader) {
+        continue;
+      }
+
+      const header = normalizeHeader(rawHeader);
+
+      if (isTotalFacturarHeader(header, rawHeader)) {
+        score += 200;
+      }
+
+      if (header.includes("preliq")) {
+        score += 80;
+      }
+
+      if (isPeriodoHeader(rawHeader)) {
+        score += 40;
+      }
+
+      if (isConductorHeader(rawHeader)) {
+        score += 20;
+      }
+    }
+  }
+
+  return score;
+}
+
+function readTextSpreadsheetMatrix(fileName: string, textContent: string) {
+  const candidates: string[][][] = [];
+  const parsedMatrix = parseSpreadsheetContentToMatrix(textContent);
+
+  if (parsedMatrix?.length) {
+    candidates.push(parsedMatrix);
+  }
+
+  if (looksLikeAccessTextSpreadsheet(textContent)) {
+    const prepared = preparePropietarioUploadContent(fileName, textContent);
+
+    if (!("error" in prepared)) {
+      candidates.push(csvContentToMatrix(prepared.csvContent));
+    }
+  }
+
+  let bestMatrix: string[][] = [];
+  let bestScore = -Infinity;
+
+  for (const candidate of candidates) {
+    const matrix = padMatrix(
+      candidate.map((row) => row.map((cell) => normalizeMatrixCell(cell))),
+    );
+    const score = scoreMatrixForPagoBulk(matrix);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatrix = matrix;
+    }
+  }
+
+  return bestMatrix;
+}
+
 function decodeSpreadsheetBytes(bytes: Uint8Array) {
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
     return new TextDecoder("utf-16le").decode(bytes);
@@ -544,14 +641,17 @@ function decodeSpreadsheetBytes(bytes: Uint8Array) {
 
   const utf8Content = new TextDecoder("utf-8").decode(bytes).replace(/^\uFEFF/, "");
 
-  if (
-    utf8Content.toLowerCase().includes("<table") ||
-    utf8Content.toLowerCase().includes("office:spreadsheet")
-  ) {
+  if (looksLikeAccessTextSpreadsheet(utf8Content)) {
     return utf8Content;
   }
 
-  return new TextDecoder("latin1").decode(bytes).replace(/^\uFEFF/, "");
+  const latinContent = new TextDecoder("latin1").decode(bytes).replace(/^\uFEFF/, "");
+
+  if (looksLikeAccessTextSpreadsheet(latinContent)) {
+    return latinContent;
+  }
+
+  return latinContent;
 }
 
 function matrixHasReadableData(matrix: string[][]) {
@@ -604,21 +704,32 @@ async function readSpreadsheetMatrixFromFile(file: File) {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   const textContent = decodeSpreadsheetBytes(bytes);
+  const isTextSpreadsheet =
+    looksLikeAccessTextSpreadsheet(textContent) ||
+    looksLikeTextSpreadsheetBytes(bytes);
   const shouldTryXlsx =
-    isSpreadsheetFile(file.name) ||
-    looksLikeBinaryExcel(bytes) ||
-    looksLikeXlsxArchive(bytes);
+    !isTextSpreadsheet &&
+    (looksLikeBinaryExcel(bytes) ||
+      looksLikeXlsxArchive(bytes) ||
+      (isSpreadsheetFile(file.name) &&
+        (looksLikeBinaryExcel(bytes) || looksLikeXlsxArchive(bytes))));
 
   const attempts: Array<() => Promise<string[][]> | string[][]> = [];
+
+  if (isTextSpreadsheet) {
+    attempts.push(() => readTextSpreadsheetMatrix(file.name, textContent));
+  }
 
   if (shouldTryXlsx) {
     attempts.push(() => readSpreadsheetMatrixWithXlsx(buffer));
   }
 
-  attempts.push(() => padMatrix(parseSpreadsheetContentToMatrix(textContent) ?? []));
+  if (!isTextSpreadsheet) {
+    attempts.push(() => readTextSpreadsheetMatrix(file.name, textContent));
+  }
 
   let bestMatrix: string[][] = [];
-  let bestHeaderMatch: PagoBulkHeaderMatch | null = null;
+  let bestScore = -Infinity;
 
   for (const attempt of attempts) {
     try {
@@ -631,7 +742,10 @@ async function readSpreadsheetMatrixFromFile(file: File) {
         return matrix;
       }
 
-      if (matrixHasReadableData(matrix) && matrix.length > bestMatrix.length) {
+      const score = scoreMatrixForPagoBulk(matrix);
+
+      if (score > bestScore) {
+        bestScore = score;
         bestMatrix = matrix;
       }
     } catch {
@@ -639,12 +753,8 @@ async function readSpreadsheetMatrixFromFile(file: File) {
     }
   }
 
-  if (bestMatrix.length >= 2) {
-    bestHeaderMatch = findPagoBulkHeaderInMatrix(bestMatrix);
-
-    if (bestHeaderMatch) {
-      return bestMatrix;
-    }
+  if (bestMatrix.length >= 2 && findPagoBulkHeaderInMatrix(bestMatrix)) {
+    return bestMatrix;
   }
 
   throw new Error(
