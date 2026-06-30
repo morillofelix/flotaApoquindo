@@ -1,5 +1,9 @@
 const PRODUCTION_APP_URL = "https://flota-apoquindo.vercel.app";
 
+/** Enlace oficial de ingreso administrativo (correos de acceso). */
+export const ADMIN_AGENDAMIENTOS_LOGIN_URL =
+  "https://flota-apoquindo.vercel.app/agendamientos";
+
 function normalizeBaseUrl(value: string) {
   const trimmed = value.trim().replace(/\/$/, "");
 
@@ -40,5 +44,16 @@ export function getAdminPlatformUrl() {
 }
 
 export function getAdminLoginUrl() {
-  return `${getAdminPlatformUrl()}/agendamientos`;
+  const configured = normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL ?? "");
+
+  if (
+    configured &&
+    !isLocalAppUrl(configured) &&
+    !isPreviewVercelUrl(configured) &&
+    configured !== PRODUCTION_APP_URL
+  ) {
+    return `${configured}/agendamientos`;
+  }
+
+  return ADMIN_AGENDAMIENTOS_LOGIN_URL;
 }
