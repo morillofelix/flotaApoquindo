@@ -156,6 +156,25 @@ export function diffPropietarioChanges(
     });
   }
 
+  const beforeReason = String(before.inactiveReason ?? "").trim();
+  const afterReason = String(after.inactiveReason ?? "").trim();
+
+  if (beforeReason !== afterReason && afterReason) {
+    const alreadyInStatusChange = changes.some(
+      (change) =>
+        change.field === "isActive" && change.after.includes(afterReason),
+    );
+
+    if (!alreadyInStatusChange) {
+      changes.push({
+        field: "inactiveReason",
+        label: PROPIETARIO_FIELD_LABELS.inactiveReason ?? "Motivo de inactivación",
+        before: displayValue(beforeReason),
+        after: displayValue(afterReason),
+      });
+    }
+  }
+
   return changes;
 }
 

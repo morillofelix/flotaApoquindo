@@ -102,34 +102,50 @@ type PropietarioUpdateNotificationInput = {
   rut: string;
   vehicleNumber: string;
   changes: PropietarioChangeRecord[];
+  inactiveReason?: string;
 };
+
+function buildInactiveReasonEmailLines(inactiveReason?: string) {
+  const reason = inactiveReason?.trim();
+
+  if (!reason) {
+    return [];
+  }
+
+  return ["", "Motivo de inactivación:", reason];
+}
 
 export async function sendPropietarioUpdateNotification(
   input: PropietarioUpdateNotificationInput,
 ) {
-  if (!input.changes.length) {
+  if (!input.changes.length && !input.inactiveReason?.trim()) {
     return;
   }
 
   const timestamp = formatSantiagoTimestamp();
   const changeLines = formatPropietarioChangesForEmail(input.changes);
+  const motivoLines = buildInactiveReasonEmailLines(input.inactiveReason);
 
   await sendPropietariosNotification(
-    "Actualización de propietario - Transportes Apoquindo",
+    input.inactiveReason?.trim()
+      ? "Inactivación / actualización de propietario - Transportes Apoquindo"
+      : "Actualización de propietario - Transportes Apoquindo",
     [
       "Estimados,",
       "",
-      "Se informa que se actualizó un registro en el módulo de Propietarios.",
+      input.inactiveReason?.trim()
+        ? "Se informa que se inactivó o actualizó un registro en el módulo de Propietarios."
+        : "Se informa que se actualizó un registro en el módulo de Propietarios.",
       "",
       `Fecha y hora: ${timestamp}`,
       `Usuario que realizó el cambio: ${input.actor}`,
       `Propietario: ${input.fullName || "(sin nombre)"}`,
       `RUT: ${input.rut || "(sin RUT)"}`,
       `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
-      "",
-      "Detalle de modificaciones:",
-      "",
-      ...changeLines,
+      ...motivoLines,
+      ...(changeLines.length
+        ? ["", "Detalle de modificaciones:", "", ...changeLines]
+        : []),
       "",
       "Este mensaje fue generado automáticamente por el sistema.",
     ],
@@ -184,7 +200,7 @@ export async function notifyPropietarioUpdateSafely(
     return false;
   }
 
-  if (!input.changes.length) {
+  if (!input.changes.length && !input.inactiveReason?.trim()) {
     return false;
   }
 

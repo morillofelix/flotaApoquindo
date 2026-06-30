@@ -304,6 +304,15 @@ export async function PATCH(request: NextRequest) {
     inactiveReason,
   });
   const changes = diffPropietarioChanges(existingPropietario, createData);
+  const wasDeactivated =
+    existingPropietario.isActive && createData.isActive === false;
+  const inactiveReasonChanged =
+    (existingPropietario.inactiveReason ?? "").trim() !== inactiveReason.trim();
+  const inactiveReasonForEmail =
+    inactiveReason.trim() &&
+    (wasDeactivated || (createData.isActive === false && inactiveReasonChanged))
+      ? inactiveReason.trim()
+      : undefined;
 
   try {
     const propietario = await prisma.propietario.update({
@@ -317,6 +326,7 @@ export async function PATCH(request: NextRequest) {
       rut: propietario.rut,
       vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
       changes,
+      inactiveReason: inactiveReasonForEmail,
     });
 
     return NextResponse.json({
