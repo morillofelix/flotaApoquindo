@@ -213,3 +213,54 @@ export async function notifyPropietarioBulkImportSafely(
     return false;
   }
 }
+
+type PropietarioDeleteNotificationInput = {
+  actor: string;
+  fullName: string;
+  rut: string;
+  vehicleNumber: string;
+  reason: string;
+};
+
+export async function sendPropietarioDeleteNotification(
+  input: PropietarioDeleteNotificationInput,
+) {
+  const timestamp = formatSantiagoTimestamp();
+
+  await sendPropietariosNotification(
+    "Eliminación de propietario - Transportes Apoquindo",
+    [
+      "Estimados,",
+      "",
+      "Se informa que se eliminó un registro del módulo de Propietarios.",
+      "",
+      `Fecha y hora: ${timestamp}`,
+      `Usuario que realizó la acción: ${input.actor}`,
+      `Propietario: ${input.fullName || "(sin nombre)"}`,
+      `RUT: ${input.rut || "(sin RUT)"}`,
+      `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
+      "",
+      "Motivo de eliminación:",
+      input.reason,
+      "",
+      "Este mensaje fue generado automáticamente por el sistema.",
+    ],
+  );
+}
+
+export async function notifyPropietarioDeleteSafely(
+  input: PropietarioDeleteNotificationInput,
+) {
+  if (!isPropietariosNotifyMailConfigured()) {
+    console.warn("Propietario delete notification skipped: SMTP no configurado.");
+    return false;
+  }
+
+  try {
+    await sendPropietarioDeleteNotification(input);
+    return true;
+  } catch (error) {
+    console.error("Propietario delete notification failed:", error);
+    return false;
+  }
+}

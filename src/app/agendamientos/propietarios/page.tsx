@@ -2,6 +2,7 @@
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
+import { useObservationPrompt } from "@/hooks/useObservationPrompt";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { loadPropietarios } from "@/lib/agendamientos-admin";
 import {
@@ -101,6 +102,7 @@ const emptyPropietarioForm: PropietarioForm = {
   emergencyContactEmail: "",
   emergencyContactPhone: "",
   isActive: true,
+  inactiveReason: "",
 };
 
 const inputClassName =
@@ -110,6 +112,8 @@ const labelClassName = "text-xs font-semibold text-[#173b68]";
 
 export default function PropietariosPage() {
   const { confirm, dialog } = useConfirmAction();
+  const { promptObservation, dialog: observationDialog } =
+    useObservationPrompt();
   const [propietarios, setPropietarios] = useState<PropietarioConfig[]>([]);
   const [propietarioForm, setPropietarioForm] =
     useState<PropietarioForm>(emptyPropietarioForm);
@@ -293,6 +297,7 @@ export default function PropietariosPage() {
         summary?: { imported?: number; total?: number };
         errors?: string[];
         propietarios?: PropietarioConfig[];
+        notificationSent?: boolean;
       };
 
       if (!response.ok) {
@@ -306,17 +311,22 @@ export default function PropietariosPage() {
 
       const importedCount =
         data.summary?.imported ?? data.summary?.total ?? bulkUpload.parsedRows.length;
+      const notificationNote = data.notificationSent
+        ? " Se notificó la carga masiva por correo."
+        : "";
 
       setPropietarios(data.propietarios ?? []);
       setBulkUpload((currentState) => ({
         ...currentState,
         phase: "success",
-        detail: `¡Su carga fue exitosa! Se importaron ${importedCount} propietarios y se reemplazó la base anterior.`,
+        detail: `¡Su carga fue exitosa! Se importaron ${importedCount} propietarios y se reemplazó la base anterior.${notificationNote}`,
         progress: 100,
         importedCount,
       }));
       setPropietarioMessage(
-        `Carga masiva exitosa: ${importedCount} propietarios importados.`,
+        data.notificationSent
+          ? `Carga masiva exitosa: ${importedCount} propietarios importados. Se envió la notificación por correo.`
+          : `Carga masiva exitosa: ${importedCount} propietarios importados.`,
       );
 
       if (data.errors?.length) {
@@ -402,16 +412,26 @@ export default function PropietariosPage() {
       return;
     }
 
+    const formToSave = await ensureInactiveReasonBeforeSave();
+
+    if (!formToSave) {
+      return;
+    }
+
+    if (formToSave !== propietarioForm) {
+      setPropietarioForm(formToSave);
+    }
+
     setIsSavingPropietario(true);
 
     try {
       const response = await fetch("/api/propietarios", {
-        method: propietarioForm.id ? "PATCH" : "POST",
+        method: formToSave.id ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: adminFetchInit.credentials,
-        body: JSON.stringify(propietarioForm),
+        body: JSON.stringify(formToSave),
       });
 
       const data = (await response.json()) as {
@@ -455,33 +475,52 @@ export default function PropietariosPage() {
       return;
     }
 
-    const confirmed = await confirm({
-      title: "Eliminar registro",
-      message: "¿Eliminar este propietario del catálogo?",
-      detail: `${propietarioForm.fullName}. Esta acción no se puede deshacer.`,
+    const reason = await promptObservation({
+      title: "Eliminar propietario",
+      message:
+        "Indica el motivo por el cual se elimina este registro. Esta acción no se puede deshacer.",
+      detail: propietarioForm.fullName,
       confirmLabel: "Sí, eliminar",
+      placeholder: "Ej.: duplicado, error de carga, baja definitiva, etc.",
       tone: "danger",
     });
 
-    if (!confirmed) {
+    if (!reason) {
       return;
     }
 
     try {
       const response = await fetch(`/api/propietarios/${propietarioForm.id}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: adminFetchInit.credentials,
+        body: JSON.stringify({ reason }),
       });
 
+      const data = (await response.json()) as {
+        message?: string;
+        notificationSent?: boolean;
+      };
+
       if (!response.ok) {
-        const data = (await response.json()) as { message?: string };
         throw new Error(data.message ?? "No se pudo eliminar el registro.");
       }
 
       const loadedPropietarios = await loadPropietarios();
       setPropietarios(loadedPropietarios);
       setPropietarioForm(emptyPropietarioForm);
-      setPropietarioMessage("Registro eliminado correctamente.");
+
+      if (data.notificationSent) {
+        setPropietarioMessage(
+          "Registro eliminado correctamente. Se envió la notificación por correo.",
+        );
+      } else {
+        setPropietarioMessage(
+          "Registro eliminado. No se pudo confirmar el envío del correo de notificación.",
+        );
+      }
     } catch (error) {
       setPropietarioError(
         error instanceof Error
@@ -499,6 +538,67 @@ export default function PropietariosPage() {
       ...currentForm,
       [field]: value,
     }));
+  }
+
+  async function promptInactiveReason(detail: string) {
+    return promptObservation({
+      title: "Inactivar propietario",
+      message:
+        "Indica el motivo por el cual se inactiva este convenio. Este campo es obligatorio.",
+      detail,
+      confirmLabel: "Inactivar",
+      placeholder: "Ej.: término de convenio, cambio de titular, etc.",
+      tone: "danger",
+    });
+  }
+
+  async function handleActiveStatusChange(nextActive: boolean) {
+    if (!nextActive && propietarioForm.isActive) {
+      const reason = await promptInactiveReason(propietarioForm.fullName);
+
+      if (!reason) {
+        return;
+      }
+
+      setPropietarioForm((currentForm) => ({
+        ...currentForm,
+        isActive: false,
+        inactiveReason: reason,
+      }));
+      return;
+    }
+
+    if (nextActive) {
+      setPropietarioForm((currentForm) => ({
+        ...currentForm,
+        isActive: true,
+        inactiveReason: "",
+      }));
+      return;
+    }
+
+    updateFormField("isActive", nextActive);
+  }
+
+  async function ensureInactiveReasonBeforeSave() {
+    if (propietarioForm.isActive) {
+      return propietarioForm;
+    }
+
+    if ((propietarioForm.inactiveReason ?? "").trim().length >= 5) {
+      return propietarioForm;
+    }
+
+    const reason = await promptInactiveReason(propietarioForm.fullName);
+
+    if (!reason) {
+      return null;
+    }
+
+    return {
+      ...propietarioForm,
+      inactiveReason: reason,
+    };
   }
 
   return (
@@ -778,7 +878,7 @@ export default function PropietariosPage() {
                   <select
                     value={propietarioForm.isActive ? "activo" : "inactivo"}
                     onChange={(event) =>
-                      updateFormField("isActive", event.target.value === "activo")
+                      void handleActiveStatusChange(event.target.value === "activo")
                     }
                     className={inputClassName}
                   >
@@ -786,6 +886,17 @@ export default function PropietariosPage() {
                     <option value="inactivo">Inactivo</option>
                   </select>
                 </label>
+
+                {!propietarioForm.isActive && propietarioForm.inactiveReason ? (
+                  <div className="sm:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                      Motivo de inactivación
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-amber-950">
+                      {propietarioForm.inactiveReason}
+                    </p>
+                  </div>
+                ) : null}
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
                   <span className={labelClassName}>Nombre / Razón social</span>
@@ -1101,6 +1212,7 @@ export default function PropietariosPage() {
         </div>
       </section>
       {dialog}
+      {observationDialog}
     </main>
   );
 }

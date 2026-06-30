@@ -57,6 +57,7 @@ export type PropietarioConfig = {
   emergencyContactEmail: string;
   emergencyContactPhone: string;
   isActive: boolean;
+  inactiveReason: string;
 };
 
 export type ParsedPropietarioRow = Omit<PropietarioConfig, "id" | "importKey"> & {
@@ -570,6 +571,7 @@ export function parsePropietariosCsv(content: string) {
       emergencyContactEmail: (record.emergencyContactEmail ?? "").trim(),
       emergencyContactPhone: normalizePhone(record.emergencyContactPhone ?? ""),
       isActive: normalizeCatalogActive(record.catalogActive ?? "si"),
+      inactiveReason: "",
     });
   }
 
@@ -631,6 +633,7 @@ export function toPropietario(value: {
   emergencyContactEmail: string;
   emergencyContactPhone: string;
   isActive: boolean;
+  inactiveReason: string;
 }): PropietarioConfig {
   const formatDate = (date: Date | null) =>
     date ? date.toISOString().split("T")[0] ?? "" : "";
@@ -677,6 +680,7 @@ export function toPropietario(value: {
     emergencyContactEmail: value.emergencyContactEmail,
     emergencyContactPhone: value.emergencyContactPhone,
     isActive: value.isActive,
+    inactiveReason: value.inactiveReason,
   };
 }
 
@@ -734,6 +738,7 @@ export function toPropietarioCreateData(
     emergencyContactEmail: row.emergencyContactEmail,
     emergencyContactPhone: row.emergencyContactPhone,
     isActive: row.isActive,
+    inactiveReason: row.isActive ? "" : (row.inactiveReason ?? "").trim(),
   };
 }
 

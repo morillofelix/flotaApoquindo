@@ -55,6 +55,7 @@ type PropietarioBody = {
   emergencyContactEmail?: unknown;
   emergencyContactPhone?: unknown;
   isActive?: unknown;
+  inactiveReason?: unknown;
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -108,8 +109,40 @@ function parsePropietarioBody(body: PropietarioBody) {
     emergencyContactEmail: asString(body.emergencyContactEmail),
     emergencyContactPhone: asPhone(body.emergencyContactPhone),
     isActive: body.isActive === undefined ? true : body.isActive === true,
+    inactiveReason: asString(body.inactiveReason),
     importKey: "",
   };
+}
+
+function resolveInactiveReason(
+  input: ReturnType<typeof parsePropietarioBody>,
+  existing: { isActive: boolean; inactiveReason: string } | null,
+  bodyReason: string,
+) {
+  if (input.isActive) {
+    return "";
+  }
+
+  if (existing?.isActive === false) {
+    return bodyReason || existing.inactiveReason;
+  }
+
+  return bodyReason;
+}
+
+function validateInactiveReason(
+  input: ReturnType<typeof parsePropietarioBody>,
+  existing: { isActive: boolean } | null,
+  inactiveReason: string,
+) {
+  const isDeactivating = existing?.isActive === true && !input.isActive;
+  const isCreatingInactive = !existing && !input.isActive;
+
+  if ((isDeactivating || isCreatingInactive) && inactiveReason.length < 5) {
+    return "Debes indicar el motivo de inactivación (mínimo 5 caracteres).";
+  }
+
+  return null;
 }
 
 function validatePropietarioInput(input: ReturnType<typeof parsePropietarioBody>) {
@@ -172,7 +205,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
   }
 
-  const createData = toPropietarioCreateData(input);
+  const inactiveReason = resolveInactiveReason(input, null, input.inactiveReason);
+  const inactiveReasonMessage = validateInactiveReason(input, null, inactiveReason);
+
+  if (inactiveReasonMessage) {
+    return NextResponse.json({ message: inactiveReasonMessage }, { status: 400 });
+  }
+
+  const createData = toPropietarioCreateData({
+    ...input,
+    inactiveReason,
+  });
 
   const existingPropietario = await prisma.propietario.findUnique({
     where: { importKey: createData.importKey },
@@ -240,9 +283,25 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
   }
 
+  const inactiveReason = resolveInactiveReason(
+    input,
+    existingPropietario,
+    input.inactiveReason,
+  );
+  const inactiveReasonMessage = validateInactiveReason(
+    input,
+    existingPropietario,
+    inactiveReason,
+  );
+
+  if (inactiveReasonMessage) {
+    return NextResponse.json({ message: inactiveReasonMessage }, { status: 400 });
+  }
+
   const createData = toPropietarioCreateData({
     ...input,
     importKey: existingPropietario.importKey,
+    inactiveReason,
   });
   const changes = diffPropietarioChanges(existingPropietario, createData);
 

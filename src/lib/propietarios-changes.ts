@@ -37,10 +37,13 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   emergencyContactName: "Contacto emergencia",
   emergencyContactEmail: "Correo emergencia",
   emergencyContactPhone: "Teléfono emergencia",
-  isActive: "Activo",
+  isActive: "Estado",
+  inactiveReason: "Motivo de inactivación",
 };
 
-const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS);
+const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS).filter(
+  (field) => field !== "inactiveReason",
+);
 
 const PHONE_FIELDS = new Set([
   "landlinePhone",
@@ -73,7 +76,11 @@ function normalizeComparableValue(value: unknown, field?: string) {
   }
 
   if (typeof value === "boolean") {
-    return value ? "Sí" : "No";
+    if (field === "isActive") {
+      return value ? "activo" : "inactivo";
+    }
+
+    return value ? "si" : "no";
   }
 
   const normalized = String(value).trim();
@@ -89,7 +96,11 @@ function normalizeComparableValue(value: unknown, field?: string) {
   return normalized;
 }
 
-function displayComparableValue(value: unknown, field?: string) {
+function displayComparableValue(
+  value: unknown,
+  field?: string,
+  record?: Record<string, unknown>,
+) {
   if (value === null || value === undefined) {
     return "";
   }
@@ -99,6 +110,14 @@ function displayComparableValue(value: unknown, field?: string) {
   }
 
   if (typeof value === "boolean") {
+    if (field === "isActive") {
+      if (!value && record?.inactiveReason) {
+        return `Inactivo — Motivo: ${String(record.inactiveReason).trim()}`;
+      }
+
+      return value ? "Activo" : "Inactivo";
+    }
+
     return value ? "Sí" : "No";
   }
 
@@ -132,8 +151,8 @@ export function diffPropietarioChanges(
     changes.push({
       field,
       label: PROPIETARIO_FIELD_LABELS[field] ?? field,
-      before: displayValue(displayComparableValue(before[field], field)),
-      after: displayValue(displayComparableValue(after[field], field)),
+      before: displayValue(displayComparableValue(before[field], field, before)),
+      after: displayValue(displayComparableValue(after[field], field, after)),
     });
   }
 
