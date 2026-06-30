@@ -98,6 +98,7 @@ export async function downloadPagoComprobantePdf(input: PagoComprobantePdfInput)
       formatPagoAmount(item.amount),
     ]),
     foot: [["", "", "", "Total", formatPagoAmount(totalAmount)]],
+    showFoot: "lastPage",
     styles: {
       font: "helvetica",
       fontSize: 9,

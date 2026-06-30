@@ -15,8 +15,10 @@ import {
   getTitularName,
   getPropietarioKey,
   isValidEmail,
+  mapPagoLineItemsToComprobantePdfItems,
   parsePagoAmountInput,
-  sendPagoPropietarioEmails,
+  sendPagoPropietarioEmailsBatched,
+  sortPagoLineItemsForComprobante,
   type PagoPropietarioLineItem,
 } from "@/lib/pago-propietario";
 import {
@@ -78,6 +80,7 @@ export default function PagoPropietarioPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSendingBulk, setIsSendingBulk] = useState(false);
+  const [bulkSendProgress, setBulkSendProgress] = useState("");
   const [isLoadingBulkFile, setIsLoadingBulkFile] = useState(false);
   const [bulkFileName, setBulkFileName] = useState("");
   const [bulkAlerts, setBulkAlerts] = useState<string[]>([]);
@@ -326,27 +329,41 @@ export default function PagoPropietarioPage() {
 
     if (isBulk) {
       setIsSendingBulk(true);
+      setBulkSendProgress("");
     }
 
     try {
-      const results = await sendPagoPropietarioEmails({
-        periodFrom,
-        periodTo,
-        items: itemsToSend.map((item) => ({
-          id: item.id,
-          to: item.titularEmail,
-          titularName: item.titularName,
-          amount: item.amount,
-        })),
-      });
+      const results = await sendPagoPropietarioEmailsBatched(
+        {
+          periodFrom,
+          periodTo,
+          items: itemsToSend.map((item) => ({
+            id: item.id,
+            to: item.titularEmail,
+            titularName: item.titularName,
+            amount: item.amount,
+          })),
+        },
+        {
+          onProgress: isBulk
+            ? (processedCount, totalCount) => {
+                setBulkSendProgress(
+                  `Enviando correos ${processedCount} de ${totalCount}...`,
+                );
+              }
+            : undefined,
+        },
+      );
 
       applySendResults(results);
 
       const successCount = results.filter((result) => result.ok).length;
       const failedCount = results.length - successCount;
       const sentAt = new Date();
-      const successfulItems = itemsToSend.filter((item) =>
-        results.some((result) => result.id === item.id && result.ok),
+      const successfulItems = sortPagoLineItemsForComprobante(
+        itemsToSend.filter((item) =>
+          results.some((result) => result.id === item.id && result.ok),
+        ),
       );
 
       if (successfulItems.length > 0) {
@@ -355,20 +372,14 @@ export default function PagoPropietarioPage() {
             sentAt,
             periodFrom,
             periodTo,
-            items: successfulItems.map((item) => ({
-              vehicleNumber: item.vehicleNumber,
-              fullName: item.fullName,
-              titularName: item.titularName,
-              titularEmail: item.titularEmail,
-              amount: item.amount,
-            })),
+            items: mapPagoLineItemsToComprobantePdfItems(successfulItems),
           });
         } catch {
           if (successCount > 0) {
             setMessage(
               successCount === 1
                 ? "Correo enviado, pero no se pudo descargar el PDF de respaldo."
-                : `${successCount} correos enviados, pero no se pudo descargar el PDF de respaldo.`,
+                : `${successCount} correos enviados, pero no se pudo descargar el PDF de respaldo con el detalle del lote.`,
             );
             return;
           }
@@ -379,11 +390,11 @@ export default function PagoPropietarioPage() {
         setMessage(
           successCount === 1
             ? "Correo enviado y comprobante PDF descargado."
-            : `${successCount} correos enviados y comprobante PDF descargado.`,
+            : `${successCount} correos enviados y comprobante PDF descargado con el detalle completo del lote.`,
         );
       } else if (successCount && failedCount) {
         setMessage(
-          `${successCount} enviados con PDF de respaldo, ${failedCount} con error. Revisa los ítems marcados.`,
+          `${successCount} enviados con PDF de respaldo del detalle completo, ${failedCount} con error. Revisa los ítems marcados.`,
         );
       } else {
         setError("No se pudo enviar ningún correo.");
@@ -410,6 +421,39 @@ export default function PagoPropietarioPage() {
       );
     } finally {
       setIsSendingBulk(false);
+      setBulkSendProgress("");
+    }
+  }
+
+  async function downloadSentComprobantePdf() {
+    clearFeedback();
+
+    if (!periodIsValid) {
+      setError("Define un período de pago válido para descargar el comprobante.");
+      return;
+    }
+
+    const sentItems = lineItems.filter((item) => item.sent);
+
+    if (!sentItems.length) {
+      setError("No hay ítems enviados para incluir en el comprobante.");
+      return;
+    }
+
+    try {
+      await downloadPagoComprobantePdf({
+        sentAt: new Date(),
+        periodFrom,
+        periodTo,
+        items: mapPagoLineItemsToComprobantePdfItems(sentItems),
+      });
+      setMessage(
+        `Comprobante PDF descargado con el detalle de ${sentItems.length} envío${
+          sentItems.length === 1 ? "" : "s"
+        }.`,
+      );
+    } catch {
+      setError("No se pudo generar el comprobante PDF.");
     }
   }
 
@@ -608,8 +652,9 @@ export default function PagoPropietarioPage() {
                   <p className="text-[11px] leading-5 text-slate-500">
                     Usa la columna con encabezado en blanco para el móvil y
                     &quot;total facturar&quot; para el monto. Los demás datos se
-                    toman de propietarios. Solo carga al comprobante, no envía
-                    correos.
+                    toman de propietarios. Al enviar masivo, cada titular recibe
+                    su correo y se descarga un PDF con el detalle completo del
+                    lote enviado.
                   </p>
                   {bulkFileName ? (
                     <p className="mt-1 text-[11px] font-medium text-[#0b5cab]">
@@ -654,8 +699,16 @@ export default function PagoPropietarioPage() {
                   className={primaryButtonClassName}
                 >
                   {isSendingBulk
-                    ? "Enviando..."
+                    ? bulkSendProgress || "Enviando..."
                     : `Enviar masivo (${pendingItems.length})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadSentComprobantePdf}
+                  disabled={!sentCount || isSendingBulk || !periodIsValid}
+                  className={secondaryButtonClassName}
+                >
+                  Descargar PDF enviados ({sentCount})
                 </button>
                 <button
                   type="button"

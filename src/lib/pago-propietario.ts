@@ -37,6 +37,8 @@ export type SendPagoPropietarioEmailResult = {
   error?: string;
 };
 
+export const PAGO_EMAIL_MAX_ITEMS_PER_REQUEST = 100;
+
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function formatPagoDate(value: string) {
@@ -159,4 +161,74 @@ export async function sendPagoPropietarioEmails(
   }
 
   return data.results ?? [];
+}
+
+export function sortPagoLineItemsForComprobante<
+  T extends { vehicleNumber: string; fullName: string },
+>(items: T[]) {
+  return [...items].sort((left, right) => {
+    const leftMobile = left.vehicleNumber.replace(/\D/g, "");
+    const rightMobile = right.vehicleNumber.replace(/\D/g, "");
+
+    if (leftMobile && rightMobile) {
+      const mobileCompare = leftMobile.localeCompare(rightMobile, "es", {
+        numeric: true,
+      });
+
+      if (mobileCompare !== 0) {
+        return mobileCompare;
+      }
+    }
+
+    return left.fullName.localeCompare(right.fullName, "es");
+  });
+}
+
+export function mapPagoLineItemsToComprobantePdfItems(
+  items: PagoPropietarioLineItem[],
+) {
+  return sortPagoLineItemsForComprobante(items).map((item) => ({
+    vehicleNumber: item.vehicleNumber,
+    fullName: item.fullName,
+    titularName: item.titularName,
+    titularEmail: item.titularEmail,
+    amount: item.amount,
+  }));
+}
+
+export async function sendPagoPropietarioEmailsBatched(
+  payload: SendPagoPropietarioEmailPayload,
+  options?: {
+    onProgress?: (processedCount: number, totalCount: number) => void;
+  },
+) {
+  if (!payload.items.length) {
+    return [] as SendPagoPropietarioEmailResult[];
+  }
+
+  const results: SendPagoPropietarioEmailResult[] = [];
+
+  for (
+    let index = 0;
+    index < payload.items.length;
+    index += PAGO_EMAIL_MAX_ITEMS_PER_REQUEST
+  ) {
+    const chunk = payload.items.slice(
+      index,
+      index + PAGO_EMAIL_MAX_ITEMS_PER_REQUEST,
+    );
+    const chunkResults = await sendPagoPropietarioEmails({
+      periodFrom: payload.periodFrom,
+      periodTo: payload.periodTo,
+      items: chunk,
+    });
+
+    results.push(...chunkResults);
+    options?.onProgress?.(
+      Math.min(index + chunk.length, payload.items.length),
+      payload.items.length,
+    );
+  }
+
+  return results;
 }
