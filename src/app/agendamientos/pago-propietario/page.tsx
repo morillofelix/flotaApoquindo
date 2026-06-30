@@ -20,7 +20,6 @@ import {
   type PagoPropietarioLineItem,
 } from "@/lib/pago-propietario";
 import { displayVehicleNumber, type PropietarioConfig } from "@/lib/propietarios";
-import { uiListRowClass } from "@/lib/ui-borders";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const inputClassName =
@@ -103,7 +102,7 @@ export default function PagoPropietarioPage() {
     const normalizedSearchLower = normalizedSearch.toLowerCase();
     const digitOnlySearch = isDigitOnlySearch(normalizedSearch);
 
-    if (!normalizedSearch) {
+    if (!normalizedSearch || normalizedSearch.length < 2) {
       return [];
     }
 
@@ -335,62 +334,46 @@ export default function PagoPropietarioPage() {
         />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
-          <div className="border-b border-[#c5d8eb] bg-[#f8fbff] px-4 py-4 sm:px-5">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <label className="flex flex-col gap-1.5">
-                <span className={labelClassName}>Período desde</span>
-                <input
-                  type="date"
-                  value={periodFrom}
-                  onChange={(event) => {
-                    setPeriodFrom(event.target.value);
-                    clearFeedback();
-                  }}
-                  className={inputClassName}
-                />
-              </label>
+          <div className="border-b border-[#c5d8eb] bg-[#f8fbff] px-3 py-3 sm:px-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+              <div className="grid shrink-0 grid-cols-2 gap-2 sm:w-[280px]">
+                <label className="flex flex-col gap-1">
+                  <span className={labelClassName}>Desde</span>
+                  <input
+                    type="date"
+                    value={periodFrom}
+                    onChange={(event) => {
+                      setPeriodFrom(event.target.value);
+                      clearFeedback();
+                    }}
+                    className={inputClassName}
+                  />
+                </label>
 
-              <label className="flex flex-col gap-1.5">
-                <span className={labelClassName}>Período hasta</span>
-                <input
-                  type="date"
-                  value={periodTo}
-                  onChange={(event) => {
-                    setPeriodTo(event.target.value);
-                    clearFeedback();
-                  }}
-                  className={inputClassName}
-                />
-              </label>
-
-              <div className="flex items-end">
-                <div className="rounded-2xl border border-[#c5d8eb] bg-white px-4 py-2 text-sm text-[#173b68]">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
-                    Lote actual
-                  </p>
-                  <p className="font-semibold">
-                    {lineItems.length} ítem{lineItems.length === 1 ? "" : "s"}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {sentCount} enviado{sentCount === 1 ? "" : "s"} ·{" "}
-                    {pendingItems.length} pendiente
-                    {pendingItems.length === 1 ? "" : "s"}
-                  </p>
-                </div>
+                <label className="flex flex-col gap-1">
+                  <span className={labelClassName}>Hasta</span>
+                  <input
+                    type="date"
+                    value={periodTo}
+                    onChange={(event) => {
+                      setPeriodTo(event.target.value);
+                      clearFeedback();
+                    }}
+                    className={inputClassName}
+                  />
+                </label>
               </div>
-            </div>
-          </div>
 
-          <div className="border-b border-[#c5d8eb] p-4 sm:px-5">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_auto] lg:items-end">
-              <div ref={searchContainerRef} className="relative flex flex-col gap-1.5">
-                <span className={labelClassName}>Buscar propietario</span>
+              <div
+                ref={searchContainerRef}
+                className="relative min-w-0 flex-1 flex flex-col gap-1"
+              >
+                <span className={labelClassName}>Propietario</span>
 
                 {selectedPropietario ? (
                   <div className="flex h-10 items-center gap-2 rounded-2xl border border-[#0b5cab]/25 bg-[#eef5fc] px-3 text-sm text-[#173b68]">
                     <span className="min-w-0 flex-1 truncate">
                       <span className="font-semibold text-[#0b5cab]">
-                        Móvil{" "}
                         {displayVehicleNumber(
                           selectedPropietario.vehicleNumber,
                         ) || "—"}
@@ -403,7 +386,7 @@ export default function PagoPropietarioPage() {
                     <button
                       type="button"
                       onClick={clearSelectedPropietario}
-                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-[#0b5cab] transition hover:bg-white/80"
+                      className="shrink-0 text-xs font-semibold text-[#0b5cab] underline-offset-2 hover:underline"
                     >
                       Cambiar
                     </button>
@@ -411,7 +394,7 @@ export default function PagoPropietarioPage() {
                 ) : (
                   <>
                     <input
-                      type="search"
+                      type="text"
                       value={search}
                       onChange={(event) => {
                         setSearch(event.target.value);
@@ -419,31 +402,35 @@ export default function PagoPropietarioPage() {
                         clearFeedback();
                       }}
                       onFocus={() => {
-                        if (search.trim()) {
+                        if (search.trim().length >= 2) {
                           setSearchOpen(true);
                         }
                       }}
-                      placeholder="Escribe móvil, nombre, RUT o titular..."
+                      placeholder="Buscar por móvil, nombre o RUT..."
                       className={inputClassName}
                       autoComplete="off"
+                      spellCheck={false}
                     />
 
-                    {searchOpen && search.trim() ? (
-                      <div className="absolute top-[calc(100%+4px)] z-20 max-h-56 w-full overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white shadow-lg shadow-slate-300/30">
+                    {searchOpen && search.trim().length >= 2 ? (
+                      <ul
+                        role="listbox"
+                        className="absolute top-[calc(100%+4px)] z-30 max-h-48 w-full overflow-y-auto rounded-xl border border-[#9fb8d9] bg-white py-1 shadow-xl shadow-slate-300/35"
+                      >
                         {isLoading ? (
-                          <p className="px-4 py-3 text-sm text-slate-500">
-                            Cargando...
-                          </p>
+                          <li className="px-3 py-2 text-sm text-slate-500">
+                            Buscando...
+                          </li>
                         ) : loadError ? (
-                          <p className="px-4 py-3 text-sm text-red-600">
+                          <li className="px-3 py-2 text-sm text-red-600">
                             {loadError}
-                          </p>
+                          </li>
                         ) : filteredPropietarios.length === 0 ? (
-                          <p className="px-4 py-3 text-sm text-slate-500">
-                            Sin resultados para &quot;{search.trim()}&quot;
-                          </p>
+                          <li className="px-3 py-2 text-sm text-slate-500">
+                            Sin coincidencias
+                          </li>
                         ) : (
-                          filteredPropietarios.slice(0, 12).map((propietario) => {
+                          filteredPropietarios.slice(0, 8).map((propietario) => {
                             const alreadyAdded = lineItems.some(
                               (item) =>
                                 item.propietarioId ===
@@ -451,40 +438,37 @@ export default function PagoPropietarioPage() {
                             );
 
                             return (
-                              <button
-                                key={getPropietarioKey(propietario)}
-                                type="button"
-                                onClick={() => selectPropietario(propietario)}
-                                disabled={alreadyAdded}
-                                className={`flex w-full flex-col gap-0.5 border-b border-[#e8eef5] px-3 py-2.5 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-50 ${uiListRowClass(false)}`}
-                              >
-                                <span className="truncate text-sm font-semibold text-[#0f2747]">
-                                  {propietario.fullName}
-                                </span>
-                                <span className="text-xs text-slate-600">
-                                  Móvil{" "}
-                                  {displayVehicleNumber(
-                                    propietario.vehicleNumber,
-                                  ) || "—"}{" "}
-                                  · {getTitularName(propietario)}
-                                </span>
-                                {alreadyAdded ? (
-                                  <span className="text-[11px] font-semibold text-emerald-700">
-                                    Ya en el comprobante
+                              <li key={getPropietarioKey(propietario)}>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  onClick={() => selectPropietario(propietario)}
+                                  disabled={alreadyAdded}
+                                  className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition hover:bg-[#eef5fc] disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  <span className="truncate text-sm font-semibold text-[#0f2747]">
+                                    {displayVehicleNumber(
+                                      propietario.vehicleNumber,
+                                    ) || "—"}{" "}
+                                    · {propietario.fullName}
                                   </span>
-                                ) : null}
-                              </button>
+                                  <span className="truncate text-xs text-slate-500">
+                                    {getTitularName(propietario)}
+                                    {alreadyAdded ? " · ya agregado" : ""}
+                                  </span>
+                                </button>
+                              </li>
                             );
                           })
                         )}
-                      </div>
+                      </ul>
                     ) : null}
                   </>
                 )}
               </div>
 
-              <label className="flex flex-col gap-1.5">
-                <span className={labelClassName}>Monto a pagar</span>
+              <label className="flex w-full shrink-0 flex-col gap-1 sm:w-36">
+                <span className={labelClassName}>Monto</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -498,20 +482,29 @@ export default function PagoPropietarioPage() {
               <button
                 type="button"
                 onClick={addLineItem}
-                className={`${primaryButtonClassName} w-full lg:w-auto`}
+                className={`${primaryButtonClassName} w-full shrink-0 xl:w-auto`}
               >
                 Agregar
               </button>
-            </div>
 
-            {!selectedPropietario && !search.trim() ? (
-              <p className="mt-2 text-xs text-slate-500">
-                Escribe en el buscador para ver propietarios y seleccionar uno.
-              </p>
-            ) : null}
+              <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#c5d8eb] bg-white px-3 py-2 text-xs text-[#173b68] xl:mb-0.5">
+                <span>
+                  <strong>{lineItems.length}</strong> ítem
+                  {lineItems.length === 1 ? "" : "s"}
+                </span>
+                <span className="text-slate-400">|</span>
+                <span className="text-emerald-700">
+                  <strong>{sentCount}</strong> env.
+                </span>
+                <span className="text-slate-400">|</span>
+                <span className="text-amber-700">
+                  <strong>{pendingItems.length}</strong> pend.
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="px-4 py-4 sm:px-5">
+          <div className="px-3 py-4 sm:px-4">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-heading text-base font-semibold text-[#0f2747]">
