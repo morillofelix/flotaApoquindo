@@ -31,6 +31,12 @@ export type PagoBulkImportResult = {
   skippedDuplicates: number;
 };
 
+type PagoBulkHeaderMatch = {
+  headerIndex: number;
+  mobileIndex: number;
+  amountIndex: number;
+};
+
 function normalizeHeader(value: string) {
   return value
     .trim()
@@ -38,6 +44,14 @@ function normalizeHeader(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "_");
+}
+
+function normalizeMatrixCell(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value).trim();
 }
 
 function parseCsvLine(line: string, delimiter: string) {
@@ -78,12 +92,65 @@ function detectDelimiter(headerLine: string) {
   return semicolonCount > commaCount ? ";" : ",";
 }
 
-function isTotalFacturarHeader(header: string) {
+function looksLikeBinaryExcel(bytes: Uint8Array) {
   return (
-    header === "total_facturar" ||
-    header === "total_a_facturar" ||
-    header.includes("total_facturar")
+    bytes.length >= 4 &&
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0
   );
+}
+
+function looksLikeXlsxArchive(bytes: Uint8Array) {
+  return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+}
+
+function isSpreadsheetFile(fileName: string) {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+
+  return extension === "xls" || extension === "xlsx";
+}
+
+function isTotalFacturarHeader(header: string, rawHeader = "") {
+  const normalized = normalizeHeader(rawHeader || header);
+
+  return (
+    normalized === "total_facturar" ||
+    normalized === "total_a_facturar" ||
+    normalized.includes("total_facturar") ||
+    (normalized.includes("total") && normalized.includes("facturar"))
+  );
+}
+
+function findPagoBulkHeaderInMatrix(matrix: string[][]): PagoBulkHeaderMatch | null {
+  const maxScan = Math.min(matrix.length, 80);
+
+  for (let headerIndex = 0; headerIndex < maxScan; headerIndex += 1) {
+    const rawHeaders = matrix[headerIndex] ?? [];
+    const headers = rawHeaders.map((header) => normalizeHeader(header));
+    const amountIndex = headers.findIndex((header, index) =>
+      isTotalFacturarHeader(header, rawHeaders[index] ?? ""),
+    );
+
+    if (amountIndex === -1) {
+      continue;
+    }
+
+    const mobileIndex = rawHeaders.findIndex((header) => !header.trim());
+
+    if (mobileIndex === -1) {
+      continue;
+    }
+
+    return {
+      headerIndex,
+      mobileIndex,
+      amountIndex,
+    };
+  }
+
+  return null;
 }
 
 function parseBulkAmount(value: string) {
@@ -103,69 +170,21 @@ function parseBulkAmount(value: string) {
   return parsePagoAmountInput(trimmed);
 }
 
-type PagoBulkHeaderMatch = {
-  headerIndex: number;
-  delimiter: string;
-  mobileIndex: number;
-  amountIndex: number;
-};
+export function parsePagoPropietarioBulkMatrix(
+  matrix: string[][],
+): PagoBulkParseResult {
+  const normalizedMatrix = matrix.map((row) =>
+    row.map((cell) => normalizeMatrixCell(cell)),
+  );
 
-function findPagoBulkHeader(lines: string[]): PagoBulkHeaderMatch | null {
-  const maxScan = Math.min(lines.length, 50);
-
-  for (let headerIndex = 0; headerIndex < maxScan; headerIndex += 1) {
-    const line = lines[headerIndex] ?? "";
-    const delimiters =
-      line.includes(";") && line.includes(",")
-        ? [detectDelimiter(line), detectDelimiter(line) === ";" ? "," : ";"]
-        : line.includes(";")
-          ? [";", ","]
-          : [",", ";"];
-
-    for (const delimiter of delimiters) {
-      const rawHeaders = parseCsvLine(line, delimiter);
-      const headers = rawHeaders.map(normalizeHeader);
-      const amountIndex = headers.findIndex((header) =>
-        isTotalFacturarHeader(header),
-      );
-
-      if (amountIndex === -1) {
-        continue;
-      }
-
-      const mobileIndex = rawHeaders.findIndex((header) => !header.trim());
-
-      if (mobileIndex === -1) {
-        continue;
-      }
-
-      return {
-        headerIndex,
-        delimiter,
-        mobileIndex,
-        amountIndex,
-      };
-    }
-  }
-
-  return null;
-}
-
-export function parsePagoPropietarioBulkCsv(content: string): PagoBulkParseResult {
-  const lines = content
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (lines.length < 2) {
+  if (normalizedMatrix.length < 2) {
     return {
       rows: [],
       errors: ["El archivo debe incluir encabezados y al menos una fila de datos."],
     };
   }
 
-  const headerMatch = findPagoBulkHeader(lines);
+  const headerMatch = findPagoBulkHeaderInMatrix(normalizedMatrix);
 
   if (!headerMatch) {
     return {
@@ -176,16 +195,20 @@ export function parsePagoPropietarioBulkCsv(content: string): PagoBulkParseResul
     };
   }
 
-  const { headerIndex, delimiter, mobileIndex, amountIndex } = headerMatch;
+  const { headerIndex, mobileIndex, amountIndex } = headerMatch;
   const rows: PagoBulkParsedRow[] = [];
   const errors: string[] = [];
   const seenMobiles = new Set<string>();
 
-  for (let lineIndex = headerIndex + 1; lineIndex < lines.length; lineIndex += 1) {
-    const excelRowNumber = lineIndex + 1;
-    const values = parseCsvLine(lines[lineIndex] ?? "", delimiter);
+  for (
+    let rowIndex = headerIndex + 1;
+    rowIndex < normalizedMatrix.length;
+    rowIndex += 1
+  ) {
+    const excelRowNumber = rowIndex + 1;
+    const values = normalizedMatrix[rowIndex] ?? [];
 
-    if (!values.some((value) => value.trim().length > 0)) {
+    if (!values.some((value) => value.length > 0)) {
       continue;
     }
 
@@ -228,15 +251,117 @@ export function parsePagoPropietarioBulkCsv(content: string): PagoBulkParseResul
   return { rows, errors };
 }
 
-export async function readPagoPropietarioBulkFile(file: File) {
-  const rawContent = await readPropietarioFileContent(file);
+function csvContentToMatrix(content: string) {
+  const lines = content
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (!lines.length) {
+    return [] as string[][];
+  }
+
+  const delimiter = detectDelimiter(lines[0] ?? ",");
+
+  return lines.map((line) => parseCsvLine(line, delimiter));
+}
+
+export function parsePagoPropietarioBulkCsv(content: string): PagoBulkParseResult {
+  return parsePagoPropietarioBulkMatrix(csvContentToMatrix(content));
+}
+
+async function readSpreadsheetMatrixWithXlsx(buffer: ArrayBuffer) {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    cellDates: false,
+    dense: true,
+  });
+  const sheetName = workbook.SheetNames[0];
+
+  if (!sheetName) {
+    return [] as string[][];
+  }
+
+  const sheet = workbook.Sheets[sheetName];
+
+  if (!sheet) {
+    return [] as string[][];
+  }
+
+  const matrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+  });
+
+  return matrix.map((row) => (row ?? []).map((cell) => normalizeMatrixCell(cell)));
+}
+
+async function readSpreadsheetMatrixFromFile(file: File) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const shouldTryXlsx =
+    isSpreadsheetFile(file.name) ||
+    looksLikeBinaryExcel(bytes) ||
+    looksLikeXlsxArchive(bytes);
+
+  if (shouldTryXlsx) {
+    try {
+      const matrix = await readSpreadsheetMatrixWithXlsx(buffer);
+
+      if (matrix.length >= 2) {
+        return matrix;
+      }
+    } catch {
+      // Fallback to text-based parsers below.
+    }
+  }
+
+  let rawContent = "";
+
+  try {
+    rawContent = await readPropietarioFileContent(file);
+  } catch (error) {
+    if (shouldTryXlsx) {
+      const matrix = await readSpreadsheetMatrixWithXlsx(buffer);
+
+      if (matrix.length >= 2) {
+        return matrix;
+      }
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error("No se pudo leer el archivo Excel.");
+  }
+
   const prepared = preparePropietarioUploadContent(file.name, rawContent);
 
   if ("error" in prepared) {
+    if (shouldTryXlsx) {
+      try {
+        const matrix = await readSpreadsheetMatrixWithXlsx(buffer);
+
+        if (matrix.length >= 2) {
+          return matrix;
+        }
+      } catch {
+        throw new Error(prepared.error);
+      }
+    }
+
     throw new Error(prepared.error);
   }
 
-  return parsePagoPropietarioBulkCsv(prepared.csvContent);
+  return csvContentToMatrix(prepared.csvContent);
+}
+
+export async function readPagoPropietarioBulkFile(file: File) {
+  const matrix = await readSpreadsheetMatrixFromFile(file);
+
+  return parsePagoPropietarioBulkMatrix(matrix);
 }
 
 export function importPagoBulkRows(
