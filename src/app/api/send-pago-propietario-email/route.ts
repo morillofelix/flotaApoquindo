@@ -1,5 +1,7 @@
 import {
   buildComprobanteMessage,
+  buildPortalAccessText,
+  PROPIETARIO_PORTAL_URL,
   type SendPagoPropietarioEmailItem,
   type SendPagoPropietarioEmailPayload,
 } from "@/lib/pago-propietario";
@@ -80,6 +82,15 @@ function createEmailHtml(input: {
     <div style="font-family: Arial, sans-serif; color: #0f2747; line-height: 1.6; max-width: 640px;">
       <h1 style="margin: 0 0 16px; font-size: 22px; color: #0b5cab;">Comprobante de pago</h1>
       <p style="margin: 0 0 16px; font-size: 16px;">${escapeHtml(message)}</p>
+      <p style="margin: 24px 0 0; font-size: 15px; color: #0f2747;">
+        Para consultar el detalle de sus servicios, le invitamos a ingresar al siguiente enlace
+        utilizando su correo electrónico y su clave de propietario o titular:
+      </p>
+      <p style="margin: 12px 0 0;">
+        <a href="${PROPIETARIO_PORTAL_URL}" style="color: #0b5cab; font-weight: 600; text-decoration: none;">
+          ${escapeHtml(PROPIETARIO_PORTAL_URL)}
+        </a>
+      </p>
       <p style="margin: 24px 0 0; color: #53657a; font-size: 13px;">
         Este correo fue generado automáticamente por el sistema de pagos de Transportes Apoquindo.
       </p>
@@ -97,6 +108,8 @@ function createEmailText(input: {
     "Comprobante de pago",
     "",
     buildComprobanteMessage(input),
+    "",
+    buildPortalAccessText(),
     "",
     "Este correo fue generado automáticamente por el sistema de pagos de Transportes Apoquindo.",
   ].join("\n");

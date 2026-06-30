@@ -101,6 +101,16 @@ export function buildComprobanteMessage(input: {
   return `Estimado titular ${input.titularName},${periodLabel} su monto a facturar es ${formatPagoAmount(input.amount)}.`;
 }
 
+export const PROPIETARIO_PORTAL_URL = "https://apoquindo.aquivoyexpress.com/";
+
+export function buildPortalAccessText() {
+  return [
+    "Para consultar el detalle de sus servicios, le invitamos a ingresar al siguiente enlace",
+    "utilizando su correo electrónico y su clave de propietario o titular:",
+    PROPIETARIO_PORTAL_URL,
+  ].join(" ");
+}
+
 export function getPropietarioKey(propietario: PropietarioConfig) {
   return (
     propietario.id ??
