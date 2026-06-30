@@ -8,7 +8,6 @@ import {
   matchesVehicleNumberSearch,
 } from "@/lib/maintainer-search";
 import {
-  buildComprobanteMessage,
   createPagoLineItem,
   formatPagoAmount,
   formatPagoDate,
@@ -34,6 +33,12 @@ const primaryButtonClassName =
 
 const secondaryButtonClassName =
   "inline-flex h-10 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-px";
+
+const tableHeadClassName =
+  "border-b border-[#9fb8d9] bg-[#d7e7f8] px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[#173b68]";
+
+const tableCellClassName =
+  "border-b border-[#d9e5f2] px-3 py-2.5 text-sm text-[#0f2747] align-middle";
 
 function CheckIcon({ className = "" }: { className?: string }) {
   return (
@@ -63,7 +68,6 @@ export default function PagoPropietarioPage() {
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
   const [lineItems, setLineItems] = useState<PagoPropietarioLineItem[]>([]);
-  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSendingBulk, setIsSendingBulk] = useState(false);
@@ -105,34 +109,12 @@ export default function PagoPropietarioPage() {
     });
   }, [propietarios, search]);
 
-  const previewItem = useMemo(() => {
-    if (previewItemId) {
-      return lineItems.find((item) => item.id === previewItemId) ?? null;
-    }
-
-    return lineItems[lineItems.length - 1] ?? null;
-  }, [lineItems, previewItemId]);
-
-  const previewMessage = useMemo(() => {
-    if (!previewItem || !periodFrom || !periodTo) {
-      return "";
-    }
-
-    return buildComprobanteMessage({
-      titularName: previewItem.titularName,
-      amount: previewItem.amount,
-      periodFrom,
-      periodTo,
-    });
-  }, [periodFrom, periodTo, previewItem]);
-
   const pendingItems = lineItems.filter((item) => !item.sent);
   const sentCount = lineItems.filter((item) => item.sent).length;
+  const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
   const parsedAmount = parsePagoAmountInput(amountInput);
   const periodIsValid =
-    periodFrom.length > 0 &&
-    periodTo.length > 0 &&
-    periodFrom <= periodTo;
+    periodFrom.length > 0 && periodTo.length > 0 && periodFrom <= periodTo;
 
   function clearFeedback() {
     setMessage("");
@@ -183,19 +165,14 @@ export default function PagoPropietarioPage() {
     const newItem = createPagoLineItem(selectedPropietario, parsedAmount);
 
     setLineItems((current) => [...current, newItem]);
-    setPreviewItemId(newItem.id);
     setAmountInput("");
     setSelectedPropietario(null);
     setSearch("");
-    setMessage("Propietario agregado al lote.");
+    setMessage("Propietario agregado al comprobante.");
   }
 
   function removeLineItem(itemId: string) {
     setLineItems((current) => current.filter((item) => item.id !== itemId));
-
-    if (previewItemId === itemId) {
-      setPreviewItemId(null);
-    }
   }
 
   function applySendResults(
@@ -318,11 +295,10 @@ export default function PagoPropietarioPage() {
 
   function clearBatch() {
     setLineItems([]);
-    setPreviewItemId(null);
     setAmountInput("");
     setSelectedPropietario(null);
     clearFeedback();
-    setMessage("Lote limpiado.");
+    setMessage("Comprobante limpiado.");
   }
 
   return (
@@ -380,8 +356,8 @@ export default function PagoPropietarioPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-            <div className="flex min-h-[420px] flex-col gap-3">
+          <div className="grid gap-4 border-b border-[#c5d8eb] p-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
+            <div className="flex flex-col gap-3">
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
                 <label className="flex flex-col gap-1.5">
                   <span className={labelClassName}>Buscar propietario</span>
@@ -429,124 +405,79 @@ export default function PagoPropietarioPage() {
                       "—"}{" "}
                     · Titular {getTitularName(selectedPropietario)}
                   </p>
-                  <p className="text-xs text-slate-600">
-                    {getTitularEmail(selectedPropietario) || "Sin correo titular"}
-                  </p>
                 </div>
               ) : null}
-
-              <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-[#b7cce4] bg-[#f8fbff]">
-                <div className="border-b border-[#c5d8eb] px-4 py-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
-                    Propietarios
-                  </p>
-                </div>
-
-                <div className="max-h-[320px] overflow-y-auto">
-                  {isLoading ? (
-                    <p className="px-4 py-6 text-sm text-slate-500">
-                      Cargando propietarios...
-                    </p>
-                  ) : loadError ? (
-                    <p className="px-4 py-6 text-sm text-red-600">{loadError}</p>
-                  ) : filteredPropietarios.length === 0 ? (
-                    <p className="px-4 py-6 text-sm text-slate-500">
-                      No hay propietarios que coincidan con la búsqueda.
-                    </p>
-                  ) : (
-                    filteredPropietarios.slice(0, 80).map((propietario) => {
-                      const isSelected = Boolean(
-                        selectedPropietario &&
-                          getPropietarioKey(selectedPropietario) ===
-                            getPropietarioKey(propietario),
-                      );
-                      const alreadyAdded = lineItems.some(
-                        (item) =>
-                          item.propietarioId === getPropietarioKey(propietario),
-                      );
-
-                      return (
-                        <button
-                          key={propietario.id}
-                          type="button"
-                          onClick={() => selectPropietario(propietario)}
-                          disabled={alreadyAdded}
-                          className={`flex w-full flex-col gap-0.5 border-b border-[#d9e5f2] px-4 py-3 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-50 ${uiListRowClass(isSelected)}`}
-                        >
-                          <span className="text-sm font-semibold text-[#0f2747]">
-                            {propietario.fullName}
-                          </span>
-                          <span className="text-xs text-slate-600">
-                            Móvil{" "}
-                            {displayVehicleNumber(propietario.vehicleNumber) ||
-                              "—"}{" "}
-                            · {getTitularName(propietario)}
-                          </span>
-                          {alreadyAdded ? (
-                            <span className="text-[11px] font-semibold text-emerald-700">
-                              Ya en el lote
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
             </div>
 
-            <div className="flex min-h-[320px] flex-col rounded-2xl border border-[#b7cce4] bg-[#f8fbff]">
-              <div className="border-b border-[#c5d8eb] px-4 py-3">
+            <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-[#f8fbff]">
+              <div className="border-b border-[#c5d8eb] px-4 py-2.5">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
-                  Vista previa del comprobante
+                  Propietarios
                 </p>
               </div>
 
-              <div className="flex flex-1 flex-col gap-3 p-4">
-                {periodFrom && periodTo ? (
-                  <p className="text-xs text-slate-600">
-                    Período: {formatPagoDate(periodFrom)} —{" "}
-                    {formatPagoDate(periodTo)}
+              <div className="max-h-[220px] overflow-y-auto">
+                {isLoading ? (
+                  <p className="px-4 py-6 text-sm text-slate-500">
+                    Cargando propietarios...
+                  </p>
+                ) : loadError ? (
+                  <p className="px-4 py-6 text-sm text-red-600">{loadError}</p>
+                ) : filteredPropietarios.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-slate-500">
+                    No hay propietarios que coincidan con la búsqueda.
                   </p>
                 ) : (
-                  <p className="text-xs text-amber-700">
-                    Define el período de pago para generar el mensaje.
-                  </p>
+                  filteredPropietarios.slice(0, 80).map((propietario) => {
+                    const isSelected = Boolean(
+                      selectedPropietario &&
+                        getPropietarioKey(selectedPropietario) ===
+                          getPropietarioKey(propietario),
+                    );
+                    const alreadyAdded = lineItems.some(
+                      (item) =>
+                        item.propietarioId === getPropietarioKey(propietario),
+                    );
+
+                    return (
+                      <button
+                        key={getPropietarioKey(propietario)}
+                        type="button"
+                        onClick={() => selectPropietario(propietario)}
+                        disabled={alreadyAdded}
+                        className={`flex w-full flex-col gap-0.5 border-b border-[#d9e5f2] px-4 py-2.5 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-50 ${uiListRowClass(isSelected)}`}
+                      >
+                        <span className="text-sm font-semibold text-[#0f2747]">
+                          {propietario.fullName}
+                        </span>
+                        <span className="text-xs text-slate-600">
+                          Móvil{" "}
+                          {displayVehicleNumber(propietario.vehicleNumber) ||
+                            "—"}
+                        </span>
+                        {alreadyAdded ? (
+                          <span className="text-[11px] font-semibold text-emerald-700">
+                            Ya en el comprobante
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })
                 )}
-
-                <div className="flex-1 rounded-2xl border border-[#9fb8d9] bg-white p-4 text-sm leading-6 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
-                  {previewMessage ? (
-                    previewMessage
-                  ) : previewItem ? (
-                    "Completa el período para ver el mensaje."
-                  ) : (
-                    "Agrega propietarios al lote para previsualizar el comprobante."
-                  )}
-                </div>
-
-                {previewItem ? (
-                  <div className="rounded-2xl border border-[#d9e5f2] bg-white px-3 py-2 text-xs text-slate-600">
-                    <p>
-                      <strong>Para:</strong> {previewItem.titularEmail}
-                    </p>
-                    <p>
-                      <strong>Monto:</strong>{" "}
-                      {formatPagoAmount(previewItem.amount)}
-                    </p>
-                  </div>
-                ) : null}
               </div>
             </div>
           </div>
 
-          <div className="border-t border-[#c5d8eb] px-4 py-4 sm:px-5">
+          <div className="px-4 py-4 sm:px-5">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-heading text-base font-semibold text-[#0f2747]">
-                  Lote de pagos
+                  Vista previa del comprobante
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Envía comprobantes individuales o todos los pendientes.
+                  {periodIsValid
+                    ? `Período ${formatPagoDate(periodFrom)} al ${formatPagoDate(periodTo)}`
+                    : "Define el período de pago para completar el comprobante."}
                 </p>
               </div>
 
@@ -567,7 +498,7 @@ export default function PagoPropietarioPage() {
                   disabled={!lineItems.length || isSendingBulk}
                   className={secondaryButtonClassName}
                 >
-                  Limpiar lote
+                  Limpiar
                 </button>
               </div>
             </div>
@@ -584,82 +515,123 @@ export default function PagoPropietarioPage() {
               </p>
             ) : null}
 
-            <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
-              {lineItems.length === 0 ? (
-                <p className="bg-[#f8fbff] px-4 py-8 text-center text-sm text-slate-500">
-                  Aún no hay pagos en el lote. Busca un propietario, ingresa el
-                  monto y presiona Agregar.
-                </p>
-              ) : (
-                <div className="divide-y divide-[#d9e5f2]">
-                  {lineItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="grid gap-3 bg-[#f8fbff] px-4 py-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
-                            item.sent
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                              : "border-[#c5d8eb] bg-white text-slate-400"
-                          }`}
-                          title={item.sent ? "Correo enviado" : "Pendiente"}
-                        >
-                          {item.sent ? (
-                            <CheckIcon className="h-4 w-4" />
-                          ) : item.sending ? (
-                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#0b5cab] border-t-transparent" />
-                          ) : (
-                            <span className="text-xs font-semibold">○</span>
-                          )}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setPreviewItemId(item.id)}
-                        className="min-w-0 text-left"
+            <div className="overflow-x-auto rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className={`${tableHeadClassName} w-12 text-center`}>
+                      Envío
+                    </th>
+                    <th className={tableHeadClassName}>Móvil</th>
+                    <th className={tableHeadClassName}>Propietario</th>
+                    <th className={tableHeadClassName}>Titular</th>
+                    <th className={tableHeadClassName}>Correo titular</th>
+                    <th className={`${tableHeadClassName} text-right`}>
+                      Monto
+                    </th>
+                    <th className={`${tableHeadClassName} text-right`}>
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="bg-[#f8fbff] px-4 py-10 text-center text-sm text-slate-500"
                       >
-                        <p className="truncate text-sm font-semibold text-[#0f2747]">
-                          {item.fullName}
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          Móvil {item.vehicleNumber || "—"} · Titular{" "}
-                          {item.titularName} · {formatPagoAmount(item.amount)}
-                        </p>
-                        <p className="truncate text-xs text-slate-500">
+                        Agrega propietarios arriba para ver el detalle del
+                        comprobante en esta tabla.
+                      </td>
+                    </tr>
+                  ) : (
+                    lineItems.map((item, index) => (
+                      <tr
+                        key={item.id}
+                        className={index % 2 === 0 ? "bg-white" : "bg-[#f8fbff]"}
+                      >
+                        <td className={`${tableCellClassName} text-center`}>
+                          <span
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${
+                              item.sent
+                                ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                : "border-[#c5d8eb] bg-white text-slate-400"
+                            }`}
+                            title={item.sent ? "Correo enviado" : "Pendiente"}
+                          >
+                            {item.sent ? (
+                              <CheckIcon className="h-3.5 w-3.5" />
+                            ) : item.sending ? (
+                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#0b5cab] border-t-transparent" />
+                            ) : (
+                              <span className="text-[10px] font-semibold">○</span>
+                            )}
+                          </span>
+                        </td>
+                        <td className={`${tableCellClassName} font-semibold`}>
+                          {item.vehicleNumber || "—"}
+                        </td>
+                        <td className={tableCellClassName}>{item.fullName}</td>
+                        <td className={tableCellClassName}>
+                          {item.titularName}
+                        </td>
+                        <td className={`${tableCellClassName} text-xs text-slate-600`}>
                           {item.titularEmail}
-                        </p>
-                        {item.sendError ? (
-                          <p className="mt-1 text-xs text-red-600">
-                            {item.sendError}
-                          </p>
-                        ) : null}
-                      </button>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => sendItems([item.id])}
-                          disabled={item.sent || item.sending || !periodIsValid}
-                          className={secondaryButtonClassName}
+                          {item.sendError ? (
+                            <p className="mt-1 text-xs text-red-600">
+                              {item.sendError}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td
+                          className={`${tableCellClassName} text-right font-semibold tabular-nums`}
                         >
-                          {item.sending ? "Enviando..." : "Enviar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeLineItem(item.id)}
-                          disabled={item.sending || isSendingBulk}
-                          className="inline-flex h-10 items-center justify-center rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                          {formatPagoAmount(item.amount)}
+                        </td>
+                        <td className={tableCellClassName}>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => sendItems([item.id])}
+                              disabled={
+                                item.sent || item.sending || !periodIsValid
+                              }
+                              className="inline-flex h-8 items-center justify-center rounded-xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {item.sending ? "..." : "Enviar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeLineItem(item.id)}
+                              disabled={item.sending || isSendingBulk}
+                              className="inline-flex h-8 items-center justify-center rounded-xl border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {lineItems.length > 0 ? (
+                  <tfoot>
+                    <tr className="bg-[#d7e7f8]">
+                      <td
+                        colSpan={5}
+                        className="border-t border-[#9fb8d9] px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-[0.08em] text-[#173b68]"
+                      >
+                        Total del comprobante
+                      </td>
+                      <td className="border-t border-[#9fb8d9] px-3 py-2.5 text-right text-sm font-bold tabular-nums text-[#0f2747]">
+                        {formatPagoAmount(totalAmount)}
+                      </td>
+                      <td className="border-t border-[#9fb8d9] px-3 py-2.5" />
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
             </div>
           </div>
         </div>
