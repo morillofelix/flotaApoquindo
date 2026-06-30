@@ -174,6 +174,7 @@ export default function PagoPropietarioPage() {
 
       const response = await fetch("/api/pago-propietario/parse-bulk", {
         method: "POST",
+        credentials: "include",
         body: formData,
       });
 

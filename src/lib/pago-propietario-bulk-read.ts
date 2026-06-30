@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import {
   buildMatrixFromCsvContent,
+  describeBulkMatrixHeaders,
   hasPagoBulkHeaderMatch,
   normalizeBulkMatrix,
   parsePagoPropietarioBulkMatrix,
@@ -20,6 +21,10 @@ const EMBEDDED_MARKERS = [
   "office:spreadsheet",
   "schemas-microsoft-com:office:spreadsheet",
 ];
+
+function isSpreadsheetFileName(fileName: string) {
+  return /\.(xls|xlsx)$/i.test(fileName);
+}
 
 function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
   const slices: string[] = [];
@@ -96,7 +101,23 @@ function collectTextVariants(bytes: Uint8Array) {
   return variants;
 }
 
-function readSheetMatrixFromXlsx(sheet: XLSX.WorkSheet) {
+function formatSheetCell(cell: XLSX.CellObject | undefined) {
+  if (!cell) {
+    return "";
+  }
+
+  if (typeof cell.w === "string" && cell.w.trim()) {
+    return cell.w.trim();
+  }
+
+  if (cell.v === null || cell.v === undefined) {
+    return "";
+  }
+
+  return String(cell.v).trim();
+}
+
+function readSheetMatrixFromRange(sheet: XLSX.WorkSheet) {
   if (!sheet || !sheet["!ref"]) {
     return [] as string[][];
   }
@@ -112,12 +133,9 @@ function readSheetMatrixFromXlsx(sheet: XLSX.WorkSheet) {
         r: rowIndex,
         c: columnIndex,
       });
-      const cell = sheet[cellAddress] as { v?: unknown; w?: string } | undefined;
-      const value =
-        cell?.w ??
-        (cell?.v === null || cell?.v === undefined ? "" : cell.v);
+      const cell = sheet[cellAddress] as XLSX.CellObject | undefined;
 
-      row.push(String(value ?? "").trim());
+      row.push(formatSheetCell(cell));
     }
 
     matrix.push(row);
@@ -126,12 +144,53 @@ function readSheetMatrixFromXlsx(sheet: XLSX.WorkSheet) {
   return normalizeBulkMatrix(matrix);
 }
 
+function readSheetMatrixFromJson(sheet: XLSX.WorkSheet) {
+  const jsonMatrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+    blankrows: false,
+  });
+
+  return normalizeBulkMatrix(
+    jsonMatrix.map((row) => (row ?? []).map((cell) => String(cell ?? "").trim())),
+  );
+}
+
+function scoreMatrixShape(matrix: string[][]) {
+  let score = matrix.length;
+
+  for (const row of matrix.slice(0, 20)) {
+    for (const cell of row) {
+      const lower = cell.toLowerCase();
+
+      if (lower.includes("facturar") || lower.includes("factura")) {
+        score += 200;
+      }
+
+      if (lower.includes("preliq")) {
+        score += 80;
+      }
+
+      if (lower.includes("periodo")) {
+        score += 40;
+      }
+    }
+  }
+
+  return score;
+}
+
 function readBinarySpreadsheetMatrix(buffer: ArrayBuffer) {
   const workbook = XLSX.read(buffer, {
     type: "array",
     cellDates: false,
     dense: false,
+    codepage: 1252,
   });
+
+  let bestMatrix: string[][] = [];
+  let bestScore = -1;
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
@@ -140,14 +199,26 @@ function readBinarySpreadsheetMatrix(buffer: ArrayBuffer) {
       continue;
     }
 
-    const matrix = readSheetMatrixFromXlsx(sheet);
+    const candidates = [
+      readSheetMatrixFromRange(sheet),
+      readSheetMatrixFromJson(sheet),
+    ];
 
-    if (hasPagoBulkHeaderMatch(matrix)) {
-      return matrix;
+    for (const matrix of candidates) {
+      if (hasPagoBulkHeaderMatch(matrix)) {
+        return matrix;
+      }
+
+      const score = scoreMatrixShape(matrix);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatrix = matrix;
+      }
     }
   }
 
-  return [] as string[][];
+  return bestMatrix;
 }
 
 function tryParseAccessTextSpreadsheet(
@@ -180,26 +251,27 @@ function tryParseAccessTextSpreadsheet(
   return null;
 }
 
-function buildPagoBulkReadFailureMessage(bytes: Uint8Array) {
+function buildPagoBulkReadFailureMessage(
+  bytes: Uint8Array,
+  previewMatrix: string[][],
+) {
+  const headerPreview = describeBulkMatrixHeaders(previewMatrix);
+
+  if (previewMatrix.length > 0) {
+    return `No se detectó la columna del móvil junto a "Total Facturar". Encabezados leídos: ${headerPreview}.`;
+  }
+
   const latin = new TextDecoder("latin1").decode(bytes).toLowerCase();
   const utf16 = new TextDecoder("utf-16le").decode(bytes).toLowerCase();
   const haystack = `${latin}\n${utf16}`;
   const hasTotalFacturar =
     haystack.includes("total facturar") || haystack.includes("total factura");
-  const hasSpreadsheetMarkup =
-    haystack.includes("<table") ||
-    haystack.includes("office:spreadsheet") ||
-    haystack.includes("schemas-microsoft-com:office:spreadsheet");
-
-  if (hasTotalFacturar && hasSpreadsheetMarkup) {
-    return 'El archivo contiene "Total Facturar", pero Access lo exportó en un formato que no se pudo armar. Guarda el archivo en la carpeta del proyecto o reexpórtalo desde Access como "Excel 97-2003 (.xls)".';
-  }
 
   if (!hasTotalFacturar) {
     return 'No se encontró la columna "Total Facturar" dentro del archivo. Confirma que estás subiendo Preliquidaciones exportado desde Access.';
   }
 
-  return 'Verifica que el archivo tenga una columna sin título con el móvil y la columna "Total Facturar".';
+  return 'El archivo parece ser Excel binario de Access. Copia Preliquidaciones.xls a la carpeta fixtures/ del proyecto para ajustar el lector.';
 }
 
 export function readPagoPropietarioBulkFromBuffer(
@@ -207,6 +279,15 @@ export function readPagoPropietarioBulkFromBuffer(
   buffer: ArrayBuffer,
 ): PagoBulkParseResult {
   const bytes = new Uint8Array(buffer);
+  let previewMatrix: string[][] = [];
+
+  if (isSpreadsheetFileName(fileName) || isBinarySpreadsheetBytes(bytes)) {
+    previewMatrix = readBinarySpreadsheetMatrix(buffer);
+
+    if (hasPagoBulkHeaderMatch(previewMatrix)) {
+      return parsePagoPropietarioBulkMatrix(previewMatrix);
+    }
+  }
 
   for (const rawContent of collectTextVariants(bytes)) {
     const parsed = tryParseAccessTextSpreadsheet(fileName, rawContent);
@@ -216,16 +297,12 @@ export function readPagoPropietarioBulkFromBuffer(
     }
   }
 
-  if (isBinarySpreadsheetBytes(bytes)) {
-    const matrix = readBinarySpreadsheetMatrix(buffer);
-
-    if (hasPagoBulkHeaderMatch(matrix)) {
-      return parsePagoPropietarioBulkMatrix(matrix);
-    }
+  if (!previewMatrix.length && (isSpreadsheetFileName(fileName) || isBinarySpreadsheetBytes(bytes))) {
+    previewMatrix = readBinarySpreadsheetMatrix(buffer);
   }
 
   throw new Error(
-    `No se pudo leer Preliquidaciones. ${buildPagoBulkReadFailureMessage(bytes)}`,
+    `No se pudo leer Preliquidaciones. ${buildPagoBulkReadFailureMessage(bytes, previewMatrix)}`,
   );
 }
 

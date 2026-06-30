@@ -426,6 +426,41 @@ function padMatrix(matrix: string[][]) {
   });
 }
 
+export function describeBulkMatrixHeaders(matrix: string[][]): string {
+  if (!matrix.length) {
+    return "el archivo no generó filas legibles";
+  }
+
+  for (let rowIndex = 0; rowIndex < Math.min(matrix.length, 40); rowIndex += 1) {
+    const row = matrix[rowIndex] ?? [];
+    const hasFacturar = row.some((cell) =>
+      cell.toLowerCase().includes("factur"),
+    );
+
+    if (!hasFacturar) {
+      continue;
+    }
+
+    return `fila ${rowIndex + 1}: ${row
+      .map((cell, columnIndex) =>
+        cell.trim() ? `"${cell.trim()}"` : `[vacía col ${columnIndex + 1}]`,
+      )
+      .join(", ")}`;
+  }
+
+  const firstVisibleRow = matrix.find((row) => row.some((cell) => cell.trim()));
+
+  if (!firstVisibleRow) {
+    return "sin encabezados legibles";
+  }
+
+  return `primeras columnas: ${firstVisibleRow
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(", ")}`;
+}
+
 export function hasPagoBulkHeaderMatch(matrix: string[][]): boolean {
   return findPagoBulkHeaderInMatrix(matrix) !== null;
 }
