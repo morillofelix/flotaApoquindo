@@ -13,7 +13,7 @@ import {
   type ParsedPropietarioRow,
   type PropietarioConfig,
 } from "@/lib/propietarios";
-import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES } from "@/lib/propietarios-template";
+import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, normalizeDepositAccountType } from "@/lib/propietarios-template";
 import {
   isDigitOnlySearch,
   matchesTextSearch,
@@ -121,6 +121,10 @@ export default function PropietariosPage() {
   const [activeStatusFilter, setActiveStatusFilter] = useState<
     "todos" | "activo" | "inactivo"
   >("todos");
+  const [depositAccountFilter, setDepositAccountFilter] = useState<
+    "todos" | (typeof PROPIETARIO_DEPOSIT_ACCOUNT_TYPES)[number]
+  >("todos");
+  const [bankNameFilter, setBankNameFilter] = useState("todos");
   const [propietarioMessage, setPropietarioMessage] = useState("");
   const [propietarioError, setPropietarioError] = useState("");
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
@@ -133,6 +137,22 @@ export default function PropietariosPage() {
       .then((loaded) => setPropietarios(loaded))
       .catch(() => setPropietarioError("No se pudieron cargar los propietarios."));
   }, []);
+
+  const availableBankNames = useMemo(() => {
+    const names = new Set<string>();
+
+    for (const propietario of propietarios) {
+      const bankName = propietario.bankName.trim();
+
+      if (bankName) {
+        names.add(bankName);
+      }
+    }
+
+    return Array.from(names).sort((left, right) =>
+      left.localeCompare(right, "es", { sensitivity: "base" }),
+    );
+  }, [propietarios]);
 
   const filteredPropietarios = useMemo(() => {
     const normalizedSearch = propietarioSearch.trim();
@@ -158,12 +178,35 @@ export default function PropietariosPage() {
         (activeStatusFilter === "activo" && propietario.isActive) ||
         (activeStatusFilter === "inactivo" && !propietario.isActive);
 
-      return matchesSearch && matchesActiveStatus;
+      const matchesDepositAccount =
+        depositAccountFilter === "todos" ||
+        normalizeDepositAccountType(propietario.paymentMethod) ===
+          depositAccountFilter;
+
+      const matchesBankName =
+        bankNameFilter === "todos" ||
+        propietario.bankName.trim() === bankNameFilter;
+
+      return (
+        matchesSearch &&
+        matchesActiveStatus &&
+        matchesDepositAccount &&
+        matchesBankName
+      );
     });
-  }, [activeStatusFilter, propietarioSearch, propietarios]);
+  }, [
+    activeStatusFilter,
+    bankNameFilter,
+    depositAccountFilter,
+    propietarioSearch,
+    propietarios,
+  ]);
 
   const hasListFilters =
-    propietarioSearch.trim().length > 0 || activeStatusFilter !== "todos";
+    propietarioSearch.trim().length > 0 ||
+    activeStatusFilter !== "todos" ||
+    depositAccountFilter !== "todos" ||
+    bankNameFilter !== "todos";
 
   function isSelectedPropietario(propietario: PropietarioConfig) {
     if (propietarioForm.id && propietario.id) {
@@ -746,33 +789,71 @@ export default function PropietariosPage() {
               </div>
 
               <div className="rounded-2xl border border-[#b7cce4] bg-white p-3">
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <label className="flex flex-1 flex-col gap-1.5">
+                <div className="mb-3 flex flex-col gap-2">
+                  <label className="flex flex-col gap-1.5">
                     <span className={labelClassName}>Buscar registro</span>
                     <input
                       type="search"
                       value={propietarioSearch}
                       onChange={(event) => setPropietarioSearch(event.target.value)}
-                      placeholder="Razón social, RUT, móvil o banco..."
+                      placeholder="Razón social, RUT, móvil o cuenta..."
                       className={inputClassName}
                     />
                   </label>
-                  <label className="flex w-full flex-col gap-1.5 sm:w-40">
-                    <span className={labelClassName}>Estado</span>
-                    <select
-                      value={activeStatusFilter}
-                      onChange={(event) =>
-                        setActiveStatusFilter(
-                          event.target.value as "todos" | "activo" | "inactivo",
-                        )
-                      }
-                      className={inputClassName}
-                    >
-                      <option value="todos">Todos</option>
-                      <option value="activo">Activo</option>
-                      <option value="inactivo">Inactivo</option>
-                    </select>
-                  </label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelClassName}>Estado</span>
+                      <select
+                        value={activeStatusFilter}
+                        onChange={(event) =>
+                          setActiveStatusFilter(
+                            event.target.value as "todos" | "activo" | "inactivo",
+                          )
+                        }
+                        className={inputClassName}
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="activo">Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelClassName}>Cta depósito</span>
+                      <select
+                        value={depositAccountFilter}
+                        onChange={(event) =>
+                          setDepositAccountFilter(
+                            event.target.value as
+                              | "todos"
+                              | (typeof PROPIETARIO_DEPOSIT_ACCOUNT_TYPES)[number],
+                          )
+                        }
+                        className={inputClassName}
+                      >
+                        <option value="todos">Todas</option>
+                        {PROPIETARIO_DEPOSIT_ACCOUNT_TYPES.map((accountType) => (
+                          <option key={accountType} value={accountType}>
+                            {accountType}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelClassName}>Nombre banco</span>
+                      <select
+                        value={bankNameFilter}
+                        onChange={(event) => setBankNameFilter(event.target.value)}
+                        className={inputClassName}
+                      >
+                        <option value="todos">Todos</option>
+                        {availableBankNames.map((bankName) => (
+                          <option key={bankName} value={bankName}>
+                            {bankName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                 </div>
 
                 <p className="mb-2 text-[11px] text-slate-500">
