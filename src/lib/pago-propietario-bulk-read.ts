@@ -3,6 +3,7 @@ import {
   buildMatrixFromCsvContent,
   describeBulkMatrixHeaders,
   hasPagoBulkHeaderMatch,
+  matrixLooksLikeGarbage,
   normalizeBulkMatrix,
   parsePagoPropietarioBulkMatrix,
   type PagoBulkParseResult,
@@ -18,12 +19,41 @@ const EMBEDDED_MARKERS = [
   "<?xml",
   "<html",
   "<table",
+  "<workbook",
   "office:spreadsheet",
   "schemas-microsoft-com:office:spreadsheet",
 ];
 
-function isSpreadsheetFileName(fileName: string) {
-  return /\.(xls|xlsx)$/i.test(fileName);
+function isLegacyXlsFileName(fileName: string) {
+  return /\.xls$/i.test(fileName);
+}
+
+function isModernXlsxFileName(fileName: string) {
+  return /\.xlsx$/i.test(fileName);
+}
+
+function extractMarkupAroundTotalFacturar(text: string) {
+  const lower = text.toLowerCase();
+  const facturarIndex = lower.indexOf("total facturar");
+
+  if (facturarIndex === -1) {
+    return null;
+  }
+
+  const before = text.slice(0, facturarIndex);
+  const anchors = [
+    before.lastIndexOf("<table"),
+    before.lastIndexOf("<?xml"),
+    before.lastIndexOf("<html"),
+    before.lastIndexOf("<workbook"),
+  ];
+  const start = Math.max(...anchors);
+
+  if (start >= 0) {
+    return text.slice(start);
+  }
+
+  return text.slice(Math.max(0, facturarIndex - 80_000));
 }
 
 function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
@@ -35,6 +65,17 @@ function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
     () => new TextDecoder("latin1").decode(bytes),
   ];
 
+  const addSlice = (value: string) => {
+    const normalized = value.replace(/^\uFEFF/, "");
+
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+
+    seen.add(normalized);
+    slices.push(normalized);
+  };
+
   for (const decode of decoders) {
     let text = "";
 
@@ -42,6 +83,12 @@ function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
       text = decode();
     } catch {
       continue;
+    }
+
+    const aroundFacturar = extractMarkupAroundTotalFacturar(text);
+
+    if (aroundFacturar) {
+      addSlice(aroundFacturar);
     }
 
     const lower = text.toLowerCase();
@@ -54,7 +101,7 @@ function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
       }
 
       seen.add(`${marker}:${index}`);
-      slices.push(text.slice(index));
+      addSlice(text.slice(index));
     }
   }
 
@@ -83,7 +130,7 @@ function collectTextVariants(bytes: Uint8Array) {
   try {
     addVariant(readSpreadsheetTextContent(bytes));
   } catch {
-    // Binary OLE; embedded slices above should cover it.
+    // Access .xls OLE: usar extractores embebidos arriba.
   }
 
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
@@ -157,30 +204,6 @@ function readSheetMatrixFromJson(sheet: XLSX.WorkSheet) {
   );
 }
 
-function scoreMatrixShape(matrix: string[][]) {
-  let score = matrix.length;
-
-  for (const row of matrix.slice(0, 20)) {
-    for (const cell of row) {
-      const lower = cell.toLowerCase();
-
-      if (lower.includes("facturar") || lower.includes("factura")) {
-        score += 200;
-      }
-
-      if (lower.includes("preliq")) {
-        score += 80;
-      }
-
-      if (lower.includes("periodo")) {
-        score += 40;
-      }
-    }
-  }
-
-  return score;
-}
-
 function readBinarySpreadsheetMatrix(buffer: ArrayBuffer) {
   const workbook = XLSX.read(buffer, {
     type: "array",
@@ -205,11 +228,25 @@ function readBinarySpreadsheetMatrix(buffer: ArrayBuffer) {
     ];
 
     for (const matrix of candidates) {
+      if (matrixLooksLikeGarbage(matrix)) {
+        continue;
+      }
+
       if (hasPagoBulkHeaderMatch(matrix)) {
         return matrix;
       }
 
-      const score = scoreMatrixShape(matrix);
+      let score = matrix.length;
+
+      for (const row of matrix.slice(0, 20)) {
+        for (const cell of row) {
+          const lower = cell.toLowerCase();
+
+          if (lower.includes("facturar")) {
+            score += 200;
+          }
+        }
+      }
 
       if (score > bestScore) {
         bestScore = score;
@@ -251,13 +288,23 @@ function tryParseAccessTextSpreadsheet(
   return null;
 }
 
+function tryReadWithBinaryParser(buffer: ArrayBuffer) {
+  const matrix = readBinarySpreadsheetMatrix(buffer);
+
+  if (matrixLooksLikeGarbage(matrix) || !hasPagoBulkHeaderMatch(matrix)) {
+    return null;
+  }
+
+  return parsePagoPropietarioBulkMatrix(matrix);
+}
+
 function buildPagoBulkReadFailureMessage(
   bytes: Uint8Array,
   previewMatrix: string[][],
 ) {
-  const headerPreview = describeBulkMatrixHeaders(previewMatrix);
+  if (previewMatrix.length > 0 && !matrixLooksLikeGarbage(previewMatrix)) {
+    const headerPreview = describeBulkMatrixHeaders(previewMatrix);
 
-  if (previewMatrix.length > 0) {
     return `No se detectó la columna del móvil junto a "Total Facturar". Encabezados leídos: ${headerPreview}.`;
   }
 
@@ -267,11 +314,11 @@ function buildPagoBulkReadFailureMessage(
   const hasTotalFacturar =
     haystack.includes("total facturar") || haystack.includes("total factura");
 
-  if (!hasTotalFacturar) {
-    return 'No se encontró la columna "Total Facturar" dentro del archivo. Confirma que estás subiendo Preliquidaciones exportado desde Access.';
+  if (hasTotalFacturar) {
+    return 'El archivo contiene "Total Facturar" pero Access lo exportó en un formato que aún no se pudo abrir. Copia Preliquidaciones.xls en la carpeta fixtures/ del proyecto para ajustarlo.';
   }
 
-  return 'El archivo parece ser Excel binario de Access. Copia Preliquidaciones.xls a la carpeta fixtures/ del proyecto para ajustar el lector.';
+  return 'No se encontró "Total Facturar" en el archivo. Confirma que subes Preliquidaciones exportado desde Access.';
 }
 
 export function readPagoPropietarioBulkFromBuffer(
@@ -279,15 +326,6 @@ export function readPagoPropietarioBulkFromBuffer(
   buffer: ArrayBuffer,
 ): PagoBulkParseResult {
   const bytes = new Uint8Array(buffer);
-  let previewMatrix: string[][] = [];
-
-  if (isSpreadsheetFileName(fileName) || isBinarySpreadsheetBytes(bytes)) {
-    previewMatrix = readBinarySpreadsheetMatrix(buffer);
-
-    if (hasPagoBulkHeaderMatch(previewMatrix)) {
-      return parsePagoPropietarioBulkMatrix(previewMatrix);
-    }
-  }
 
   for (const rawContent of collectTextVariants(bytes)) {
     const parsed = tryParseAccessTextSpreadsheet(fileName, rawContent);
@@ -297,7 +335,28 @@ export function readPagoPropietarioBulkFromBuffer(
     }
   }
 
-  if (!previewMatrix.length && (isSpreadsheetFileName(fileName) || isBinarySpreadsheetBytes(bytes))) {
+  if (isModernXlsxFileName(fileName)) {
+    const parsed = tryReadWithBinaryParser(buffer);
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  if (
+    isLegacyXlsFileName(fileName) &&
+    isBinarySpreadsheetBytes(bytes)
+  ) {
+    const parsed = tryReadWithBinaryParser(buffer);
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  let previewMatrix: string[][] = [];
+
+  if (isModernXlsxFileName(fileName) || isBinarySpreadsheetBytes(bytes)) {
     previewMatrix = readBinarySpreadsheetMatrix(buffer);
   }
 

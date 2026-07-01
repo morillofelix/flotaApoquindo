@@ -481,6 +481,35 @@ function padMatrix(matrix: string[][]) {
   });
 }
 
+export function matrixLooksLikeGarbage(matrix: string[][]): boolean {
+  if (!matrix.length) {
+    return true;
+  }
+
+  const hasRealHeader = matrix.slice(0, 30).some((row) =>
+    row.some((cell) =>
+      /preliq|periodo|facturar|conductor|movil/i.test(cell),
+    ),
+  );
+
+  if (hasRealHeader) {
+    return false;
+  }
+
+  const firstRow = matrix[0] ?? [];
+
+  return firstRow.some((cell) => {
+    const trimmed = cell.trim();
+
+    return (
+      trimmed.includes("&#") ||
+      /^[<>&+]$/.test(trimmed) ||
+      trimmed === "&lt;" ||
+      trimmed === "&gt;"
+    );
+  });
+}
+
 export function describeBulkMatrixHeaders(matrix: string[][]): string {
   if (!matrix.length) {
     return "el archivo no generó filas legibles";
