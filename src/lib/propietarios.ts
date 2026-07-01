@@ -103,6 +103,7 @@ const headerAliases: Record<string, string> = {
   rut_banco: "titularRut",
   nombre_cuenta_bancaria: "accountHolder",
   codigo_banco: "bankBic",
+  nombre_banco: "bankName",
   nro_cta_banco: "bankAccount",
   nro_cta: "bankAccount",
   nif: "rut",
@@ -467,27 +468,30 @@ function buildParsedPropietarioRow(
     titularRut,
     bankBic: (record.bankBic ?? "").trim(),
     paymentMethod: normalizeDepositAccountType(record.paymentMethod ?? ""),
+    email: (record.email ?? "").trim(),
     isActive: true,
   };
 }
 
-function mapTemplateRowToRecord(values: string[]) {
-  const fieldKeys = [
-    "rut",
-    "vehicleNumber",
-    "fullName",
-    "paymentMethod",
-    "titularRut",
-    "accountHolder",
-    "bankBic",
-    "bankName",
-    "bankAccount",
-  ] as const;
-
+function mapMatrixRowByHeaders(headerRow: string[], values: string[]) {
   const record: Record<string, string> = {};
+  const assignedFields = new Set<string>();
 
-  fieldKeys.forEach((field, index) => {
+  headerRow.forEach((header, index) => {
+    const normalizedHeader = normalizeHeader(header);
+
+    if (!normalizedHeader) {
+      return;
+    }
+
+    const field = headerAliases[normalizedHeader];
+
+    if (!field || assignedFields.has(field)) {
+      return;
+    }
+
     record[field] = String(values[index] ?? "").trim();
+    assignedFields.add(field);
   });
 
   return record;
@@ -517,15 +521,25 @@ export function parsePropietariosMatrix(matrix: string[][]) {
   const rows: ParsedPropietarioRow[] = [];
   const errors: string[] = [];
   const importedKeys = new Set<string>();
+  const headerRow = (matrix[headerIndex] ?? []).map((cell) =>
+    String(cell ?? "").trim(),
+  );
 
   for (let rowIndex = headerIndex + 1; rowIndex < matrix.length; rowIndex += 1) {
     const values = (matrix[rowIndex] ?? []).map((cell) => String(cell ?? "").trim());
 
-    if (!values.slice(0, 9).some((value) => value.length > 0)) {
+    const record = mapMatrixRowByHeaders(headerRow, values);
+    const hasRowData =
+      Boolean(record.fullName) ||
+      Boolean(record.rut) ||
+      Boolean(record.vehicleNumber) ||
+      Boolean(record.bankAccount) ||
+      Boolean(record.email);
+
+    if (!hasRowData) {
       continue;
     }
 
-    const record = mapTemplateRowToRecord(values);
     const parsedRow = buildParsedPropietarioRow(
       record,
       rowIndex + 1,
@@ -849,6 +863,7 @@ export function downloadPropietariosExcel(
           <td>${escapeExcelHtml(row.bankBic)}</td>
           <td>${escapeExcelHtml(row.bankName)}</td>
           <td>${escapeExcelHtml(row.bankAccount)}</td>
+          <td>${escapeExcelHtml(row.email)}</td>
         </tr>`,
     )
     .join("");

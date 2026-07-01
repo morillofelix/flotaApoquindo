@@ -2,6 +2,7 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   rut: "RUT.-",
   vehicleNumber: "Móvil",
   fullName: "Razón Social",
+  email: "Correo",
   paymentMethod: "Cta Depósito",
   titularRut: "RUT BANCO",
   accountHolder: "NOMBRE CUENTA BANCARIA",
