@@ -49,8 +49,37 @@ export default function PropietarioBanksDialog({
   const [bankMessage, setBankMessage] = useState("");
   const [bankError, setBankError] = useState("");
   const [isSavingBank, setIsSavingBank] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "todos" | "activo" | "inactivo"
+  >("todos");
 
   const sortedBanks = useMemo(() => sortPropietarioBanks(banks), [banks]);
+
+  const filteredBanks = useMemo(() => {
+    const normalizedSearch = bankSearch.trim().toLowerCase();
+
+    return sortedBanks.filter((bank) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        bank.name.toLowerCase().includes(normalizedSearch) ||
+        bank.bankBic.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus =
+        statusFilter === "todos" ||
+        (statusFilter === "activo" && bank.isActive) ||
+        (statusFilter === "inactivo" && !bank.isActive);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [bankSearch, sortedBanks, statusFilter]);
+
+  const activeBankCount = useMemo(
+    () => sortedBanks.filter((bank) => bank.isActive).length,
+    [sortedBanks],
+  );
+
+  const inactiveBankCount = sortedBanks.length - activeBankCount;
 
   useEffect(() => {
     if (!open) {
@@ -72,6 +101,8 @@ export default function PropietarioBanksDialog({
       setBankForm(emptyBankForm);
       setBankMessage("");
       setBankError("");
+      setBankSearch("");
+      setStatusFilter("todos");
     }
   }, [open]);
 
@@ -286,19 +317,58 @@ export default function PropietarioBanksDialog({
             ) : null}
           </form>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[#b7cce4]">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
+            <div className="border-b border-[#c5d8eb] bg-[#f8fbff] p-3">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
+                <label className="flex min-w-0 flex-col gap-1.5">
+                  <span className={labelClassName}>Buscar banco</span>
+                  <input
+                    type="search"
+                    value={bankSearch}
+                    onChange={(event) => setBankSearch(event.target.value)}
+                    placeholder="Nombre o código..."
+                    className={inputClassName}
+                  />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1.5">
+                  <span className={labelClassName}>Estado</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(
+                        event.target.value as "todos" | "activo" | "inactivo",
+                      )
+                    }
+                    className={inputClassName}
+                  >
+                    <option value="todos">Todos</option>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </label>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                {filteredBanks.length} de {sortedBanks.length} bancos
+                {statusFilter === "todos"
+                  ? ` · ${activeBankCount} activos · ${inactiveBankCount} inactivos`
+                  : null}
+              </p>
+            </div>
+
             <div className="grid grid-cols-[minmax(0,1fr)_0.35fr_0.35fr] gap-2 bg-[#eef4fb] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#173b68]">
               <span>Nombre banco</span>
               <span>Código</span>
               <span>Estado</span>
             </div>
             <div className="max-h-[40dvh] divide-y divide-[#c5d8eb] overflow-auto">
-              {sortedBanks.length === 0 ? (
+              {filteredBanks.length === 0 ? (
                 <p className="px-3 py-4 text-xs text-slate-500">
-                  No hay bancos en el catálogo todavía.
+                  {sortedBanks.length === 0
+                    ? "No hay bancos en el catálogo todavía."
+                    : "No hay bancos que coincidan con la búsqueda o el filtro seleccionado."}
                 </p>
               ) : (
-                sortedBanks.map((bank) => (
+                filteredBanks.map((bank) => (
                   <button
                     key={bank.id}
                     type="button"
@@ -328,9 +398,8 @@ export default function PropietarioBanksDialog({
 
           <p className="mt-3 text-[11px] text-slate-500">
             {sortedBanks.length} banco{sortedBanks.length === 1 ? "" : "s"} en
-            catálogo. Los inactivos no aparecen al crear propietarios. Los bancos
-            usados en propietarios se cargan automáticamente al abrir este
-            mantenedor.
+            catálogo ({activeBankCount} activos, {inactiveBankCount} inactivos).
+            Los inactivos no aparecen al crear propietarios.
           </p>
         </div>
       </div>
