@@ -19,7 +19,7 @@ import {
   getActivePropietarioBanks,
   type PropietarioBankConfig,
 } from "@/lib/propietarios-banks";
-import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, normalizeDepositAccountType } from "@/lib/propietarios-template";
+import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, formatBankRutForDisplay, formatCompanyRutForDisplay, normalizeDepositAccountType } from "@/lib/propietarios-template";
 import {
   isDigitOnlySearch,
   matchesTextSearch,
@@ -140,6 +140,8 @@ export default function PropietariosPage() {
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
   const [highlightInactiveReason, setHighlightInactiveReason] = useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
+  const accountHolderManuallyEditedRef = useRef(false);
+  const titularRutManuallyEditedRef = useRef(false);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
 
   useEffect(() => {
@@ -255,11 +257,32 @@ export default function PropietariosPage() {
     return false;
   }
 
+  function resetPropietarioFormSyncFlags(propietario?: PropietarioConfig) {
+    if (!propietario) {
+      accountHolderManuallyEditedRef.current = false;
+      titularRutManuallyEditedRef.current = false;
+      return;
+    }
+
+    const fullName = propietario.fullName.trim();
+    const accountHolder = propietario.accountHolder.trim();
+    const bankRut = formatBankRutForDisplay(propietario.titularRut);
+    const companyRut = formatBankRutForDisplay(propietario.rut);
+
+    accountHolderManuallyEditedRef.current =
+      accountHolder.length > 0 && accountHolder !== fullName;
+    titularRutManuallyEditedRef.current =
+      bankRut.length > 0 && bankRut !== companyRut;
+  }
+
   function editPropietario(propietario: PropietarioConfig) {
     setPropietarioForm({
       id: propietario.id ?? "",
       ...propietario,
+      rut: formatCompanyRutForDisplay(propietario.rut),
+      titularRut: formatBankRutForDisplay(propietario.titularRut),
     });
+    resetPropietarioFormSyncFlags(propietario);
     setHighlightInactiveReason(!propietario.isActive);
     setPropietarioMessage("");
     setPropietarioError("");
@@ -267,6 +290,7 @@ export default function PropietariosPage() {
 
   function resetPropietarioForm() {
     setPropietarioForm(emptyPropietarioForm);
+    resetPropietarioFormSyncFlags();
     setHighlightInactiveReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
@@ -510,13 +534,19 @@ export default function PropietariosPage() {
     setIsSavingPropietario(true);
 
     try {
+      const payload = {
+        ...propietarioForm,
+        rut: formatCompanyRutForDisplay(propietarioForm.rut),
+        titularRut: formatBankRutForDisplay(propietarioForm.titularRut),
+      };
+
       const response = await fetch("/api/propietarios", {
         method: propietarioForm.id ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: adminFetchInit.credentials,
-        body: JSON.stringify(propietarioForm),
+        body: JSON.stringify(payload),
       });
 
       const data = (await response.json()) as {
@@ -531,7 +561,7 @@ export default function PropietariosPage() {
 
       const loadedPropietarios = await loadPropietarios();
       setPropietarios(loadedPropietarios);
-      setPropietarioForm(emptyPropietarioForm);
+      resetPropietarioForm();
 
       if (data.notificationSent) {
         setPropietarioMessage(
@@ -595,7 +625,7 @@ export default function PropietariosPage() {
 
       const loadedPropietarios = await loadPropietarios();
       setPropietarios(loadedPropietarios);
-      setPropietarioForm(emptyPropietarioForm);
+      resetPropietarioForm();
 
       if (data.notificationSent) {
         setPropietarioMessage(
@@ -623,6 +653,59 @@ export default function PropietariosPage() {
       ...currentForm,
       [field]: value,
     }));
+  }
+
+  function handleRutChange(value: string) {
+    const sanitized = value.replace(/[^\d.kK\-]/g, "");
+    const formattedRut = formatCompanyRutForDisplay(sanitized);
+    const bankRut = formatBankRutForDisplay(formattedRut);
+
+    setPropietarioForm((currentForm) => ({
+      ...currentForm,
+      rut: formattedRut,
+      titularRut: titularRutManuallyEditedRef.current
+        ? currentForm.titularRut
+        : bankRut,
+    }));
+  }
+
+  function handleRutBlur() {
+    setPropietarioForm((currentForm) => {
+      const formattedRut = formatCompanyRutForDisplay(currentForm.rut);
+      const bankRut = formatBankRutForDisplay(formattedRut);
+
+      if (formattedRut === currentForm.rut && bankRut === currentForm.titularRut) {
+        return currentForm;
+      }
+
+      return {
+        ...currentForm,
+        rut: formattedRut,
+        titularRut: titularRutManuallyEditedRef.current
+          ? currentForm.titularRut
+          : bankRut,
+      };
+    });
+  }
+
+  function handleFullNameChange(value: string) {
+    setPropietarioForm((currentForm) => ({
+      ...currentForm,
+      fullName: value,
+      accountHolder: accountHolderManuallyEditedRef.current
+        ? currentForm.accountHolder
+        : value,
+    }));
+  }
+
+  function handleAccountHolderChange(value: string) {
+    accountHolderManuallyEditedRef.current = true;
+    updateFormField("accountHolder", value);
+  }
+
+  function handleTitularRutChange(value: string) {
+    titularRutManuallyEditedRef.current = true;
+    updateFormField("titularRut", formatBankRutForDisplay(value));
   }
 
   async function openBanksDialog() {
@@ -1003,9 +1086,12 @@ export default function PropietariosPage() {
                   <span className={labelClassName}>RUT.-</span>
                   <input
                     type="text"
+                    inputMode="text"
                     value={propietarioForm.rut}
-                    onChange={(event) => updateFormField("rut", event.target.value)}
+                    onChange={(event) => handleRutChange(event.target.value)}
+                    onBlur={handleRutBlur}
                     className={inputClassName}
+                    placeholder="12.345.678-9"
                   />
                 </label>
 
@@ -1028,9 +1114,7 @@ export default function PropietariosPage() {
                   <input
                     type="text"
                     value={propietarioForm.fullName}
-                    onChange={(event) =>
-                      updateFormField("fullName", event.target.value)
-                    }
+                    onChange={(event) => handleFullNameChange(event.target.value)}
                     className={inputClassName}
                   />
                 </label>
@@ -1162,7 +1246,7 @@ export default function PropietariosPage() {
                     inputMode="numeric"
                     value={propietarioForm.titularRut}
                     onChange={(event) =>
-                      updateFormField("titularRut", event.target.value)
+                      handleTitularRutChange(event.target.value)
                     }
                     className={inputClassName}
                     placeholder="Solo dígitos"
@@ -1175,9 +1259,10 @@ export default function PropietariosPage() {
                     type="text"
                     value={propietarioForm.accountHolder}
                     onChange={(event) =>
-                      updateFormField("accountHolder", event.target.value)
+                      handleAccountHolderChange(event.target.value)
                     }
                     className={inputClassName}
+                    placeholder="Se completa desde Razón Social"
                   />
                 </label>
 
