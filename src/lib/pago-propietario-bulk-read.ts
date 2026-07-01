@@ -108,7 +108,7 @@ function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
   return slices;
 }
 
-function isExcelFramesetContainer(content: string) {
+export function isExcelFramesetContainer(content: string) {
   const lower = content.toLowerCase();
 
   return (
@@ -356,10 +356,81 @@ function buildPagoBulkReadFailureMessage(
   return 'No se encontró "Total Facturar" en el archivo. Confirma que subes Preliquidaciones exportado desde Access.';
 }
 
-export function readPagoPropietarioBulkFromBuffer(
+export type PagoBulkUploadFile = {
+  fileName: string;
+  buffer: ArrayBuffer;
+};
+
+type ReadPagoBulkOptions = {
+  allowFramesetContainer?: boolean;
+};
+
+function normalizeUploadPath(fileName: string) {
+  return fileName.replace(/\\/g, "/").toLowerCase();
+}
+
+function isIrrelevantBulkCompanion(fileName: string) {
+  const lower = normalizeUploadPath(fileName);
+
+  return (
+    lower.includes("tabstrip.htm") ||
+    lower.endsWith("/stylesheet.css") ||
+    lower.endsWith("filelist.xml") ||
+    lower.endsWith("/editdata.mso") ||
+    lower.endsWith("/oledata.mso")
+  );
+}
+
+function isRelevantBulkUploadFile(fileName: string) {
+  const lower = normalizeUploadPath(fileName);
+
+  if (isIrrelevantBulkCompanion(fileName)) {
+    return false;
+  }
+
+  return /\.(xlsx?|htm|html|csv|txt|slk)$/i.test(lower);
+}
+
+function rankBulkUploadFile(fileName: string) {
+  const lower = normalizeUploadPath(fileName);
+  let score = 0;
+
+  if (/sheet\d+\.htm$/i.test(lower)) {
+    score += 800;
+  }
+
+  if (lower.includes(".files/")) {
+    score += 300;
+  }
+
+  if (lower.endsWith(".htm") || lower.endsWith(".html")) {
+    score += 250;
+  }
+
+  if (lower.endsWith(".xlsx")) {
+    score += 200;
+  }
+
+  if (lower.endsWith(".xls")) {
+    score += 100;
+  }
+
+  if (lower.includes("preliquidaciones")) {
+    score += 50;
+  }
+
+  return score;
+}
+
+function scoreBulkParseResult(result: PagoBulkParseResult) {
+  return result.rows.length * 1_000 - result.errors.length * 5;
+}
+
+function tryReadPagoPropietarioBulkFromBuffer(
   fileName: string,
   buffer: ArrayBuffer,
-): PagoBulkParseResult {
+  options: ReadPagoBulkOptions = {},
+): PagoBulkParseResult | null {
   const bytes = new Uint8Array(buffer);
   const framesetHref = detectExcelFramesetHref(bytes);
 
@@ -375,10 +446,8 @@ export function readPagoPropietarioBulkFromBuffer(
     }
   }
 
-  if (framesetHref) {
-    throw new Error(
-      `El archivo ${fileName} es solo el contenedor de Excel y no trae la tabla. Sube el archivo de datos "${framesetHref}" (carpeta Preliquidaciones.files junto al .xls) o exporta desde Access como un solo Excel .xlsx.`,
-    );
+  if (framesetHref && !options.allowFramesetContainer) {
+    return null;
   }
 
   if (isModernXlsxFileName(fileName)) {
@@ -389,10 +458,7 @@ export function readPagoPropietarioBulkFromBuffer(
     }
   }
 
-  if (
-    isLegacyXlsFileName(fileName) &&
-    isBinarySpreadsheetBytes(bytes)
-  ) {
+  if (isLegacyXlsFileName(fileName) && isBinarySpreadsheetBytes(bytes)) {
     const parsed = tryReadWithBinaryParser(buffer);
 
     if (parsed) {
@@ -400,15 +466,97 @@ export function readPagoPropietarioBulkFromBuffer(
     }
   }
 
+  return null;
+}
+
+export function readPagoPropietarioBulkFromUploads(
+  files: PagoBulkUploadFile[],
+): PagoBulkParseResult {
+  const relevantFiles = files.filter((file) =>
+    isRelevantBulkUploadFile(file.fileName),
+  );
+
+  if (relevantFiles.length === 0) {
+    throw new Error(
+      "No se encontró un archivo de Preliquidaciones válido en la carga.",
+    );
+  }
+
+  const sortedFiles = [...relevantFiles].sort(
+    (left, right) =>
+      rankBulkUploadFile(right.fileName) - rankBulkUploadFile(left.fileName),
+  );
+
+  let bestResult: PagoBulkParseResult | null = null;
+  let bestScore = -1;
+
+  for (const file of sortedFiles) {
+    const parsed = tryReadPagoPropietarioBulkFromBuffer(
+      file.fileName,
+      file.buffer,
+    );
+
+    if (!parsed) {
+      continue;
+    }
+
+    const score = scoreBulkParseResult(parsed);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestResult = parsed;
+    }
+  }
+
+  if (bestResult && bestResult.rows.length > 0) {
+    return bestResult;
+  }
+
+  const onlyFrameset =
+    relevantFiles.length === 1 &&
+    relevantFiles[0] !== undefined &&
+    detectExcelFramesetHref(new Uint8Array(relevantFiles[0].buffer));
+
+  if (onlyFrameset) {
+    throw new Error(
+      "Preliquidaciones.xls no trae los datos dentro del archivo. Confirma la carpeta donde lo guardaste (por ejemplo Descargas) para que podamos leer la tabla automáticamente.",
+    );
+  }
+
+  const previewFile = sortedFiles[0];
+
+  if (!previewFile) {
+    throw new Error(
+      "No se pudo leer Preliquidaciones. No se encontró una hoja válida en la carga.",
+    );
+  }
+
+  const previewBytes = new Uint8Array(previewFile.buffer);
   let previewMatrix: string[][] = [];
 
-  if (isModernXlsxFileName(fileName) || isBinarySpreadsheetBytes(bytes)) {
-    previewMatrix = readBinarySpreadsheetMatrix(buffer);
+  if (
+    isModernXlsxFileName(previewFile.fileName) ||
+    isBinarySpreadsheetBytes(previewBytes)
+  ) {
+    previewMatrix = readBinarySpreadsheetMatrix(previewFile.buffer);
   }
 
   throw new Error(
-    `No se pudo leer Preliquidaciones. ${buildPagoBulkReadFailureMessage(bytes, previewMatrix)}`,
+    `No se pudo leer Preliquidaciones. ${buildPagoBulkReadFailureMessage(previewBytes, previewMatrix)}`,
   );
+}
+
+export function readPagoPropietarioBulkFromBuffer(
+  fileName: string,
+  buffer: ArrayBuffer,
+): PagoBulkParseResult {
+  const parsed = tryReadPagoPropietarioBulkFromBuffer(fileName, buffer);
+
+  if (parsed) {
+    return parsed;
+  }
+
+  return readPagoPropietarioBulkFromUploads([{ fileName, buffer }]);
 }
 
 export async function readPagoPropietarioBulkFile(file: File) {

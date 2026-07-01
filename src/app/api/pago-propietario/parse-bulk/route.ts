@@ -1,5 +1,5 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
-import { readPagoPropietarioBulkFromBuffer } from "@/lib/pago-propietario-bulk-read";
+import { readPagoPropietarioBulkFromUploads } from "@/lib/pago-propietario-bulk-read";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -22,18 +22,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const file = formData.get("file");
+  const uploads = formData
+    .getAll("file")
+    .filter((entry): entry is File => entry instanceof File);
 
-  if (!(file instanceof File)) {
+  if (uploads.length === 0) {
     return NextResponse.json(
-      { message: "Debes adjuntar un archivo Excel." },
+      { message: "Debes adjuntar Preliquidaciones." },
       { status: 400 },
     );
   }
 
   try {
-    const buffer = await file.arrayBuffer();
-    const parsed = readPagoPropietarioBulkFromBuffer(file.name, buffer);
+    const files = await Promise.all(
+      uploads.map(async (file) => ({
+        fileName: file.webkitRelativePath || file.name,
+        buffer: await file.arrayBuffer(),
+      })),
+    );
+    const parsed = readPagoPropietarioBulkFromUploads(files);
 
     return NextResponse.json(parsed);
   } catch (error) {

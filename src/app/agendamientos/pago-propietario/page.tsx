@@ -25,6 +25,10 @@ import {
   importPagoBulkRows,
   type PagoBulkParseResult,
 } from "@/lib/pago-propietario-bulk";
+import {
+  appendBulkUploadFiles,
+  resolvePreliquidacionesUploadFiles,
+} from "@/lib/pago-propietario-bulk-client";
 import { downloadPagoComprobantePdf } from "@/lib/pago-propietario-pdf";
 import {
   displayVehicleNumber,
@@ -86,6 +90,8 @@ export default function PagoPropietarioPage() {
   const [bulkAlerts, setBulkAlerts] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const bulkDirectoryInputRef = useRef<HTMLInputElement>(null);
+  const pendingFramesetFileRef = useRef<File | null>(null);
 
   useEffect(() => {
     loadPropietarios()
@@ -151,6 +157,55 @@ export default function PagoPropietarioPage() {
     setBulkAlerts([]);
   }
 
+  async function uploadBulkFiles(files: File[], displayName: string) {
+    const formData = new FormData();
+    appendBulkUploadFiles(formData, files);
+
+    const response = await fetch("/api/pago-propietario/parse-bulk", {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    const payload = (await response.json()) as PagoBulkParseResult & {
+      message?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.message ?? "No se pudo leer el archivo Excel.");
+    }
+
+    const parsed: PagoBulkParseResult = {
+      rows: payload.rows ?? [],
+      errors: payload.errors ?? [],
+    };
+    const importResult = importPagoBulkRows(
+      parsed.rows,
+      propietarios,
+      lineItems,
+    );
+    const allAlerts = [...parsed.errors, ...importResult.errors];
+
+    if (importResult.items.length > 0) {
+      setLineItems((current) => [...current, ...importResult.items]);
+      setMessage(
+        `Carga masiva completada: ${importResult.items.length} propietario${
+          importResult.items.length === 1 ? "" : "s"
+        } agregado${importResult.items.length === 1 ? "" : "s"} al comprobante.`,
+      );
+    } else if (!allAlerts.length) {
+      throw new Error("No se pudo importar ninguna fila del archivo.");
+    } else {
+      setError("No se pudo importar ninguna fila válida del archivo.");
+    }
+
+    if (allAlerts.length > 0) {
+      setBulkAlerts(allAlerts);
+    }
+
+    setBulkFileName(displayName);
+  }
+
   async function handleBulkFileSelect(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
@@ -160,6 +215,7 @@ export default function PagoPropietarioPage() {
       return;
     }
 
+    event.target.value = "";
     clearFeedback();
     setBulkFileName(file.name);
     setIsLoadingBulkFile(true);
@@ -169,50 +225,16 @@ export default function PagoPropietarioPage() {
         throw new Error("Define un período de pago válido (desde y hasta) antes de cargar el archivo.");
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
+      const resolved = await resolvePreliquidacionesUploadFiles(file);
 
-      const response = await fetch("/api/pago-propietario/parse-bulk", {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-
-      const payload = (await response.json()) as PagoBulkParseResult & {
-        message?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(payload.message ?? "No se pudo leer el archivo Excel.");
+      if (resolved.kind === "needs_directory") {
+        pendingFramesetFileRef.current = resolved.selectedFile;
+        setIsLoadingBulkFile(false);
+        bulkDirectoryInputRef.current?.click();
+        return;
       }
 
-      const parsed: PagoBulkParseResult = {
-        rows: payload.rows ?? [],
-        errors: payload.errors ?? [],
-      };
-      const importResult = importPagoBulkRows(
-        parsed.rows,
-        propietarios,
-        lineItems,
-      );
-      const allAlerts = [...parsed.errors, ...importResult.errors];
-
-      if (importResult.items.length > 0) {
-        setLineItems((current) => [...current, ...importResult.items]);
-        setMessage(
-          `Carga masiva completada: ${importResult.items.length} propietario${
-            importResult.items.length === 1 ? "" : "s"
-          } agregado${importResult.items.length === 1 ? "" : "s"} al comprobante.`,
-        );
-      } else if (!allAlerts.length) {
-        throw new Error("No se pudo importar ninguna fila del archivo.");
-      } else {
-        setError("No se pudo importar ninguna fila válida del archivo.");
-      }
-
-      if (allAlerts.length > 0) {
-        setBulkAlerts(allAlerts);
-      }
+      await uploadBulkFiles(resolved.files, file.name);
     } catch (bulkError) {
       setError(
         bulkError instanceof Error
@@ -221,7 +243,47 @@ export default function PagoPropietarioPage() {
       );
     } finally {
       setIsLoadingBulkFile(false);
-      event.target.value = "";
+    }
+  }
+
+  async function handleBulkDirectorySelect(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const directoryFiles = Array.from(event.target.files ?? []);
+    const selectedFile = pendingFramesetFileRef.current;
+
+    event.target.value = "";
+    pendingFramesetFileRef.current = null;
+
+    if (!selectedFile || directoryFiles.length === 0) {
+      return;
+    }
+
+    clearFeedback();
+    setBulkFileName(selectedFile.name);
+    setIsLoadingBulkFile(true);
+
+    try {
+      if (!periodIsValid) {
+        throw new Error("Define un período de pago válido (desde y hasta) antes de cargar el archivo.");
+      }
+
+      const selectedName = selectedFile.name.toLowerCase();
+      const files = directoryFiles.some(
+        (entry) => entry.name.toLowerCase() === selectedName,
+      )
+        ? directoryFiles
+        : [selectedFile, ...directoryFiles];
+
+      await uploadBulkFiles(files, selectedFile.name);
+    } catch (bulkError) {
+      setError(
+        bulkError instanceof Error
+          ? bulkError.message
+          : "No se pudo cargar el archivo Excel.",
+      );
+    } finally {
+      setIsLoadingBulkFile(false);
     }
   }
 
@@ -670,11 +732,9 @@ export default function PagoPropietarioPage() {
                     Cargador masivo Excel
                   </p>
                   <p className="text-[11px] leading-5 text-slate-500">
-                    Si Access generó carpeta Preliquidaciones.files, sube
-                    sheet001.htm (ahí están los datos). También sirve un .xlsx
-                    único. Columna D = móvil, columna Q = Total Facturar; el
-                    resto se toma de propietarios. El envío masivo manda correo
-                    y PDF por titular.
+                    Sube Preliquidaciones.xls desde Descargas u otra carpeta.
+                    Solo usamos columna D (móvil) y columna Q (Total Facturar);
+                    el resto se toma de propietarios.
                   </p>
                   {bulkFileName ? (
                     <p className="mt-1 text-[11px] font-medium text-[#0b5cab]">
@@ -692,6 +752,16 @@ export default function PagoPropietarioPage() {
                     onChange={handleBulkFileSelect}
                     disabled={isLoadingBulkFile || isSendingBulk}
                     className="hidden"
+                  />
+                  <input
+                    ref={bulkDirectoryInputRef}
+                    type="file"
+                    onChange={handleBulkDirectorySelect}
+                    className="hidden"
+                    {...({ webkitdirectory: "", directory: "" } as Record<
+                      string,
+                      string
+                    >)}
                   />
                 </label>
               </div>
