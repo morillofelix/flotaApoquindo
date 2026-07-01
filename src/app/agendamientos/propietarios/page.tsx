@@ -1,10 +1,11 @@
 "use client";
 
+import PropietarioBanksDialog from "@/components/agendamientos/PropietarioBanksDialog";
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { useObservationPrompt } from "@/hooks/useObservationPrompt";
 import { adminFetchInit } from "@/lib/admin-fetch";
-import { loadPropietarios } from "@/lib/agendamientos-admin";
+import { loadPropietarios, loadPropietarioBanks } from "@/lib/agendamientos-admin";
 import {
   displayVehicleNumber,
   downloadPropietariosExcel,
@@ -13,6 +14,10 @@ import {
   type ParsedPropietarioRow,
   type PropietarioConfig,
 } from "@/lib/propietarios";
+import {
+  findPropietarioBankForSelection,
+  type PropietarioBankConfig,
+} from "@/lib/propietarios-banks";
 import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, normalizeDepositAccountType } from "@/lib/propietarios-template";
 import {
   isDigitOnlySearch,
@@ -125,6 +130,10 @@ export default function PropietariosPage() {
     "todos" | (typeof PROPIETARIO_DEPOSIT_ACCOUNT_TYPES)[number]
   >("todos");
   const [bankNameFilter, setBankNameFilter] = useState("todos");
+  const [propietarioBanks, setPropietarioBanks] = useState<PropietarioBankConfig[]>(
+    [],
+  );
+  const [isBanksDialogOpen, setIsBanksDialogOpen] = useState(false);
   const [propietarioMessage, setPropietarioMessage] = useState("");
   const [propietarioError, setPropietarioError] = useState("");
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
@@ -136,9 +145,19 @@ export default function PropietariosPage() {
     loadPropietarios()
       .then((loaded) => setPropietarios(loaded))
       .catch(() => setPropietarioError("No se pudieron cargar los propietarios."));
+
+    loadPropietarioBanks()
+      .then((loaded) => setPropietarioBanks(loaded))
+      .catch(() => {
+        // El catálogo se puede abrir manualmente desde el botón Banco.
+      });
   }, []);
 
   const availableBankNames = useMemo(() => {
+    if (propietarioBanks.length > 0) {
+      return propietarioBanks.map((bank) => bank.name);
+    }
+
     const names = new Set<string>();
 
     for (const propietario of propietarios) {
@@ -152,7 +171,20 @@ export default function PropietariosPage() {
     return Array.from(names).sort((left, right) =>
       left.localeCompare(right, "es", { sensitivity: "base" }),
     );
-  }, [propietarios]);
+  }, [propietarioBanks, propietarios]);
+
+  const selectedBankId = useMemo(() => {
+    return (
+      findPropietarioBankForSelection(
+        propietarioBanks,
+        propietarioForm.bankName,
+        propietarioForm.bankBic,
+      )?.id ?? ""
+    );
+  }, [propietarioBanks, propietarioForm.bankBic, propietarioForm.bankName]);
+
+  const hasUncataloguedBank =
+    Boolean(propietarioForm.bankName.trim()) && !selectedBankId;
 
   const filteredPropietarios = useMemo(() => {
     const normalizedSearch = propietarioSearch.trim();
@@ -583,6 +615,39 @@ export default function PropietariosPage() {
     setPropietarioForm((currentForm) => ({
       ...currentForm,
       [field]: value,
+    }));
+  }
+
+  async function openBanksDialog() {
+    try {
+      const loaded = await loadPropietarioBanks();
+      setPropietarioBanks(loaded);
+      setIsBanksDialogOpen(true);
+    } catch {
+      setPropietarioError("No se pudieron cargar los bancos.");
+    }
+  }
+
+  function handleBankSelection(bankId: string) {
+    if (!bankId) {
+      setPropietarioForm((currentForm) => ({
+        ...currentForm,
+        bankName: "",
+        bankBic: "",
+      }));
+      return;
+    }
+
+    const bank = propietarioBanks.find((item) => item.id === bankId);
+
+    if (!bank) {
+      return;
+    }
+
+    setPropietarioForm((currentForm) => ({
+      ...currentForm,
+      bankName: bank.name,
+      bankBic: bank.bankBic,
     }));
   }
 
@@ -1034,10 +1099,17 @@ export default function PropietariosPage() {
                 ) : null}
               </div>
 
-              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+              <div className="mt-5 mb-3 flex items-center justify-between gap-3 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
                   Dato informacional
                 </h4>
+                <button
+                  type="button"
+                  onClick={openBanksDialog}
+                  className="inline-flex h-8 items-center justify-center rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68] transition hover:bg-[#eef4fb]"
+                >
+                  Banco
+                </button>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1085,28 +1157,40 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>CODIGO BANCO</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.bankBic}
-                    onChange={(event) =>
-                      updateFormField("bankBic", event.target.value)
-                    }
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Banco</span>
+                  <select
+                    value={selectedBankId}
+                    onChange={(event) => handleBankSelection(event.target.value)}
                     className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Nombre Banco</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.bankName}
-                    onChange={(event) =>
-                      updateFormField("bankName", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
+                  >
+                    <option value="">Selecciona un banco...</option>
+                    {hasUncataloguedBank ? (
+                      <option value="" disabled>
+                        Actual: {propietarioForm.bankName}
+                        {propietarioForm.bankBic
+                          ? ` (${propietarioForm.bankBic})`
+                          : ""}{" "}
+                        — no está en catálogo
+                      </option>
+                    ) : null}
+                    {propietarioBanks.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.name}
+                        {bank.bankBic ? ` (${bank.bankBic})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedBankId ? (
+                    <span className="text-[11px] text-slate-500">
+                      Código bancario: {propietarioForm.bankBic || "—"}
+                    </span>
+                  ) : hasUncataloguedBank ? (
+                    <span className="text-[11px] font-semibold text-amber-700">
+                      Este registro tiene un banco fuera del catálogo. Agrégalo con
+                      el botón Banco o selecciona uno existente.
+                    </span>
+                  ) : null}
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -1164,6 +1248,12 @@ export default function PropietariosPage() {
       </section>
       {dialog}
       {observationDialog}
+      <PropietarioBanksDialog
+        open={isBanksDialogOpen}
+        banks={propietarioBanks}
+        onClose={() => setIsBanksDialogOpen(false)}
+        onBanksChange={setPropietarioBanks}
+      />
     </main>
   );
 }

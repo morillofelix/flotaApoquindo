@@ -9,6 +9,7 @@ import {
 } from "@/lib/appointments";
 import { type DriverOwnerConfig } from "@/lib/driver-owners";
 import { type PropietarioConfig } from "@/lib/propietarios";
+import { type PropietarioBankConfig } from "@/lib/propietarios-banks";
 
 export async function loadAppointments() {
   const response = await fetch("/api/appointments", {
@@ -86,6 +87,23 @@ export async function loadPropietarios() {
   };
 
   return data.propietarios ?? [];
+}
+
+export async function loadPropietarioBanks() {
+  const response = await fetch("/api/propietarios/banks", {
+    cache: "no-store",
+    credentials: adminFetchInit.credentials,
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar los bancos.");
+  }
+
+  const data = (await response.json()) as {
+    banks?: PropietarioBankConfig[];
+  };
+
+  return data.banks ?? [];
 }
 
 function escapeExcelHtml(value: string) {

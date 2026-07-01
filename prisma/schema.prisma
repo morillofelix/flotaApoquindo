@@ -158,6 +158,17 @@ model Propietario {
   @@index([rut])
 }
 
+model PropietarioBank {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  bankBic   String   @default("")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
 model AccessUser {
   id                 String    @id @default(uuid())
   email              String    @unique
