@@ -53,6 +53,33 @@ const tableHeadClassName =
 const tableCellClassName =
   "border-b border-[#d9e5f2] px-3 py-2.5 text-sm text-[#0f2747] align-middle";
 
+type LineItemStatusFilter = "all" | "sent" | "pending";
+
+const statFilterButtonClassName =
+  "rounded-lg px-1.5 py-0.5 transition hover:bg-[#eef5fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b5cab]/25";
+
+function matchesLineItemTableSearch(
+  item: PagoPropietarioLineItem,
+  normalizedSearch: string,
+) {
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  const normalizedSearchLower = normalizedSearch.toLowerCase();
+  const digitOnlySearch = isDigitOnlySearch(normalizedSearch);
+
+  if (digitOnlySearch) {
+    return matchesVehicleNumberSearch(item.vehicleNumber, normalizedSearch);
+  }
+
+  return (
+    matchesTextSearch(item.vehicleNumber, normalizedSearchLower) ||
+    matchesTextSearch(item.fullName, normalizedSearchLower) ||
+    matchesTextSearch(item.titularName, normalizedSearchLower)
+  );
+}
+
 function CheckIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -88,6 +115,9 @@ export default function PagoPropietarioPage() {
   const [isLoadingBulkFile, setIsLoadingBulkFile] = useState(false);
   const [bulkFileName, setBulkFileName] = useState("");
   const [bulkAlerts, setBulkAlerts] = useState<string[]>([]);
+  const [lineItemStatusFilter, setLineItemStatusFilter] =
+    useState<LineItemStatusFilter>("all");
+  const [tableSearch, setTableSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const bulkDirectoryInputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +176,31 @@ export default function PagoPropietarioPage() {
 
   const pendingItems = lineItems.filter((item) => !item.sent);
   const sentCount = lineItems.filter((item) => item.sent).length;
+  const displayedLineItems = useMemo(() => {
+    let items = lineItems;
+
+    if (lineItemStatusFilter === "sent") {
+      items = items.filter((item) => item.sent);
+    } else if (lineItemStatusFilter === "pending") {
+      items = items.filter((item) => !item.sent);
+    }
+
+    const normalizedSearch = tableSearch.trim();
+
+    if (!normalizedSearch) {
+      return items;
+    }
+
+    return items.filter((item) =>
+      matchesLineItemTableSearch(item, normalizedSearch),
+    );
+  }, [lineItems, lineItemStatusFilter, tableSearch]);
+  const displayedTotalAmount = displayedLineItems.reduce(
+    (sum, item) => sum + item.amount,
+    0,
+  );
+  const hasActiveTableFilters =
+    lineItemStatusFilter !== "all" || tableSearch.trim().length > 0;
   const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
   const parsedAmount = parsePagoAmountInput(amountInput);
   const periodIsValid =
@@ -539,10 +594,18 @@ export default function PagoPropietarioPage() {
     }
   }
 
+  function toggleLineItemStatusFilter(nextFilter: LineItemStatusFilter) {
+    setLineItemStatusFilter((current) =>
+      current === nextFilter ? "all" : nextFilter,
+    );
+  }
+
   function clearBatch() {
     setLineItems([]);
     setAmountInput("");
     setSelectedPropietario(null);
+    setLineItemStatusFilter("all");
+    setTableSearch("");
     clearFeedback();
     setMessage("Comprobante limpiado.");
   }
@@ -709,19 +772,48 @@ export default function PagoPropietarioPage() {
                 Agregar
               </button>
 
-              <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#c5d8eb] bg-white px-3 py-2 text-xs text-[#173b68] xl:mb-0.5">
-                <span>
+              <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-[#c5d8eb] bg-white px-3 py-2 text-xs text-[#173b68] xl:mb-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleLineItemStatusFilter("all")}
+                  className={`${statFilterButtonClassName} ${
+                    lineItemStatusFilter === "all"
+                      ? "bg-[#eef5fc] font-semibold text-[#0b5cab]"
+                      : ""
+                  }`}
+                  title="Ver todos los ítems"
+                >
                   <strong>{lineItems.length}</strong> ítem
                   {lineItems.length === 1 ? "" : "s"}
-                </span>
+                </button>
                 <span className="text-slate-400">|</span>
-                <span className="text-emerald-700">
+                <button
+                  type="button"
+                  onClick={() => toggleLineItemStatusFilter("sent")}
+                  disabled={sentCount === 0}
+                  className={`${statFilterButtonClassName} text-emerald-700 disabled:cursor-not-allowed disabled:opacity-45 ${
+                    lineItemStatusFilter === "sent"
+                      ? "bg-emerald-50 font-semibold ring-1 ring-emerald-200"
+                      : ""
+                  }`}
+                  title="Filtrar enviados"
+                >
                   <strong>{sentCount}</strong> env.
-                </span>
+                </button>
                 <span className="text-slate-400">|</span>
-                <span className="text-amber-700">
+                <button
+                  type="button"
+                  onClick={() => toggleLineItemStatusFilter("pending")}
+                  disabled={pendingItems.length === 0}
+                  className={`${statFilterButtonClassName} text-amber-700 disabled:cursor-not-allowed disabled:opacity-45 ${
+                    lineItemStatusFilter === "pending"
+                      ? "bg-amber-50 font-semibold ring-1 ring-amber-200"
+                      : ""
+                  }`}
+                  title="Filtrar pendientes"
+                >
                   <strong>{pendingItems.length}</strong> pend.
-                </span>
+                </button>
               </div>
             </div>
 
@@ -823,16 +915,50 @@ export default function PagoPropietarioPage() {
               </p>
             ) : null}
 
-            {bulkAlerts.length > 0 ? (
-              <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-sm font-semibold text-amber-900">
-                  Alertas de la carga masiva
-                </p>
-                <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-sm text-amber-950">
-                  {bulkAlerts.map((alert) => (
-                    <li key={alert}>• {alert}</li>
-                  ))}
-                </ul>
+            {bulkAlerts.length > 0 || lineItems.length > 0 ? (
+              <div className="mb-3 rounded-2xl border border-[#c5d8eb] bg-[#f8fbff] px-4 py-3">
+                {lineItems.length > 0 ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <label className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="text-sm font-semibold text-[#173b68]">
+                        Buscar en comprobante
+                      </span>
+                      <input
+                        type="text"
+                        value={tableSearch}
+                        onChange={(event) => setTableSearch(event.target.value)}
+                        placeholder="Móvil, propietario o titular..."
+                        className={inputClassName}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </label>
+                    <p className="text-xs text-slate-500 sm:pb-2">
+                      {hasActiveTableFilters
+                        ? `Mostrando ${displayedLineItems.length} de ${lineItems.length} ítem${lineItems.length === 1 ? "" : "s"}`
+                        : `${lineItems.length} ítem${lineItems.length === 1 ? "" : "s"} en el comprobante`}
+                    </p>
+                  </div>
+                ) : null}
+
+                {bulkAlerts.length > 0 ? (
+                  <div
+                    className={
+                      lineItems.length > 0
+                        ? "mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3"
+                        : "rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3"
+                    }
+                  >
+                    <p className="text-sm font-semibold text-amber-900">
+                      Alertas de la carga masiva
+                    </p>
+                    <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-sm text-amber-950">
+                      {bulkAlerts.map((alert) => (
+                        <li key={alert}>• {alert}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -866,8 +992,17 @@ export default function PagoPropietarioPage() {
                         comprobante en esta tabla.
                       </td>
                     </tr>
+                  ) : displayedLineItems.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="bg-[#f8fbff] px-4 py-10 text-center text-sm text-slate-500"
+                      >
+                        No hay ítems que coincidan con el filtro o la búsqueda.
+                      </td>
+                    </tr>
                   ) : (
-                    lineItems.map((item, index) => (
+                    displayedLineItems.map((item, index) => (
                       <tr
                         key={item.id}
                         className={index % 2 === 0 ? "bg-white" : "bg-[#f8fbff]"}
@@ -943,13 +1078,33 @@ export default function PagoPropietarioPage() {
                         colSpan={5}
                         className="border-t border-[#9fb8d9] px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-[0.08em] text-[#173b68]"
                       >
-                        Total del comprobante
+                        {hasActiveTableFilters
+                          ? "Total visible"
+                          : "Total del comprobante"}
                       </td>
                       <td className="border-t border-[#9fb8d9] px-3 py-2.5 text-right text-sm font-bold tabular-nums text-[#0f2747]">
-                        {formatPagoAmount(totalAmount)}
+                        {formatPagoAmount(
+                          hasActiveTableFilters
+                            ? displayedTotalAmount
+                            : totalAmount,
+                        )}
                       </td>
                       <td className="border-t border-[#9fb8d9] px-3 py-2.5" />
                     </tr>
+                    {hasActiveTableFilters ? (
+                      <tr className="bg-[#eef5fc]">
+                        <td
+                          colSpan={5}
+                          className="border-t border-[#c5d8eb] px-3 py-2 text-right text-[11px] font-medium text-slate-600"
+                        >
+                          Total del comprobante
+                        </td>
+                        <td className="border-t border-[#c5d8eb] px-3 py-2 text-right text-sm font-semibold tabular-nums text-[#173b68]">
+                          {formatPagoAmount(totalAmount)}
+                        </td>
+                        <td className="border-t border-[#c5d8eb] px-3 py-2" />
+                      </tr>
+                    ) : null}
                   </tfoot>
                 ) : null}
               </table>
