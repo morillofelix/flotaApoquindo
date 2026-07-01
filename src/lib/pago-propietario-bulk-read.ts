@@ -519,7 +519,7 @@ export function readPagoPropietarioBulkFromUploads(
 
   if (onlyFrameset) {
     throw new Error(
-      "Preliquidaciones.xls no trae los datos dentro del archivo. Confirma la carpeta donde lo guardaste (por ejemplo Descargas) para que podamos leer la tabla automáticamente.",
+      "Preliquidaciones.xls no trae los datos dentro del archivo. Vuelve a subirlo y, cuando el navegador lo pida, selecciona la carpeta de descarga (por ejemplo Descargas).",
     );
   }
 

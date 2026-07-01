@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     const files = await Promise.all(
       uploads.map(async (file) => ({
-        fileName: file.webkitRelativePath || file.name,
+        fileName: file.name.replace(/\\/g, "/"),
         buffer: await file.arrayBuffer(),
       })),
     );

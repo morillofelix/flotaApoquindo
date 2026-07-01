@@ -19,65 +19,9 @@ async function readFilePreview(file: File) {
   }
 }
 
-async function collectDirectoryFiles(
-  directoryHandle: FileSystemDirectoryHandle,
-  prefix = "",
-): Promise<File[]> {
-  const files: File[] = [];
-
-  for await (const [name, handle] of (
-    directoryHandle as FileSystemDirectoryHandle & {
-      entries: () => AsyncIterableIterator<[string, FileSystemHandle]>;
-    }
-  ).entries()) {
-    const relativePath = prefix ? `${prefix}/${name}` : name;
-
-    if (handle.kind === "file") {
-      const file = await (handle as FileSystemFileHandle).getFile();
-
-      files.push(
-        new File([file], relativePath, {
-          type: file.type,
-          lastModified: file.lastModified,
-        }),
-      );
-      continue;
-    }
-
-    if (handle.kind === "directory") {
-      files.push(
-        ...(await collectDirectoryFiles(
-          handle as FileSystemDirectoryHandle,
-          relativePath,
-        )),
-      );
-    }
-  }
-
-  return files;
-}
-
-async function pickCompanionFilesFromDirectory() {
-  if (!("showDirectoryPicker" in window)) {
-    return null;
-  }
-
-  const directoryHandle = await (
-    window as Window & {
-      showDirectoryPicker: (options?: {
-        mode?: "read" | "readwrite";
-      }) => Promise<FileSystemDirectoryHandle>;
-    }
-  ).showDirectoryPicker({
-    mode: "read",
-  });
-
-  return collectDirectoryFiles(directoryHandle);
-}
-
 export type ResolveBulkUploadResult =
   | { kind: "files"; files: File[] }
-  | { kind: "needs_directory"; selectedFile: File };
+  | { kind: "needs_directory"; selectedFile: File; reason: "frameset" };
 
 export async function resolvePreliquidacionesUploadFiles(
   selectedFile: File,
@@ -88,38 +32,37 @@ export async function resolvePreliquidacionesUploadFiles(
     return { kind: "files", files: [selectedFile] };
   }
 
-  if ("showDirectoryPicker" in window) {
-    try {
-      const companionFiles = await pickCompanionFilesFromDirectory();
+  return { kind: "needs_directory", selectedFile, reason: "frameset" };
+}
 
-      if (companionFiles && companionFiles.length > 0) {
-        const selectedName = selectedFile.name.toLowerCase();
-
-        if (
-          !companionFiles.some(
-            (file) => file.name.toLowerCase() === selectedName,
-          )
-        ) {
-          return {
-            kind: "files",
-            files: [selectedFile, ...companionFiles],
-          };
-        }
-
-        return { kind: "files", files: companionFiles };
-      }
-    } catch {
-      // El usuario canceló el selector de carpeta.
-    }
-  } else {
-    return { kind: "needs_directory", selectedFile };
+export function getBulkUploadFileName(file: File) {
+  if ("webkitRelativePath" in file && file.webkitRelativePath) {
+    return file.webkitRelativePath;
   }
 
-  return { kind: "files", files: [selectedFile] };
+  return file.name;
+}
+
+export function collectBulkUploadFiles(
+  selectedFile: File,
+  directoryFiles: File[],
+) {
+  const selectedName = selectedFile.name.toLowerCase();
+  const hasSelectedFile = directoryFiles.some((entry) => {
+    const uploadName = getBulkUploadFileName(entry).toLowerCase();
+
+    return (
+      uploadName === selectedName || uploadName.endsWith(`/${selectedName}`)
+    );
+  });
+
+  return hasSelectedFile
+    ? directoryFiles
+    : [selectedFile, ...directoryFiles];
 }
 
 export function appendBulkUploadFiles(formData: FormData, files: File[]) {
   for (const file of files) {
-    formData.append("file", file, file.name);
+    formData.append("file", file, getBulkUploadFileName(file));
   }
 }

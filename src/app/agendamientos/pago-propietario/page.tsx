@@ -27,6 +27,7 @@ import {
 } from "@/lib/pago-propietario-bulk";
 import {
   appendBulkUploadFiles,
+  collectBulkUploadFiles,
   resolvePreliquidacionesUploadFiles,
 } from "@/lib/pago-propietario-bulk-client";
 import { downloadPagoComprobantePdf } from "@/lib/pago-propietario-pdf";
@@ -285,6 +286,9 @@ export default function PagoPropietarioPage() {
       if (resolved.kind === "needs_directory") {
         pendingFramesetFileRef.current = resolved.selectedFile;
         setIsLoadingBulkFile(false);
+        setMessage(
+          "Selecciona la carpeta donde descargaste Preliquidaciones (por ejemplo Descargas). El sistema leerá la tabla automáticamente.",
+        );
         bulkDirectoryInputRef.current?.click();
         return;
       }
@@ -311,6 +315,11 @@ export default function PagoPropietarioPage() {
     pendingFramesetFileRef.current = null;
 
     if (!selectedFile || directoryFiles.length === 0) {
+      if (selectedFile) {
+        setError(
+          "No se leyó la carpeta del export. Vuelve a subir Preliquidaciones.xls y selecciona la carpeta donde quedó (por ejemplo Descargas).",
+        );
+      }
       return;
     }
 
@@ -323,12 +332,7 @@ export default function PagoPropietarioPage() {
         throw new Error("Define un período de pago válido (desde y hasta) antes de cargar el archivo.");
       }
 
-      const selectedName = selectedFile.name.toLowerCase();
-      const files = directoryFiles.some(
-        (entry) => entry.name.toLowerCase() === selectedName,
-      )
-        ? directoryFiles
-        : [selectedFile, ...directoryFiles];
+      const files = collectBulkUploadFiles(selectedFile, directoryFiles);
 
       await uploadBulkFiles(files, selectedFile.name);
     } catch (bulkError) {
@@ -824,9 +828,9 @@ export default function PagoPropietarioPage() {
                     Cargador masivo Excel
                   </p>
                   <p className="text-[11px] leading-5 text-slate-500">
-                    Sube Preliquidaciones.xls desde Descargas u otra carpeta.
-                    Solo usamos columna D (móvil) y columna Q (Total Facturar);
-                    el resto se toma de propietarios.
+                    Sube Preliquidaciones.xls. Si el navegador lo pide después,
+                    confirma la carpeta de descarga (Descargas). Usamos columna D
+                    (móvil) y columna Q (Total Facturar).
                   </p>
                   {bulkFileName ? (
                     <p className="mt-1 text-[11px] font-medium text-[#0b5cab]">
