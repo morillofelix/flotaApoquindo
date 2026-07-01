@@ -175,6 +175,22 @@ const headerAliases: Record<string, string> = {
   telefono_contacto_emergencia: "emergencyContactPhone",
 };
 
+const propietarioTemplateHeaderAliases: Record<string, string> = {
+  movil: "vehicleNumber",
+  mobile: "vehicleNumber",
+  numero_de_movil: "vehicleNumber",
+  n_movil: "vehicleNumber",
+  nro_de_movil: "vehicleNumber",
+};
+
+function mapPropietarioImportField(normalizedHeader: string) {
+  return (
+    propietarioTemplateHeaderAliases[normalizedHeader] ??
+    headerAliases[normalizedHeader] ??
+    null
+  );
+}
+
 function normalizeHeader(value: string) {
   return normalizeTemplateHeader(value);
 }
@@ -218,7 +234,7 @@ function detectDelimiter(headerLine: string) {
 }
 
 function mapImportHeaders(rawHeaders: string[]) {
-  return rawHeaders.map((header) => headerAliases[header] ?? null);
+  return rawHeaders.map((header) => mapPropietarioImportField(header) ?? null);
 }
 
 function findImportHeader(lines: string[]) {
@@ -287,16 +303,22 @@ function resolveImportKey(
   rut: string,
   lineNumber: number,
   titularRut = "",
+  bankAccount = "",
 ) {
   const rutKey = rutToImportKey(rut) || rutToImportKey(titularRut);
   const normalizedVehicleNumber = normalizeVehicleNumber(rawVehicleNumber);
+  const normalizedBankAccount = bankAccount.trim();
 
   if (rutKey && normalizedVehicleNumber) {
     return `${rutKey}|${normalizedVehicleNumber}`;
   }
 
+  if (rutKey && normalizedBankAccount) {
+    return `${rutKey}|${normalizedBankAccount}`;
+  }
+
   if (rutKey) {
-    return rutKey;
+    return `${rutKey}|${String(lineNumber).padStart(5, "0")}`;
   }
 
   if (normalizedVehicleNumber) {
@@ -434,9 +456,15 @@ function buildParsedPropietarioRow(
   const fullName = buildFullName(record);
   const rut = formatCompanyRutForDisplay(record.rut ?? "");
   const titularRut = formatBankRutForDisplay(record.titularRut ?? "");
-  const rawMobile = (record.vehicleNumber ?? "").trim();
+  const rawMobile = (record.vehicleNumber ?? record.mobilePhone ?? "").trim();
   const hasMobileNumber = Boolean(normalizeVehicleNumber(rawMobile));
-  const importKey = resolveImportKey(rawMobile, rut, lineNumber, titularRut);
+  const importKey = resolveImportKey(
+    rawMobile,
+    rut,
+    lineNumber,
+    titularRut,
+    record.bankAccount ?? "",
+  );
 
   if (!fullName) {
     if (hasMobileNumber || rut || rawMobile.trim()) {
@@ -449,7 +477,9 @@ function buildParsedPropietarioRow(
   }
 
   if (importedKeys.has(importKey)) {
-    errors.push(`Fila ${lineNumber}: la clave ${importKey} está repetida.`);
+    errors.push(
+      `Fila ${lineNumber}: la clave ${importKey} está repetida (mismo RUT y móvil).`,
+    );
     return null;
   }
 
@@ -484,7 +514,7 @@ function mapMatrixRowByHeaders(headerRow: string[], values: string[]) {
       return;
     }
 
-    const field = headerAliases[normalizedHeader];
+    const field = mapPropietarioImportField(normalizedHeader);
 
     if (!field || assignedFields.has(field)) {
       return;
