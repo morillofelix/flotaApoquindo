@@ -118,6 +118,29 @@ const inputClassName =
 
 const labelClassName = "text-xs font-semibold text-[#173b68]";
 
+function RequiredMark() {
+  return (
+    <span className="ml-0.5 font-bold text-red-600" aria-hidden="true">
+      *
+    </span>
+  );
+}
+
+function FieldLabel({
+  children,
+  required = false,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <span className={labelClassName}>
+      {children}
+      {required ? <RequiredMark /> : null}
+    </span>
+  );
+}
+
 export default function PropietariosPage() {
   const { confirm, dialog } = useConfirmAction();
   const { promptObservation, dialog: observationDialog } =
@@ -125,6 +148,9 @@ export default function PropietariosPage() {
   const [propietarios, setPropietarios] = useState<PropietarioConfig[]>([]);
   const [propietarioForm, setPropietarioForm] =
     useState<PropietarioForm>(emptyPropietarioForm);
+  const [propietarioFormMode, setPropietarioFormMode] = useState<
+    "create" | "edit"
+  >("create");
   const [propietarioSearch, setPropietarioSearch] = useState("");
   const [activeStatusFilter, setActiveStatusFilter] = useState<
     "todos" | "activo" | "inactivo"
@@ -277,7 +303,10 @@ export default function PropietariosPage() {
       bankRut.length > 0 && bankRut !== companyRut;
   }
 
+  const isCreatingPropietario = propietarioFormMode === "create";
+
   function editPropietario(propietario: PropietarioConfig) {
+    setPropietarioFormMode("edit");
     setPropietarioForm({
       id: propietario.id ?? "",
       ...propietario,
@@ -291,6 +320,7 @@ export default function PropietariosPage() {
   }
 
   function resetPropietarioForm() {
+    setPropietarioFormMode("create");
     setPropietarioForm(emptyPropietarioForm);
     resetPropietarioFormSyncFlags();
     setHighlightInactiveReason(false);
@@ -517,7 +547,7 @@ export default function PropietariosPage() {
       return;
     }
 
-    const isCreatingPropietario = !propietarioForm.id;
+    const isCreatingPropietario = propietarioFormMode === "create";
 
     if (isCreatingPropietario) {
       if (!normalizeVehicleNumber(propietarioForm.vehicleNumber)) {
@@ -555,7 +585,7 @@ export default function PropietariosPage() {
     }
 
     setIsSavingPropietario(true);
-    const wasEditingPropietario = Boolean(propietarioForm.id);
+    const wasEditingPropietario = propietarioFormMode === "edit";
 
     try {
       const payload = {
@@ -1107,11 +1137,18 @@ export default function PropietariosPage() {
                 <p className="text-xs text-slate-500">
                   Datos principales según la plantilla CUENTAS BANCARIAS.
                 </p>
+                {isCreatingPropietario ? (
+                  <p className="mt-2 text-xs text-slate-600">
+                    Los campos marcados con{" "}
+                    <span className="font-bold text-red-600">*</span> son
+                    obligatorios.
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>RUT.-</span>
+                  <FieldLabel>RUT.-</FieldLabel>
                   <input
                     type="text"
                     inputMode="text"
@@ -1124,12 +1161,7 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>
-                    Móvil
-                    {!propietarioForm.id ? (
-                      <span className="ml-1 text-red-600">*</span>
-                    ) : null}
-                  </span>
+                  <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1138,34 +1170,27 @@ export default function PropietariosPage() {
                       updateFormField("vehicleNumber", event.target.value)
                     }
                     className={inputClassName}
-                    placeholder={propietarioForm.id ? "Opcional" : undefined}
-                    required={!propietarioForm.id}
+                    required={isCreatingPropietario}
+                    aria-required={isCreatingPropietario}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>
+                  <FieldLabel required={isCreatingPropietario}>
                     Razón Social
-                    {!propietarioForm.id ? (
-                      <span className="ml-1 text-red-600">*</span>
-                    ) : null}
-                  </span>
+                  </FieldLabel>
                   <input
                     type="text"
                     value={propietarioForm.fullName}
                     onChange={(event) => handleFullNameChange(event.target.value)}
                     className={inputClassName}
-                    required={!propietarioForm.id}
+                    required={isCreatingPropietario}
+                    aria-required={isCreatingPropietario}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>
-                    Correo
-                    {!propietarioForm.id ? (
-                      <span className="ml-1 text-red-600">*</span>
-                    ) : null}
-                  </span>
+                  <FieldLabel required={isCreatingPropietario}>Correo</FieldLabel>
                   <input
                     type="email"
                     value={propietarioForm.email}
@@ -1173,13 +1198,13 @@ export default function PropietariosPage() {
                       updateFormField("email", event.target.value)
                     }
                     className={inputClassName}
-                    placeholder={propietarioForm.id ? "Opcional" : undefined}
-                    required={!propietarioForm.id}
+                    required={isCreatingPropietario}
+                    aria-required={isCreatingPropietario}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Estado</span>
+                  <FieldLabel>Estado</FieldLabel>
                   <select
                     value={propietarioForm.isActive ? "activo" : "inactivo"}
                     onChange={(event) =>
@@ -1373,7 +1398,7 @@ export default function PropietariosPage() {
               ) : null}
 
               <div className="mt-5 flex flex-wrap justify-end gap-2">
-                {propietarioForm.id ? (
+                  {propietarioFormMode === "edit" ? (
                   <button
                     type="button"
                     onClick={removePropietario}
@@ -1394,7 +1419,7 @@ export default function PropietariosPage() {
                   disabled={isSavingPropietario}
                   className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {propietarioForm.id ? "Guardar cambios" : "Crear"}
+                  {isCreatingPropietario ? "Crear" : "Guardar cambios"}
                 </button>
               </div>
             </form>
