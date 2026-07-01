@@ -1,9 +1,7 @@
 import {
   displayVehicleNumber,
   formatFileSize,
-  normalizeCatalogActive,
   normalizeVehicleNumber,
-  parseDateValue,
   parseSpreadsheetContentToMatrix,
   looksLikeAccessTextSpreadsheet,
   readSpreadsheetTextContent,
@@ -11,6 +9,16 @@ import {
   prepareDriverOwnerUploadContent,
   readDriverOwnerFileContent,
 } from "@/lib/driver-owners";
+import {
+  formatBankRutForDisplay,
+  formatCompanyRutForDisplay,
+  formatMovilForTemplateExport,
+  isPropietarioTemplateHeaderRow,
+  normalizeDepositAccountType,
+  normalizeTemplateHeader,
+  PROPIETARIO_TEMPLATE_HEADERS,
+} from "@/lib/propietarios-template";
+import * as XLSX from "xlsx";
 
 export {
   displayVehicleNumber,
@@ -89,6 +97,14 @@ const headerAliases: Record<string, string> = {
   rut_id: "rut",
   "rut_/_id": "rut",
   rut_propietario: "rut",
+  rut_: "rut",
+  razon_social: "fullName",
+  cta_deposito: "paymentMethod",
+  rut_banco: "titularRut",
+  nombre_cuenta_bancaria: "accountHolder",
+  codigo_banco: "bankBic",
+  nro_cta_banco: "bankAccount",
+  nro_cta: "bankAccount",
   nif: "rut",
   dni: "rut",
   correo: "email",
@@ -159,12 +175,7 @@ const headerAliases: Record<string, string> = {
 };
 
 function normalizeHeader(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "_");
+  return normalizeTemplateHeader(value);
 }
 
 function parseCsvLine(line: string, delimiter: string) {
@@ -236,6 +247,16 @@ function findImportHeader(lines: string[]) {
 
       if (
         mappedHeaders.includes("fullName") &&
+        mappedHeaders.includes("rut") &&
+        (mappedHeaders.includes("vehicleNumber") ||
+          mappedHeaders.includes("paymentMethod") ||
+          mappedHeaders.includes("titularRut"))
+      ) {
+        return { headerIndex, delimiter, mappedHeaders };
+      }
+
+      if (
+        mappedHeaders.includes("fullName") &&
         (mappedHeaders.includes("rut") ||
           mappedHeaders.includes("email") ||
           mappedHeaders.includes("bankName") ||
@@ -248,10 +269,6 @@ function findImportHeader(lines: string[]) {
   }
 
   return null;
-}
-
-function normalizePhone(value: string) {
-  return value.trim().replace(/\D/g, "");
 }
 
 function rutToImportKey(rut: string) {
@@ -323,113 +340,6 @@ function resolvePersistedImportKey(
   return `PROP${Date.now()}`;
 }
 
-function normalizeVip(value: string) {
-  const normalized = value.trim().toLowerCase();
-
-  return ["si", "sí", "true", "1", "vip", "yes"].includes(normalized);
-}
-
-function looksLikeEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function parseCombinedAccountField(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return {
-      accountNumber: "",
-      holderName: "",
-      email: "",
-    };
-  }
-
-  const withEmail = trimmed.match(/^([\d][\d-]*)\s+(.+?)\s*\(([^)]+)\)\s*$/);
-
-  if (withEmail) {
-    return {
-      accountNumber: withEmail[1] ?? "",
-      holderName: (withEmail[2] ?? "").trim(),
-      email: (withEmail[3] ?? "").trim(),
-    };
-  }
-
-  const accountAndName = trimmed.match(/^([\d][\d-]*)\s+(.+)$/);
-
-  if (accountAndName) {
-    return {
-      accountNumber: accountAndName[1] ?? "",
-      holderName: (accountAndName[2] ?? "").trim(),
-      email: "",
-    };
-  }
-
-  return {
-    accountNumber: trimmed,
-    holderName: "",
-    email: "",
-  };
-}
-
-function normalizeTitularFields(record: Record<string, string>) {
-  let fields = realignTitularFields(record);
-  const parsedTitularAccount = parseCombinedAccountField(fields.titularBankAccount);
-
-  if (parsedTitularAccount.accountNumber) {
-    fields = {
-      ...fields,
-      titularBankAccount: parsedTitularAccount.accountNumber,
-      accountHolder: parsedTitularAccount.holderName || fields.accountHolder,
-      titularEmail: parsedTitularAccount.email || fields.titularEmail,
-    };
-  }
-
-  if (looksLikeRut(fields.accountHolder)) {
-    fields.titularRut = fields.titularRut || fields.accountHolder;
-    if (!parsedTitularAccount.holderName) {
-      fields.accountHolder = "";
-    }
-  }
-
-  if (looksLikeEmail(fields.titularRut) && !fields.titularEmail) {
-    fields.titularEmail = fields.titularRut;
-    fields.titularRut = "";
-  }
-
-  return fields;
-}
-
-function normalizeOwnerBankAccount(value: string) {
-  const parsed = parseCombinedAccountField(value);
-  return parsed.accountNumber || value.trim();
-}
-
-function realignTitularFields(record: Record<string, string>) {
-  const accountHolder = (record.accountHolder ?? "").trim();
-  const titularRut = (record.titularRut ?? "").trim();
-  const titularEmail = (record.titularEmail ?? "").trim();
-  const titularBankName = (record.titularBankName ?? "").trim();
-  const titularBankAccount = (record.titularBankAccount ?? "").trim();
-
-  if (looksLikeEmail(titularRut) && !looksLikeEmail(titularEmail)) {
-    return {
-      accountHolder,
-      titularRut: "",
-      titularEmail: titularRut,
-      titularBankName: titularEmail,
-      titularBankAccount: titularBankName,
-    };
-  }
-
-  return {
-    accountHolder,
-    titularRut,
-    titularEmail,
-    titularBankName,
-    titularBankAccount,
-  };
-}
-
 function looksLikeRut(value: string) {
   const trimmed = value.trim();
 
@@ -468,6 +378,217 @@ function buildFullName(record: Record<string, string>) {
   return parts.join(" ").trim();
 }
 
+function createEmptyPropietarioFields(): Omit<ParsedPropietarioRow, "rowNumber" | "importKey"> {
+  return {
+    vehicleNumber: "",
+    fullName: "",
+    firstName: "",
+    lastName: "",
+    secondLastName: "",
+    rut: "",
+    email: "",
+    landlinePhone: "",
+    mobilePhone: "",
+    address: "",
+    postalCode: "",
+    city: "",
+    province: "",
+    bankName: "",
+    bankAccount: "",
+    accountHolder: "",
+    titularRut: "",
+    titularEmail: "",
+    titularBankName: "",
+    titularBankAccount: "",
+    bankBic: "",
+    paymentMethod: "",
+    paymentDay: "",
+    notes: "",
+    branchOffice: "",
+    area: "",
+    costCenter: "",
+    accountingAccount: "",
+    isVip: false,
+    gender: "",
+    recordStatus: "V",
+    licenseExpiryDate: "",
+    birthDate: "",
+    incorporationDate: "",
+    deactivationDate: "",
+    emergencyContactName: "",
+    emergencyContactEmail: "",
+    emergencyContactPhone: "",
+    isActive: true,
+    inactiveReason: "",
+    activationReason: "",
+  };
+}
+
+function buildParsedPropietarioRow(
+  record: Record<string, string>,
+  lineNumber: number,
+  importedKeys: Set<string>,
+  errors: string[],
+): ParsedPropietarioRow | null {
+  const fullName = buildFullName(record);
+  const rut = formatCompanyRutForDisplay(record.rut ?? "");
+  const titularRut = formatBankRutForDisplay(record.titularRut ?? "");
+  const rawMobile = (record.vehicleNumber ?? "").trim();
+  const hasMobileNumber = Boolean(normalizeVehicleNumber(rawMobile));
+  const importKey = resolveImportKey(rawMobile, rut, lineNumber, titularRut);
+
+  if (!fullName) {
+    if (hasMobileNumber || rut || rawMobile.trim()) {
+      errors.push(
+        `Fila ${lineNumber}: sin razón social, fila omitida (móvil ${rawMobile || "sin número"}).`,
+      );
+    }
+
+    return null;
+  }
+
+  if (importedKeys.has(importKey)) {
+    errors.push(`Fila ${lineNumber}: la clave ${importKey} está repetida.`);
+    return null;
+  }
+
+  importedKeys.add(importKey);
+
+  return {
+    rowNumber: lineNumber,
+    importKey,
+    ...createEmptyPropietarioFields(),
+    vehicleNumber: hasMobileNumber ? normalizeVehicleNumber(rawMobile) : "",
+    fullName,
+    rut,
+    bankName: (record.bankName ?? "").trim(),
+    bankAccount: (record.bankAccount ?? "").trim(),
+    accountHolder: (record.accountHolder ?? "").trim(),
+    titularRut,
+    bankBic: (record.bankBic ?? "").trim(),
+    paymentMethod: normalizeDepositAccountType(record.paymentMethod ?? ""),
+    isActive: true,
+  };
+}
+
+function mapTemplateRowToRecord(values: string[]) {
+  const fieldKeys = [
+    "rut",
+    "vehicleNumber",
+    "fullName",
+    "paymentMethod",
+    "titularRut",
+    "accountHolder",
+    "bankBic",
+    "bankName",
+    "bankAccount",
+  ] as const;
+
+  const record: Record<string, string> = {};
+
+  fieldKeys.forEach((field, index) => {
+    record[field] = String(values[index] ?? "").trim();
+  });
+
+  return record;
+}
+
+export function parsePropietariosMatrix(matrix: string[][]) {
+  let headerIndex = -1;
+
+  for (let index = 0; index < Math.min(matrix.length, 25); index += 1) {
+    const row = (matrix[index] ?? []).map((cell) => String(cell ?? "").trim());
+
+    if (isPropietarioTemplateHeaderRow(row)) {
+      headerIndex = index;
+      break;
+    }
+  }
+
+  if (headerIndex === -1) {
+    return {
+      rows: [] as ParsedPropietarioRow[],
+      errors: [
+        `No se encontró la fila de encabezados de la plantilla (${PROPIETARIO_TEMPLATE_HEADERS.join(", ")}).`,
+      ],
+    };
+  }
+
+  const rows: ParsedPropietarioRow[] = [];
+  const errors: string[] = [];
+  const importedKeys = new Set<string>();
+
+  for (let rowIndex = headerIndex + 1; rowIndex < matrix.length; rowIndex += 1) {
+    const values = (matrix[rowIndex] ?? []).map((cell) => String(cell ?? "").trim());
+
+    if (!values.slice(0, 9).some((value) => value.length > 0)) {
+      continue;
+    }
+
+    const record = mapTemplateRowToRecord(values);
+    const parsedRow = buildParsedPropietarioRow(
+      record,
+      rowIndex + 1,
+      importedKeys,
+      errors,
+    );
+
+    if (parsedRow) {
+      rows.push(parsedRow);
+    }
+  }
+
+  if (!rows.length) {
+    errors.unshift(
+      "No se importó ninguna fila válida. Revisa que el archivo tenga Razón Social.",
+    );
+  }
+
+  return { rows, errors };
+}
+
+export function parsePropietariosUploadBuffer(fileName: string, buffer: ArrayBuffer) {
+  if (/\.xlsx?$/i.test(fileName) || isBinarySpreadsheetBytes(new Uint8Array(buffer))) {
+    const workbook = XLSX.read(buffer, {
+      type: "array",
+      cellDates: false,
+      raw: false,
+    });
+    const sheet = workbook.Sheets[workbook.SheetNames[0] ?? ""];
+
+    if (!sheet) {
+      return {
+        rows: [] as ParsedPropietarioRow[],
+        errors: ["No se encontró una hoja válida en el archivo Excel."],
+      };
+    }
+
+    const matrix = XLSX.utils.sheet_to_json<string[]>(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      blankrows: false,
+    });
+
+    return parsePropietariosMatrix(
+      matrix.map((row) => (row ?? []).map((cell) => String(cell ?? ""))),
+    );
+  }
+
+  const content = new TextDecoder("utf-8").decode(buffer);
+  const matrix = parseSpreadsheetContentToMatrix(content);
+
+  if (matrix?.length) {
+    const parsedMatrix = parsePropietariosMatrix(matrix);
+
+    if (parsedMatrix.rows.length > 0) {
+      return parsedMatrix;
+    }
+  }
+
+  return parsePropietariosCsv(content);
+}
+
 export function parsePropietariosCsv(content: string) {
   const lines = content
     .replace(/^\uFEFF/, "")
@@ -488,7 +609,7 @@ export function parsePropietariosCsv(content: string) {
     return {
       rows: [] as ParsedPropietarioRow[],
       errors: [
-        'No se encontró una fila de encabezados con "Nombre" o "Propietario".',
+        `No se encontró la fila de encabezados de la plantilla (${PROPIETARIO_TEMPLATE_HEADERS.join(", ")}).`,
       ],
     };
   }
@@ -515,79 +636,22 @@ export function parsePropietariosCsv(content: string) {
       record[field] = values[fieldIndex] ?? "";
     });
 
-    const fullName = buildFullName(record);
-    const titularFields = normalizeTitularFields(record);
-    const rut = (record.rut ?? "").trim();
-    const titularRut = titularFields.titularRut;
-    const rawMobile = (record.vehicleNumber ?? "").trim();
-    const hasMobileNumber = Boolean(normalizeVehicleNumber(rawMobile));
-    const importKey = resolveImportKey(rawMobile, rut, lineIndex + 1, titularRut);
+    const parsedRow = buildParsedPropietarioRow(
+      record,
+      lineIndex + 1,
+      importedKeys,
+      errors,
+    );
 
-    if (!fullName) {
-      if (hasMobileNumber || (record.rut ?? "").trim() || rawMobile.trim()) {
-        errors.push(
-          `Fila ${lineIndex + 1}: sin propietario, fila omitida (móvil ${rawMobile || "sin número"}).`,
-        );
-      }
-      continue;
+    if (parsedRow) {
+      rows.push(parsedRow);
     }
-
-    if (importedKeys.has(importKey)) {
-      errors.push(`Fila ${lineIndex + 1}: la clave ${importKey} está repetida.`);
-      continue;
-    }
-
-    importedKeys.add(importKey);
-
-    rows.push({
-      rowNumber: lineIndex + 1,
-      importKey,
-      vehicleNumber: hasMobileNumber ? normalizeVehicleNumber(rawMobile) : "",
-      fullName,
-      firstName: (record.firstName ?? "").trim(),
-      lastName: (record.lastName ?? "").trim(),
-      secondLastName: (record.secondLastName ?? "").trim(),
-      rut,
-      email: (record.email ?? "").trim(),
-      landlinePhone: normalizePhone(record.landlinePhone ?? ""),
-      mobilePhone: normalizePhone(record.mobilePhone ?? ""),
-      address: (record.address ?? "").trim(),
-      postalCode: (record.postalCode ?? "").trim(),
-      city: (record.city ?? "").trim(),
-      province: (record.province ?? "").trim(),
-      bankName: (record.bankName ?? "").trim(),
-      bankAccount: normalizeOwnerBankAccount(record.bankAccount ?? ""),
-      accountHolder: titularFields.accountHolder,
-      titularRut,
-      titularEmail: titularFields.titularEmail,
-      titularBankName: titularFields.titularBankName,
-      titularBankAccount: titularFields.titularBankAccount,
-      bankBic: (record.bankBic ?? "").trim(),
-      paymentMethod: (record.paymentMethod ?? "").trim(),
-      paymentDay: (record.paymentDay ?? "").trim(),
-      notes: (record.notes ?? "").trim(),
-      branchOffice: (record.branchOffice ?? "").trim(),
-      area: (record.area ?? "").trim(),
-      costCenter: (record.costCenter ?? "").trim(),
-      accountingAccount: (record.accountingAccount ?? "").trim(),
-      isVip: normalizeVip(record.isVip ?? ""),
-      gender: (record.gender ?? "").trim(),
-      recordStatus: (record.recordStatus ?? "V").trim().toUpperCase() || "V",
-      licenseExpiryDate: parseDateValue(record.licenseExpiryDate ?? ""),
-      birthDate: parseDateValue(record.birthDate ?? ""),
-      incorporationDate: parseDateValue(record.incorporationDate ?? ""),
-      deactivationDate: parseDateValue(record.deactivationDate ?? ""),
-      emergencyContactName: (record.emergencyContactName ?? "").trim(),
-      emergencyContactEmail: (record.emergencyContactEmail ?? "").trim(),
-      emergencyContactPhone: normalizePhone(record.emergencyContactPhone ?? ""),
-      isActive: normalizeCatalogActive(record.catalogActive ?? "si"),
-      inactiveReason: "",
-      activationReason: "",
-    });
   }
 
   if (!rows.length) {
-    errors.unshift("No se importó ninguna fila válida. Revisa que el archivo tenga Nombre.");
+    errors.unshift(
+      "No se importó ninguna fila válida. Revisa que el archivo tenga Razón Social.",
+    );
   }
 
   return { rows, errors };
@@ -769,79 +833,52 @@ export function downloadPropietariosExcel(
   rows: PropietarioConfig[],
   fileName: string,
 ) {
+  const headerCells = PROPIETARIO_TEMPLATE_HEADERS.map(
+    (header) => `<th>${escapeExcelHtml(header)}</th>`,
+  ).join("");
   const tableRows = rows
     .map(
       (row) => `
         <tr>
-          <td>${escapeExcelHtml(displayVehicleNumber(row.vehicleNumber))}</td>
+          <td>${escapeExcelHtml(formatCompanyRutForDisplay(row.rut))}</td>
+          <td>${escapeExcelHtml(formatMovilForTemplateExport(row.vehicleNumber))}</td>
           <td>${escapeExcelHtml(row.fullName)}</td>
-          <td>${escapeExcelHtml(row.rut)}</td>
-          <td>${escapeExcelHtml(row.isActive ? "Activo" : "Inactivo")}</td>
-          <td>${escapeExcelHtml(row.email)}</td>
-          <td>${escapeExcelHtml(row.landlinePhone)}</td>
-          <td>${escapeExcelHtml(row.mobilePhone)}</td>
-          <td>${escapeExcelHtml(row.address)}</td>
-          <td>${escapeExcelHtml(row.postalCode)}</td>
-          <td>${escapeExcelHtml(row.city)}</td>
-          <td>${escapeExcelHtml(row.province)}</td>
+          <td>${escapeExcelHtml(normalizeDepositAccountType(row.paymentMethod))}</td>
+          <td>${escapeExcelHtml(formatBankRutForDisplay(row.titularRut))}</td>
+          <td>${escapeExcelHtml(row.accountHolder)}</td>
+          <td>${escapeExcelHtml(row.bankBic)}</td>
           <td>${escapeExcelHtml(row.bankName)}</td>
           <td>${escapeExcelHtml(row.bankAccount)}</td>
-          <td>${escapeExcelHtml(row.accountHolder)}</td>
-          <td>${escapeExcelHtml(row.titularRut)}</td>
-          <td>${escapeExcelHtml(row.titularEmail)}</td>
-          <td>${escapeExcelHtml(row.titularBankName)}</td>
-          <td>${escapeExcelHtml(row.titularBankAccount)}</td>
-          <td>${escapeExcelHtml(row.branchOffice)}</td>
-          <td>${escapeExcelHtml(row.accountingAccount)}</td>
-          <td>${escapeExcelHtml(row.costCenter)}</td>
-          <td>${escapeExcelHtml(row.paymentMethod)}</td>
-          <td>${escapeExcelHtml(row.paymentDay)}</td>
-          <td>${escapeExcelHtml(row.notes)}</td>
         </tr>`,
     )
     .join("");
 
-  const htmlTable = `
-    <html>
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
       <head>
-        <meta charset="UTF-8" />
+        <meta charset="utf-8" />
+        <!--[if gte mso 9]><xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Propietarios</x:Name>
+                <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml><![endif]-->
       </head>
       <body>
         <table border="1">
-          <thead>
-            <tr>
-              <th>Móvil</th>
-              <th>Nombre</th>
-              <th>RUT</th>
-              <th>Estado</th>
-              <th>Correo</th>
-              <th>Teléfono fijo</th>
-              <th>Teléfono móvil</th>
-              <th>Dirección</th>
-              <th>Código postal</th>
-              <th>Población</th>
-              <th>Provincia</th>
-              <th>Banco propietario</th>
-              <th>Cuenta propietario</th>
-              <th>Nombre titular</th>
-              <th>RUT titular</th>
-              <th>Correo titular</th>
-              <th>Banco titular</th>
-              <th>N° cuenta titular</th>
-              <th>Sucursal</th>
-              <th>Cuenta contable</th>
-              <th>Centro de costo</th>
-              <th>Medio de pago</th>
-              <th>Día de pago</th>
-              <th>Observaciones</th>
-            </tr>
-          </thead>
+          <thead><tr>${headerCells}</tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
       </body>
     </html>`;
 
-  const blob = new Blob([htmlTable], {
+  const blob = new Blob([html], {
     type: "application/vnd.ms-excel;charset=utf-8;",
   });
   const url = URL.createObjectURL(blob);

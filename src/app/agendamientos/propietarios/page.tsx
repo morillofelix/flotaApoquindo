@@ -9,12 +9,11 @@ import {
   displayVehicleNumber,
   downloadPropietariosExcel,
   formatFileSize,
-  parsePropietariosCsv,
-  preparePropietarioUploadContent,
-  readPropietarioFileContent,
+  parsePropietariosUploadBuffer,
   type ParsedPropietarioRow,
   type PropietarioConfig,
 } from "@/lib/propietarios";
+import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES } from "@/lib/propietarios-template";
 import {
   isDigitOnlySearch,
   matchesTextSearch,
@@ -126,10 +125,7 @@ export default function PropietariosPage() {
   const [propietarioError, setPropietarioError] = useState("");
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
   const [highlightInactiveReason, setHighlightInactiveReason] = useState(false);
-  const [highlightActivationReason, setHighlightActivationReason] = useState(false);
-  const [requiresActivationReason, setRequiresActivationReason] = useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
-  const activationReasonRef = useRef<HTMLDivElement>(null);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
 
   useEffect(() => {
@@ -151,12 +147,11 @@ export default function PropietariosPage() {
               propietario.vehicleNumber,
               normalizedSearch,
             )
-          : matchesTextSearch(propietario.vehicleNumber, normalizedSearchLower) ||
-            matchesTextSearch(propietario.fullName, normalizedSearchLower) ||
+          :         matchesTextSearch(propietario.fullName, normalizedSearchLower) ||
             matchesTextSearch(propietario.rut, normalizedSearchLower) ||
-            matchesTextSearch(propietario.email, normalizedSearchLower) ||
             matchesTextSearch(propietario.bankName, normalizedSearchLower) ||
-            matchesTextSearch(propietario.city, normalizedSearchLower));
+            matchesTextSearch(propietario.accountHolder, normalizedSearchLower) ||
+            matchesTextSearch(propietario.bankAccount, normalizedSearchLower));
 
       const matchesActiveStatus =
         activeStatusFilter === "todos" ||
@@ -184,8 +179,6 @@ export default function PropietariosPage() {
       ...propietario,
     });
     setHighlightInactiveReason(!propietario.isActive);
-    setHighlightActivationReason(false);
-    setRequiresActivationReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -193,8 +186,6 @@ export default function PropietariosPage() {
   function resetPropietarioForm() {
     setPropietarioForm(emptyPropietarioForm);
     setHighlightInactiveReason(false);
-    setHighlightActivationReason(false);
-    setRequiresActivationReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -226,14 +217,8 @@ export default function PropietariosPage() {
     });
 
     try {
-      const rawContent = await readPropietarioFileContent(file);
-      const prepared = preparePropietarioUploadContent(file.name, rawContent);
-
-      if ("error" in prepared) {
-        throw new Error(prepared.error);
-      }
-
-      const parsed = parsePropietariosCsv(prepared.csvContent);
+      const buffer = await file.arrayBuffer();
+      const parsed = parsePropietariosUploadBuffer(file.name, buffer);
 
       if (!parsed.rows.length) {
         throw new Error(
@@ -420,7 +405,7 @@ export default function PropietariosPage() {
     setPropietarioError("");
 
     if (propietarioForm.fullName.trim().length < 3) {
-      setPropietarioError("Ingresa un nombre válido.");
+      setPropietarioError("Ingresa una razón social válida.");
       return;
     }
 
@@ -433,22 +418,6 @@ export default function PropietariosPage() {
           "Completa el motivo de inactivación en el recuadro destacado antes de guardar.",
         );
         inactiveReasonRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-        return;
-      }
-    }
-
-    if (requiresActivationReason && propietarioForm.isActive) {
-      const activationReason = (propietarioForm.activationReason ?? "").trim();
-
-      if (activationReason.length < 5) {
-        setHighlightActivationReason(true);
-        setPropietarioError(
-          "Completa el motivo de activación en el recuadro destacado antes de guardar.",
-        );
-        activationReasonRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
@@ -576,33 +545,15 @@ export default function PropietariosPage() {
 
   function handleActiveStatusChange(nextActive: boolean) {
     if (nextActive) {
-      const wasInactive = !propietarioForm.isActive;
-
       setHighlightInactiveReason(false);
       setPropietarioForm((currentForm) => ({
         ...currentForm,
         isActive: true,
         inactiveReason: "",
-        activationReason: wasInactive ? "" : currentForm.activationReason,
       }));
-
-      if (wasInactive) {
-        setRequiresActivationReason(true);
-        setHighlightActivationReason(true);
-
-        requestAnimationFrame(() => {
-          activationReasonRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        });
-      }
-
       return;
     }
 
-    setRequiresActivationReason(false);
-    setHighlightActivationReason(false);
     setPropietarioForm((currentForm) => ({
       ...currentForm,
       isActive: false,
@@ -626,18 +577,6 @@ export default function PropietariosPage() {
     return (propietarioForm.inactiveReason ?? "").trim().length < 5;
   }, [propietarioForm.inactiveReason, propietarioForm.isActive]);
 
-  const activationReasonIsInvalid = useMemo(() => {
-    if (!requiresActivationReason || !propietarioForm.isActive) {
-      return false;
-    }
-
-    return (propietarioForm.activationReason ?? "").trim().length < 5;
-  }, [
-    propietarioForm.activationReason,
-    propietarioForm.isActive,
-    requiresActivationReason,
-  ]);
-
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
@@ -654,9 +593,9 @@ export default function PropietariosPage() {
                         Cargador masivo
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Sube XLS, CSV o SLK exportado desde Access. La carga reemplaza
-                        por completo la base de propietarios e importa todas las
-                        filas del archivo.
+                        Sube la plantilla CUENTAS BANCARIAS (9 columnas) en XLS, CSV o
+                        SLK. La carga reemplaza por completo la base de propietarios e
+                        importa todas las filas del archivo.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -814,7 +753,7 @@ export default function PropietariosPage() {
                       type="search"
                       value={propietarioSearch}
                       onChange={(event) => setPropietarioSearch(event.target.value)}
-                      placeholder="Nombre, RUT, correo, banco..."
+                      placeholder="Razón social, RUT, móvil o banco..."
                       className={inputClassName}
                     />
                   </label>
@@ -843,7 +782,7 @@ export default function PropietariosPage() {
                 <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
                   <div className="grid grid-cols-[0.45fr_1fr_0.7fr_0.55fr] gap-2 bg-[#eef4fb] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#173b68]">
                     <span>Móvil</span>
-                    <span>Nombre</span>
+                    <span>Razón social</span>
                     <span>RUT</span>
                     <span>Estado</span>
                   </div>
@@ -888,16 +827,26 @@ export default function PropietariosPage() {
             >
               <div className="mb-4 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-base font-semibold text-[#0f2747]">
-                  Datos generales
+                  Información de empresa
                 </h4>
                 <p className="text-xs text-slate-500">
-                  Identificación del propietario según la plantilla de Access.
+                  Datos principales según la plantilla CUENTAS BANCARIAS.
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Número de móvil</span>
+                  <span className={labelClassName}>RUT.-</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.rut}
+                    onChange={(event) => updateFormField("rut", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Móvil</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -907,6 +856,18 @@ export default function PropietariosPage() {
                     }
                     className={inputClassName}
                     placeholder="Opcional"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Razón Social</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.fullName}
+                    onChange={(event) =>
+                      updateFormField("fullName", event.target.value)
+                    }
+                    className={inputClassName}
                   />
                 </label>
 
@@ -920,9 +881,7 @@ export default function PropietariosPage() {
                     className={`${inputClassName} ${
                       !propietarioForm.isActive
                         ? "border-amber-400 bg-amber-50 font-semibold text-amber-950"
-                        : requiresActivationReason
-                          ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-950"
-                          : ""
+                        : ""
                     }`}
                   >
                     <option value="activo">Activo</option>
@@ -992,204 +951,49 @@ export default function PropietariosPage() {
                     </div>
                   </div>
                 ) : null}
+              </div>
 
-                {requiresActivationReason && propietarioForm.isActive ? (
-                  <div
-                    ref={activationReasonRef}
-                    className={`sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
-                      highlightActivationReason && activationReasonIsInvalid
-                        ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-emerald-50 shadow-lg shadow-red-100 ring-2 ring-red-200/70"
-                        : "border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-green-50/80 shadow-md shadow-emerald-100/80"
-                    }`}
+              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
+                  Dato informacional
+                </h4>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>Cta Depósito</span>
+                  <select
+                    value={propietarioForm.paymentMethod}
+                    onChange={(event) =>
+                      updateFormField("paymentMethod", event.target.value)
+                    }
+                    className={inputClassName}
                   >
-                    <div className="flex items-start gap-3">
-                      <span
-                        aria-hidden
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
-                          highlightActivationReason && activationReasonIsInvalid
-                            ? "bg-red-500"
-                            : "bg-emerald-500"
-                        }`}
-                      >
-                        !
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-heading text-sm font-bold tracking-tight text-emerald-950">
-                          Motivo de activación
-                          <span className="ml-1 text-red-600">*</span>
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-emerald-900/85">
-                          Este campo es obligatorio para reactivar el convenio.
-                          Describe brevemente el motivo antes de guardar.
-                        </p>
-                        <textarea
-                          value={propietarioForm.activationReason}
-                          onChange={(event) => {
-                            updateFormField("activationReason", event.target.value);
+                    <option value="">—</option>
+                    {PROPIETARIO_DEPOSIT_ACCOUNT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                            if (event.target.value.trim().length >= 5) {
-                              setHighlightActivationReason(false);
-                              setPropietarioError("");
-                            }
-                          }}
-                          rows={4}
-                          placeholder="Ej.: reincorporación, renovación de convenio, regularización documental..."
-                          className={`mt-3 w-full rounded-2xl border-2 bg-white px-3 py-2.5 text-sm text-[#0f2747] shadow-inner outline-none transition focus:ring-2 ${
-                            highlightActivationReason && activationReasonIsInvalid
-                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
-                              : "border-emerald-300 focus:border-[#0b5cab] focus:ring-[#0b5cab]/20"
-                          }`}
-                        />
-                        <p
-                          className={`mt-2 text-[11px] font-semibold ${
-                            highlightActivationReason && activationReasonIsInvalid
-                              ? "text-red-600"
-                              : "text-emerald-800"
-                          }`}
-                        >
-                          {highlightActivationReason && activationReasonIsInvalid
-                            ? "Ingresa al menos 5 caracteres para poder guardar."
-                            : "Mínimo 5 caracteres · obligatorio"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Nombre / Razón social</span>
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelClassName}>RUT BANCO</span>
                   <input
                     type="text"
-                    value={propietarioForm.fullName}
+                    inputMode="numeric"
+                    value={propietarioForm.titularRut}
                     onChange={(event) =>
-                      updateFormField("fullName", event.target.value)
+                      updateFormField("titularRut", event.target.value)
                     }
                     className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>RUT propietario</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.rut}
-                    onChange={(event) => updateFormField("rut", event.target.value)}
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Correo propietario</span>
-                  <input
-                    type="email"
-                    value={propietarioForm.email}
-                    onChange={(event) =>
-                      updateFormField("email", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Teléfono fijo</span>
-                  <input
-                    type="tel"
-                    value={propietarioForm.landlinePhone}
-                    onChange={(event) =>
-                      updateFormField("landlinePhone", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Teléfono móvil</span>
-                  <input
-                    type="tel"
-                    value={propietarioForm.mobilePhone}
-                    onChange={(event) =>
-                      updateFormField("mobilePhone", event.target.value)
-                    }
-                    className={inputClassName}
+                    placeholder="Solo dígitos"
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Dirección</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.address}
-                    onChange={(event) =>
-                      updateFormField("address", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Comuna</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.city}
-                    onChange={(event) => updateFormField("city", event.target.value)}
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Región</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.province}
-                    onChange={(event) =>
-                      updateFormField("province", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-              </div>
-
-              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
-                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
-                  Datos bancarios del propietario
-                </h4>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Banco propietario</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.bankName}
-                    onChange={(event) =>
-                      updateFormField("bankName", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>N° cuenta propietario</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.bankAccount}
-                    onChange={(event) =>
-                      updateFormField("bankAccount", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-              </div>
-
-              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
-                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
-                  Datos del titular de la cuenta
-                </h4>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Nombre titular</span>
+                  <span className={labelClassName}>NOMBRE CUENTA BANCARIA</span>
                   <input
                     type="text"
                     value={propietarioForm.accountHolder}
@@ -1201,130 +1005,38 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>RUT titular</span>
+                  <span className={labelClassName}>CODIGO BANCO</span>
                   <input
                     type="text"
-                    value={propietarioForm.titularRut}
+                    value={propietarioForm.bankBic}
                     onChange={(event) =>
-                      updateFormField("titularRut", event.target.value)
+                      updateFormField("bankBic", event.target.value)
                     }
                     className={inputClassName}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Correo titular</span>
-                  <input
-                    type="email"
-                    value={propietarioForm.titularEmail}
-                    onChange={(event) =>
-                      updateFormField("titularEmail", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Banco titular</span>
+                  <span className={labelClassName}>Nombre Banco</span>
                   <input
                     type="text"
-                    value={propietarioForm.titularBankName}
+                    value={propietarioForm.bankName}
                     onChange={(event) =>
-                      updateFormField("titularBankName", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>N° cuenta titular</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.titularBankAccount}
-                    onChange={(event) =>
-                      updateFormField("titularBankAccount", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-              </div>
-
-              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
-                <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
-                  Pago y contabilidad
-                </h4>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Medio de pago</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.paymentMethod}
-                    onChange={(event) =>
-                      updateFormField("paymentMethod", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Día de pago</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.paymentDay}
-                    onChange={(event) =>
-                      updateFormField("paymentDay", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Sucursal</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.branchOffice}
-                    onChange={(event) =>
-                      updateFormField("branchOffice", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Cuenta contable</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.accountingAccount}
-                    onChange={(event) =>
-                      updateFormField("accountingAccount", event.target.value)
+                      updateFormField("bankName", event.target.value)
                     }
                     className={inputClassName}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Centro de costo</span>
+                  <span className={labelClassName}>Nro. Cta. Banco</span>
                   <input
                     type="text"
-                    value={propietarioForm.costCenter}
+                    value={propietarioForm.bankAccount}
                     onChange={(event) =>
-                      updateFormField("costCenter", event.target.value)
+                      updateFormField("bankAccount", event.target.value)
                     }
                     className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Observaciones</span>
-                  <textarea
-                    value={propietarioForm.notes}
-                    onChange={(event) =>
-                      updateFormField("notes", event.target.value)
-                    }
-                    rows={3}
-                    className="rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
               </div>

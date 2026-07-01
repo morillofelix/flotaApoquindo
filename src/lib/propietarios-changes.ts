@@ -1,56 +1,22 @@
 export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
+  rut: "RUT.-",
   vehicleNumber: "Móvil",
-  fullName: "Nombre completo",
-  firstName: "Nombre",
-  lastName: "Apellido",
-  secondLastName: "Segundo apellido",
-  rut: "RUT propietario",
-  email: "Correo propietario",
-  landlinePhone: "Teléfono fijo",
-  mobilePhone: "Teléfono móvil",
-  address: "Dirección",
-  postalCode: "Código postal",
-  city: "Ciudad",
-  province: "Provincia / región",
-  bankName: "Banco propietario",
-  bankAccount: "Cuenta propietario",
-  accountHolder: "Titular cuenta",
-  titularRut: "RUT titular",
-  titularEmail: "Correo titular",
-  titularBankName: "Banco titular",
-  titularBankAccount: "Cuenta titular",
-  bankBic: "BIC / SWIFT",
-  paymentMethod: "Forma de pago",
-  paymentDay: "Día de pago",
-  notes: "Observaciones",
-  branchOffice: "Sucursal",
-  area: "Área",
-  costCenter: "Centro de costo",
-  accountingAccount: "Cuenta contable",
-  isVip: "VIP",
-  gender: "Género",
-  recordStatus: "Estado registro",
-  licenseExpiryDate: "Vencimiento licencia",
-  birthDate: "Fecha de nacimiento",
-  incorporationDate: "Fecha incorporación",
-  deactivationDate: "Fecha desactivación",
-  emergencyContactName: "Contacto emergencia",
-  emergencyContactEmail: "Correo emergencia",
-  emergencyContactPhone: "Teléfono emergencia",
+  fullName: "Razón Social",
+  paymentMethod: "Cta Depósito",
+  titularRut: "RUT BANCO",
+  accountHolder: "NOMBRE CUENTA BANCARIA",
+  bankBic: "CODIGO BANCO",
+  bankName: "Nombre Banco",
+  bankAccount: "Nro. Cta. Banco",
   isActive: "Estado",
   inactiveReason: "Motivo de inactivación",
-  activationReason: "Motivo de activación",
 };
 
 const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS).filter(
-  (field) => field !== "inactiveReason" && field !== "activationReason",
+  (field) => field !== "inactiveReason",
 );
 
-const PHONE_FIELDS = new Set([
-  "landlinePhone",
-  "mobilePhone",
-  "emergencyContactPhone",
-]);
+const PHONE_FIELDS = new Set(["vehicleNumber"]);
 
 export type PropietarioChangeRecord = {
   field: string;
@@ -87,11 +53,11 @@ function normalizeComparableValue(value: unknown, field?: string) {
   const normalized = String(value).trim();
 
   if (field && PHONE_FIELDS.has(field)) {
-    return normalized.replace(/\D/g, "");
+    return normalized.replace(/\D/g, "").replace(/^0+/, "") || "";
   }
 
-  if (field === "vehicleNumber") {
-    return normalized.replace(/\D/g, "").replace(/^0+/, "") || "";
+  if (field === "titularRut") {
+    return normalized.replace(/\D/g, "");
   }
 
   return normalized;
@@ -116,10 +82,6 @@ function displayComparableValue(
         return `Inactivo — Motivo: ${String(record.inactiveReason).trim()}`;
       }
 
-      if (value && record?.activationReason) {
-        return `Activo — Motivo: ${String(record.activationReason).trim()}`;
-      }
-
       return value ? "Activo" : "Inactivo";
     }
 
@@ -128,7 +90,7 @@ function displayComparableValue(
 
   const normalized = String(value).trim();
 
-  if (field && PHONE_FIELDS.has(field) && normalized) {
+  if (field === "titularRut") {
     return normalized.replace(/\D/g, "");
   }
 
@@ -176,25 +138,6 @@ export function diffPropietarioChanges(
         label: PROPIETARIO_FIELD_LABELS.inactiveReason ?? "Motivo de inactivación",
         before: displayValue(beforeReason),
         after: displayValue(afterReason),
-      });
-    }
-  }
-
-  const beforeActivationReason = String(before.activationReason ?? "").trim();
-  const afterActivationReason = String(after.activationReason ?? "").trim();
-
-  if (beforeActivationReason !== afterActivationReason && afterActivationReason) {
-    const alreadyInStatusChange = changes.some(
-      (change) =>
-        change.field === "isActive" && change.after.includes(afterActivationReason),
-    );
-
-    if (!alreadyInStatusChange) {
-      changes.push({
-        field: "activationReason",
-        label: PROPIETARIO_FIELD_LABELS.activationReason ?? "Motivo de activación",
-        before: displayValue(beforeActivationReason),
-        after: displayValue(afterActivationReason),
       });
     }
   }
