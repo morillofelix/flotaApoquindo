@@ -38,5 +38,11 @@ next-env.d.ts
 *.swp
 *.swo
 
+# Local spreadsheet fixtures (may contain production data)
+fixtures/*.xls
+fixtures/*.xlsx
+fixtures/*.htm
+fixtures/*.html
+
 .vercel
 .env*

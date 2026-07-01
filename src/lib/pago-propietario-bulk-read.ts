@@ -108,6 +108,41 @@ function extractEmbeddedSpreadsheetMarkup(bytes: Uint8Array) {
   return slices;
 }
 
+function isExcelFramesetContainer(content: string) {
+  const lower = content.toLowerCase();
+
+  return (
+    lower.includes("<frameset") &&
+    (lower.includes("worksheetsource") ||
+      lower.includes(".files/") ||
+      lower.includes("sheet001.htm"))
+  );
+}
+
+function extractWorksheetSourceHref(content: string) {
+  const worksheetSourceMatch = content.match(
+    /<x:WorksheetSource[^>]*href="([^"]+)"/i,
+  );
+  const frameMatch = content.match(/<frame[^>]*src="([^"]+\.htm)"/i);
+
+  return worksheetSourceMatch?.[1] ?? frameMatch?.[1] ?? null;
+}
+
+function detectExcelFramesetHref(bytes: Uint8Array) {
+  for (const rawContent of collectTextVariants(bytes)) {
+    if (!isExcelFramesetContainer(rawContent)) {
+      continue;
+    }
+
+    return (
+      extractWorksheetSourceHref(rawContent) ??
+      "Preliquidaciones.files/sheet001.htm"
+    );
+  }
+
+  return null;
+}
+
 function collectTextVariants(bytes: Uint8Array) {
   const variants: string[] = [];
   const seen = new Set<string>();
@@ -326,13 +361,24 @@ export function readPagoPropietarioBulkFromBuffer(
   buffer: ArrayBuffer,
 ): PagoBulkParseResult {
   const bytes = new Uint8Array(buffer);
+  const framesetHref = detectExcelFramesetHref(bytes);
 
   for (const rawContent of collectTextVariants(bytes)) {
+    if (isExcelFramesetContainer(rawContent)) {
+      continue;
+    }
+
     const parsed = tryParseAccessTextSpreadsheet(fileName, rawContent);
 
     if (parsed) {
       return parsed;
     }
+  }
+
+  if (framesetHref) {
+    throw new Error(
+      `El archivo ${fileName} es solo el contenedor de Excel y no trae la tabla. Sube el archivo de datos "${framesetHref}" (carpeta Preliquidaciones.files junto al .xls) o exporta desde Access como un solo Excel .xlsx.`,
+    );
   }
 
   if (isModernXlsxFileName(fileName)) {

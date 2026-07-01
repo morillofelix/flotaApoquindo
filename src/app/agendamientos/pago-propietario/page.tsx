@@ -670,11 +670,11 @@ export default function PagoPropietarioPage() {
                     Cargador masivo Excel
                   </p>
                   <p className="text-[11px] leading-5 text-slate-500">
-                    Usa la columna D (Móviles o Conductor) para el móvil y
-                    &quot;Total Facturar&quot; (columna Q) para el monto. Los demás datos se
-                    toman de propietarios. Al enviar masivo, cada titular recibe
-                    su correo y se descarga un PDF con el detalle completo del
-                    lote enviado.
+                    Si Access generó carpeta Preliquidaciones.files, sube
+                    sheet001.htm (ahí están los datos). También sirve un .xlsx
+                    único. Columna D = móvil, columna Q = Total Facturar; el
+                    resto se toma de propietarios. El envío masivo manda correo
+                    y PDF por titular.
                   </p>
                   {bulkFileName ? (
                     <p className="mt-1 text-[11px] font-medium text-[#0b5cab]">
@@ -688,7 +688,7 @@ export default function PagoPropietarioPage() {
                   {isLoadingBulkFile ? "Cargando..." : "Seleccionar Excel"}
                   <input
                     type="file"
-                    accept=".csv,.txt,.slk,.xls,.xlsx,text/csv,application/vnd.ms-excel"
+                    accept=".csv,.txt,.slk,.xls,.xlsx,.htm,.html,text/csv,application/vnd.ms-excel"
                     onChange={handleBulkFileSelect}
                     disabled={isLoadingBulkFile || isSendingBulk}
                     className="hidden"
