@@ -16,6 +16,7 @@ import {
 } from "@/lib/propietarios";
 import {
   findPropietarioBankForSelection,
+  getActivePropietarioBanks,
   type PropietarioBankConfig,
 } from "@/lib/propietarios-banks";
 import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, normalizeDepositAccountType } from "@/lib/propietarios-template";
@@ -152,6 +153,11 @@ export default function PropietariosPage() {
         // El catálogo se puede abrir manualmente desde el botón Banco.
       });
   }, []);
+
+  const activePropietarioBanks = useMemo(
+    () => getActivePropietarioBanks(propietarioBanks),
+    [propietarioBanks],
+  );
 
   const availableBankNames = useMemo(() => {
     if (propietarioBanks.length > 0) {
@@ -688,7 +694,18 @@ export default function PropietariosPage() {
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <MaintainerPageHeader title="Propietarios" />
+        <MaintainerPageHeader
+          title="Propietarios"
+          actions={
+            <button
+              type="button"
+              onClick={openBanksDialog}
+              className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0b5cab]/25 transition hover:bg-[#084a8c] active:translate-y-px"
+            >
+              Banco
+            </button>
+          }
+        />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
@@ -1099,17 +1116,10 @@ export default function PropietariosPage() {
                 ) : null}
               </div>
 
-              <div className="mt-5 mb-3 flex items-center justify-between gap-3 border-b border-[#c5d8eb] pb-3">
+              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
                   Dato informacional
                 </h4>
-                <button
-                  type="button"
-                  onClick={openBanksDialog}
-                  className="inline-flex h-8 items-center justify-center rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68] transition hover:bg-[#eef4fb]"
-                >
-                  Banco
-                </button>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1174,7 +1184,7 @@ export default function PropietariosPage() {
                         — no está en catálogo
                       </option>
                     ) : null}
-                    {propietarioBanks.map((bank) => (
+                    {activePropietarioBanks.map((bank) => (
                       <option key={bank.id} value={bank.id}>
                         {bank.name}
                         {bank.bankBic ? ` (${bank.bankBic})` : ""}

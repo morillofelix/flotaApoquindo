@@ -162,11 +162,13 @@ model PropietarioBank {
   id        String   @id @default(uuid())
   name      String   @unique
   bankBic   String   @default("")
+  isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([sortOrder])
+  @@index([isActive])
 }
 
 model AccessUser {

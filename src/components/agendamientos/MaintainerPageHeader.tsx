@@ -4,9 +4,11 @@ import { UI_CARD_SHELL } from "@/lib/ui-borders";
 export default function MaintainerPageHeader({
   title,
   subtitle = "Mantenedores",
+  actions,
 }: {
   title: string;
   subtitle?: string;
+  actions?: React.ReactNode;
 }) {
   return (
     <header className={`mb-4 flex flex-col gap-1.5 ${UI_CARD_SHELL} px-4 py-3 sm:flex-row sm:items-center sm:justify-between`}>
@@ -18,12 +20,15 @@ export default function MaintainerPageHeader({
           {title}
         </h1>
       </div>
-      <Link
-        href="/agendamientos"
-        className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
-      >
-        Cerrar
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        {actions}
+        <Link
+          href="/agendamientos"
+          className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+        >
+          Cerrar
+        </Link>
+      </div>
     </header>
   );
 }

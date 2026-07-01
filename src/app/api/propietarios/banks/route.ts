@@ -12,6 +12,7 @@ type BankBody = {
   id?: unknown;
   name?: unknown;
   bankBic?: unknown;
+  isActive?: unknown;
 };
 
 function asString(value: unknown) {
@@ -97,7 +98,7 @@ async function loadBanks() {
   await syncBanksFromPropietarios();
 
   return prisma.propietarioBank.findMany({
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    orderBy: [{ isActive: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
 }
 
@@ -202,6 +203,8 @@ export async function PATCH(request: NextRequest) {
   const id = asString(body.id);
   const name = asString(body.name);
   const bankBic = asString(body.bankBic);
+  const isActive =
+    body.isActive === undefined ? undefined : body.isActive === true;
 
   if (!id || name.length < 2) {
     return NextResponse.json(
@@ -230,7 +233,11 @@ export async function PATCH(request: NextRequest) {
   try {
     const bank = await prisma.propietarioBank.update({
       where: { id },
-      data: { name, bankBic },
+      data: {
+        name,
+        bankBic,
+        ...(isActive === undefined ? {} : { isActive }),
+      },
     });
 
     return NextResponse.json({ bank: toPropietarioBank(bank) });

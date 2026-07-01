@@ -2,6 +2,7 @@ export type PropietarioBankConfig = {
   id: string;
   name: string;
   bankBic: string;
+  isActive: boolean;
   sortOrder: number;
 };
 
@@ -18,6 +19,7 @@ export function toPropietarioBank(
     id: string;
     name: string;
     bankBic: string;
+    isActive: boolean;
     sortOrder: number;
   },
 ): PropietarioBankConfig {
@@ -25,8 +27,23 @@ export function toPropietarioBank(
     id: row.id,
     name: row.name.trim(),
     bankBic: row.bankBic.trim(),
+    isActive: row.isActive,
     sortOrder: row.sortOrder,
   };
+}
+
+export function sortPropietarioBanks(banks: PropietarioBankConfig[]) {
+  return [...banks].sort((left, right) => {
+    if (left.isActive !== right.isActive) {
+      return left.isActive ? -1 : 1;
+    }
+
+    return left.name.localeCompare(right.name, "es", { sensitivity: "base" });
+  });
+}
+
+export function getActivePropietarioBanks(banks: PropietarioBankConfig[]) {
+  return banks.filter((bank) => bank.isActive);
 }
 
 export function formatPropietarioBankOption(bank: PropietarioBankConfig) {

@@ -2,14 +2,21 @@
 
 import { adminFetchInit } from "@/lib/admin-fetch";
 import {
+  sortPropietarioBanks,
   type PropietarioBankConfig,
 } from "@/lib/propietarios-banks";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const inputClassName =
-  "h-9 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
+  "h-9 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 
 const labelClassName = "text-xs font-semibold text-[#173b68]";
+
+const primaryButtonClassName =
+  "inline-flex h-9 shrink-0 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] disabled:opacity-60";
+
+const secondaryButtonClassName =
+  "inline-flex h-9 shrink-0 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-4 text-xs font-semibold text-[#173b68] transition hover:bg-[#eef4fb]";
 
 type PropietarioBanksDialogProps = {
   open: boolean;
@@ -22,12 +29,14 @@ type BankForm = {
   id: string;
   name: string;
   bankBic: string;
+  isActive: boolean;
 };
 
 const emptyBankForm: BankForm = {
   id: "",
   name: "",
   bankBic: "",
+  isActive: true,
 };
 
 export default function PropietarioBanksDialog({
@@ -40,6 +49,8 @@ export default function PropietarioBanksDialog({
   const [bankMessage, setBankMessage] = useState("");
   const [bankError, setBankError] = useState("");
   const [isSavingBank, setIsSavingBank] = useState(false);
+
+  const sortedBanks = useMemo(() => sortPropietarioBanks(banks), [banks]);
 
   useEffect(() => {
     if (!open) {
@@ -73,6 +84,7 @@ export default function PropietarioBanksDialog({
       id: bank.id,
       name: bank.name,
       bankBic: bank.bankBic,
+      isActive: bank.isActive,
     });
     setBankMessage("");
     setBankError("");
@@ -83,6 +95,7 @@ export default function PropietarioBanksDialog({
 
     const name = bankForm.name.trim();
     const bankBic = bankForm.bankBic.trim();
+    const isEditing = Boolean(bankForm.id);
 
     if (name.length < 2) {
       setBankError("Ingresa un nombre de banco válido.");
@@ -95,7 +108,7 @@ export default function PropietarioBanksDialog({
 
     try {
       const response = await fetch("/api/propietarios/banks", {
-        method: bankForm.id ? "PATCH" : "POST",
+        method: isEditing ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -104,6 +117,7 @@ export default function PropietarioBanksDialog({
           id: bankForm.id || undefined,
           name,
           bankBic,
+          isActive: isEditing ? bankForm.isActive : true,
         }),
       });
 
@@ -116,16 +130,14 @@ export default function PropietarioBanksDialog({
         throw new Error(data.message ?? "No se pudo guardar el banco.");
       }
 
-      const nextBanks = bankForm.id
+      const nextBanks = isEditing
         ? banks.map((bank) => (bank.id === data.bank?.id ? data.bank : bank))
-        : [...banks, data.bank].sort((left, right) =>
-            left.name.localeCompare(right.name, "es", { sensitivity: "base" }),
-          );
+        : [...banks, data.bank];
 
-      onBanksChange(nextBanks);
+      onBanksChange(sortPropietarioBanks(nextBanks));
       setBankForm(emptyBankForm);
       setBankMessage(
-        bankForm.id ? "Banco actualizado." : "Banco agregado al catálogo.",
+        isEditing ? "Banco actualizado." : "Banco agregado al catálogo.",
       );
     } catch (error) {
       setBankError(
@@ -158,14 +170,14 @@ export default function PropietarioBanksDialog({
                 Catálogo de bancos
               </h3>
               <p className="mt-1 text-xs text-slate-600">
-                Administra nombre y código bancario para asignarlos sin escribir
+                Administra nombre, código y estado para asignarlos sin escribir
                 manualmente.
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 items-center justify-center rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68]"
+              className={secondaryButtonClassName}
             >
               Cerrar
             </button>
@@ -173,12 +185,20 @@ export default function PropietarioBanksDialog({
         </div>
 
         <div className="overflow-auto px-5 py-4">
-          <form onSubmit={saveBank} className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+          <form
+            onSubmit={saveBank}
+            className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
+          >
             <p className="text-xs font-semibold text-[#173b68]">
               {bankForm.id ? "Editar banco" : "Agregar banco"}
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_0.45fr_auto]">
-              <label className="flex flex-col gap-1.5">
+
+            <div
+              className={`mt-3 grid gap-3 ${
+                bankForm.id ? "sm:grid-cols-3" : "sm:grid-cols-2"
+              }`}
+            >
+              <label className="flex min-w-0 flex-col gap-1.5">
                 <span className={labelClassName}>Nombre banco</span>
                 <input
                   type="text"
@@ -193,7 +213,8 @@ export default function PropietarioBanksDialog({
                   placeholder="Banco de Chile"
                 />
               </label>
-              <label className="flex flex-col gap-1.5">
+
+              <label className="flex min-w-0 flex-col gap-1.5">
                 <span className={labelClassName}>Código banco</span>
                 <input
                   type="text"
@@ -209,64 +230,95 @@ export default function PropietarioBanksDialog({
                   placeholder="001"
                 />
               </label>
-              <div className="flex items-end gap-2">
-                {bankForm.id ? (
-                  <button
-                    type="button"
-                    onClick={() => setBankForm(emptyBankForm)}
-                    className="inline-flex h-9 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]"
+
+              {bankForm.id ? (
+                <label className="flex min-w-0 flex-col gap-1.5">
+                  <span className={labelClassName}>Estado</span>
+                  <select
+                    value={bankForm.isActive ? "activo" : "inactivo"}
+                    onChange={(event) =>
+                      setBankForm((current) => ({
+                        ...current,
+                        isActive: event.target.value === "activo",
+                      }))
+                    }
+                    className={inputClassName}
                   >
-                    Cancelar
-                  </button>
-                ) : null}
-                <button
-                  type="submit"
-                  disabled={isSavingBank}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] disabled:opacity-60"
-                >
-                  {isSavingBank
-                    ? "Guardando..."
-                    : bankForm.id
-                      ? "Actualizar"
-                      : "Agregar"}
-                </button>
-              </div>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </label>
+              ) : null}
             </div>
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-[#d7e5f4] pt-4">
+              {bankForm.id ? (
+                <button
+                  type="button"
+                  onClick={() => setBankForm(emptyBankForm)}
+                  className={secondaryButtonClassName}
+                >
+                  Cancelar
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                disabled={isSavingBank}
+                className={primaryButtonClassName}
+              >
+                {isSavingBank
+                  ? "Guardando..."
+                  : bankForm.id
+                    ? "Actualizar"
+                    : "Agregar"}
+              </button>
+            </div>
+
             {bankMessage ? (
-              <p className="mt-2 text-xs font-semibold text-green-700">
+              <p className="mt-3 text-xs font-semibold text-green-700">
                 {bankMessage}
               </p>
             ) : null}
             {bankError ? (
-              <p className="mt-2 text-xs font-semibold text-red-600">
+              <p className="mt-3 text-xs font-semibold text-red-600">
                 {bankError}
               </p>
             ) : null}
           </form>
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-[#b7cce4]">
-            <div className="grid grid-cols-[1fr_0.45fr] gap-2 bg-[#eef4fb] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#173b68]">
+            <div className="grid grid-cols-[minmax(0,1fr)_0.35fr_0.35fr] gap-2 bg-[#eef4fb] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#173b68]">
               <span>Nombre banco</span>
               <span>Código</span>
+              <span>Estado</span>
             </div>
             <div className="max-h-[40dvh] divide-y divide-[#c5d8eb] overflow-auto">
-              {banks.length === 0 ? (
+              {sortedBanks.length === 0 ? (
                 <p className="px-3 py-4 text-xs text-slate-500">
                   No hay bancos en el catálogo todavía.
                 </p>
               ) : (
-                banks.map((bank) => (
+                sortedBanks.map((bank) => (
                   <button
                     key={bank.id}
                     type="button"
                     onClick={() => editBank(bank)}
-                    className={`grid w-full grid-cols-[1fr_0.45fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f3f8fd] ${
+                    className={`grid w-full grid-cols-[minmax(0,1fr)_0.35fr_0.35fr] gap-2 px-3 py-2 text-left text-xs transition hover:bg-[#f3f8fd] ${
                       bankForm.id === bank.id ? "bg-[#e8f2fb]" : ""
-                    }`}
+                    } ${bank.isActive ? "" : "opacity-70"}`}
                   >
-                    <span className="font-medium text-[#0f2747]">{bank.name}</span>
-                    <span className="text-slate-600">
-                      {bank.bankBic || "—"}
+                    <span className="truncate font-medium text-[#0f2747]">
+                      {bank.name}
+                    </span>
+                    <span className="text-slate-600">{bank.bankBic || "—"}</span>
+                    <span
+                      className={
+                        bank.isActive
+                          ? "font-semibold text-green-700"
+                          : "font-semibold text-slate-500"
+                      }
+                    >
+                      {bank.isActive ? "Activo" : "Inactivo"}
                     </span>
                   </button>
                 ))
@@ -275,9 +327,10 @@ export default function PropietarioBanksDialog({
           </div>
 
           <p className="mt-3 text-[11px] text-slate-500">
-            {banks.length} banco{banks.length === 1 ? "" : "s"} en catálogo.
-            Los bancos usados en propietarios se cargan automáticamente al abrir
-            este mantenedor.
+            {sortedBanks.length} banco{sortedBanks.length === 1 ? "" : "s"} en
+            catálogo. Los inactivos no aparecen al crear propietarios. Los bancos
+            usados en propietarios se cargan automáticamente al abrir este
+            mantenedor.
           </p>
         </div>
       </div>
