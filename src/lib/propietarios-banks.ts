@@ -46,6 +46,36 @@ export function getActivePropietarioBanks(banks: PropietarioBankConfig[]) {
   return banks.filter((bank) => bank.isActive);
 }
 
+export function normalizePropietarioBankBic(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (!digits) {
+    return "";
+  }
+
+  return String(Number.parseInt(digits, 10));
+}
+
+export function findDuplicatePropietarioBankBic(
+  banks: PropietarioBankConfig[],
+  bankBic: string,
+  excludeId = "",
+) {
+  const normalizedBic = normalizePropietarioBankBic(bankBic);
+
+  if (!normalizedBic) {
+    return null;
+  }
+
+  return (
+    banks.find(
+      (bank) =>
+        bank.id !== excludeId &&
+        normalizePropietarioBankBic(bank.bankBic) === normalizedBic,
+    ) ?? null
+  );
+}
+
 export function formatPropietarioBankOption(bank: PropietarioBankConfig) {
   const code = bank.bankBic.trim();
 

@@ -1,5 +1,6 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import {
+  normalizePropietarioBankBic,
   normalizePropietarioBankName,
   toPropietarioBank,
 } from "@/lib/propietarios-banks";
@@ -17,6 +18,25 @@ type BankBody = {
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function findDuplicateBankBic(bankBic: string, excludeId = "") {
+  const normalizedBic = normalizePropietarioBankBic(bankBic);
+
+  if (!normalizedBic) {
+    return null;
+  }
+
+  const banks = await prisma.propietarioBank.findMany({
+    where: excludeId ? { id: { not: excludeId } } : undefined,
+    select: { id: true, name: true, bankBic: true },
+  });
+
+  return (
+    banks.find(
+      (bank) => normalizePropietarioBankBic(bank.bankBic) === normalizedBic,
+    ) ?? null
+  );
 }
 
 async function syncBanksFromPropietarios() {
@@ -161,6 +181,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const duplicateBic = await findDuplicateBankBic(bankBic);
+
+  if (duplicateBic) {
+    return NextResponse.json(
+      {
+        message: `El código bancario ${bankBic} ya está asignado a ${duplicateBic.name}.`,
+      },
+      { status: 409 },
+    );
+  }
+
   try {
     const bank = await prisma.propietarioBank.create({
       data: {
@@ -226,6 +257,17 @@ export async function PATCH(request: NextRequest) {
   if (duplicate) {
     return NextResponse.json(
       { message: "Ya existe otro banco con ese nombre." },
+      { status: 409 },
+    );
+  }
+
+  const duplicateBic = await findDuplicateBankBic(bankBic, id);
+
+  if (duplicateBic) {
+    return NextResponse.json(
+      {
+        message: `El código bancario ${bankBic} ya está asignado a ${duplicateBic.name}.`,
+      },
       { status: 409 },
     );
   }

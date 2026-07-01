@@ -2,6 +2,7 @@
 
 import { adminFetchInit } from "@/lib/admin-fetch";
 import {
+  findDuplicatePropietarioBankBic,
   sortPropietarioBanks,
   type PropietarioBankConfig,
 } from "@/lib/propietarios-banks";
@@ -130,6 +131,19 @@ export default function PropietarioBanksDialog({
 
     if (name.length < 2) {
       setBankError("Ingresa un nombre de banco válido.");
+      return;
+    }
+
+    const duplicateBic = findDuplicatePropietarioBankBic(
+      banks,
+      bankBic,
+      bankForm.id,
+    );
+
+    if (duplicateBic) {
+      setBankError(
+        `El código bancario ${bankBic} ya está asignado a ${duplicateBic.name}.`,
+      );
       return;
     }
 
