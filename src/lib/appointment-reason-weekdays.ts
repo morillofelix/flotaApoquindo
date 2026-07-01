@@ -24,8 +24,45 @@ export const weekdayOptions: Array<{
 export const RESTRICTED_DAY_MESSAGE =
   "Este día se encuentra restringido, por favor contactar al departamento de flota.";
 
-export function getBusinessDayAdvanceMessage(requiredDays: number) {
-  return `Esta solicitud requiere ${requiredDays} días hábiles de anticipación. Ajusta la fecha de inicio o contacta al departamento de flota.`;
+function formatBusinessDayMinimumDate(dateValue: string) {
+  const parsed = parseDateOnlyValue(dateValue);
+  const formatted = new Intl.DateTimeFormat("es-CL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(parsed);
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function getBusinessDayAdvanceActionPhrase(reason: {
+  usesDateRange: boolean;
+  usesPermitDetails: boolean;
+}) {
+  if (reason.usesDateRange) {
+    return "pedir tus vacaciones";
+  }
+
+  if (reason.usesPermitDetails) {
+    return "solicitar este permiso";
+  }
+
+  return "realizar esta solicitud";
+}
+
+export function getBusinessDayAdvanceMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+  reason: {
+    usesDateRange: boolean;
+    usesPermitDetails: boolean;
+  },
+) {
+  const formattedDate = formatBusinessDayMinimumDate(minimumStartDate);
+  const actionPhrase = getBusinessDayAdvanceActionPhrase(reason);
+
+  return `Esta solicitud requiere ${requiredDays} días hábiles de anticipación. A partir del ${formattedDate} puedes ${actionPhrase} con esa fecha de inicio. Ajusta la fecha de inicio o contacta al departamento de flota.`;
 }
 
 export function formatBusinessDayAdvanceSummary(
@@ -142,9 +179,19 @@ export function checkBusinessDayAdvance(
       reason.businessDaysAdvance,
     )
   ) {
+    const minimumStartDate = addBusinessDays(
+      todayDate,
+      reason.businessDaysAdvance,
+    );
+
     return {
       blocked: true,
-      message: getBusinessDayAdvanceMessage(reason.businessDaysAdvance),
+      message: getBusinessDayAdvanceMessage(
+        reason.businessDaysAdvance,
+        minimumStartDate,
+        reason,
+      ),
+      minimumStartDate,
     };
   }
 
