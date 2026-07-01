@@ -153,6 +153,23 @@ export function formatPropietarioChangesForEmail(changes: PropietarioChangeRecor
   );
 }
 
+export function formatPropietarioCreateForEmail(record: Record<string, unknown>) {
+  const changes = diffPropietarioChanges({}, record);
+
+  if (!changes.length) {
+    return [];
+  }
+
+  return [
+    "",
+    "Detalle del registro:",
+    "",
+    ...changes.map(
+      (change, index) => `${index + 1}. ${change.label}: ${change.after}`,
+    ),
+  ];
+}
+
 export function formatSantiagoTimestamp(date = new Date()) {
   return new Intl.DateTimeFormat("es-CL", {
     dateStyle: "full",

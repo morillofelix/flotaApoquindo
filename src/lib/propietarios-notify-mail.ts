@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import {
   formatPropietarioChangesForEmail,
+  formatPropietarioCreateForEmail,
   formatSantiagoTimestamp,
   type PropietarioChangeRecord,
 } from "@/lib/propietarios-changes";
@@ -279,6 +280,64 @@ type PropietarioDeleteNotificationInput = {
   vehicleNumber: string;
   reason: string;
 };
+
+type PropietarioCreateNotificationInput = {
+  actor: string;
+  fullName: string;
+  rut: string;
+  vehicleNumber: string;
+  email: string;
+  record: Record<string, unknown>;
+  inactiveReason?: string;
+};
+
+export async function sendPropietarioCreateNotification(
+  input: PropietarioCreateNotificationInput,
+) {
+  const timestamp = formatSantiagoTimestamp();
+  const detailLines = formatPropietarioCreateForEmail(input.record);
+  const inactiveReasonLines = buildStatusReasonEmailLines(
+    "Motivo de inactivación",
+    input.inactiveReason,
+  );
+
+  await sendPropietariosNotification(
+    "Nuevo propietario creado - Transportes Apoquindo",
+    [
+      "Estimados,",
+      "",
+      "Se informa que se creó un nuevo registro en el módulo de Propietarios.",
+      "",
+      `Fecha y hora: ${timestamp}`,
+      `Usuario que realizó la acción: ${input.actor}`,
+      `Propietario: ${input.fullName || "(sin nombre)"}`,
+      `RUT: ${input.rut || "(sin RUT)"}`,
+      `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
+      `Correo: ${input.email || "(sin correo)"}`,
+      ...inactiveReasonLines,
+      ...detailLines,
+      "",
+      "Este mensaje fue generado automáticamente por el sistema.",
+    ],
+  );
+}
+
+export async function notifyPropietarioCreateSafely(
+  input: PropietarioCreateNotificationInput,
+) {
+  if (!isPropietariosNotifyMailConfigured()) {
+    console.warn("Propietario create notification skipped: SMTP no configurado.");
+    return false;
+  }
+
+  try {
+    await sendPropietarioCreateNotification(input);
+    return true;
+  } catch (error) {
+    console.error("Propietario create notification failed:", error);
+    return false;
+  }
+}
 
 export async function sendPropietarioDeleteNotification(
   input: PropietarioDeleteNotificationInput,

@@ -1,14 +1,16 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
 import { diffPropietarioChanges } from "@/lib/propietarios-changes";
-import { notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
+import { notifyPropietarioCreateSafely, notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
 import { getPropietarioNotifyActor } from "@/lib/propietarios-notify";
 import {
   displayVehicleNumber,
+  normalizeVehicleNumber,
   toPropietario,
   toPropietarioCreateData,
   type PropietarioConfig,
 } from "@/lib/propietarios";
+import { isValidEmail } from "@/lib/pago-propietario";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -153,6 +155,30 @@ function validatePropietarioInput(input: ReturnType<typeof parsePropietarioBody>
   return null;
 }
 
+function validateManualCreatePropietarioInput(
+  input: ReturnType<typeof parsePropietarioBody>,
+) {
+  const baseValidation = validatePropietarioInput(input);
+
+  if (baseValidation) {
+    return baseValidation;
+  }
+
+  if (!normalizeVehicleNumber(input.vehicleNumber)) {
+    return "Ingresa un número de móvil válido.";
+  }
+
+  if (!input.email) {
+    return "Ingresa un correo electrónico.";
+  }
+
+  if (!isValidEmail(input.email)) {
+    return "Ingresa un correo electrónico válido.";
+  }
+
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   const unauthorized = requireAdminPermission(request, "propietarios");
 
@@ -188,7 +214,7 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parsePropietarioBody(body);
-  const validationMessage = validatePropietarioInput(input);
+  const validationMessage = validateManualCreatePropietarioInput(input);
 
   if (validationMessage) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
@@ -226,8 +252,26 @@ export async function POST(request: NextRequest) {
       data: createData,
     });
 
+    const inactiveReasonForEmail =
+      !createData.isActive && inactiveReason.trim()
+        ? inactiveReason.trim()
+        : undefined;
+
+    const notificationSent = await notifyPropietarioCreateSafely({
+      actor: getPropietarioNotifyActor(request),
+      fullName: propietario.fullName,
+      rut: propietario.rut,
+      vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
+      email: propietario.email,
+      record: createData,
+      inactiveReason: inactiveReasonForEmail,
+    });
+
     return NextResponse.json(
-      { propietario: toPropietario(propietario) },
+      {
+        propietario: toPropietario(propietario),
+        notificationSent,
+      },
       { status: 201 },
     );
   } catch {

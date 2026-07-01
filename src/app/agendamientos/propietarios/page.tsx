@@ -10,10 +10,12 @@ import {
   displayVehicleNumber,
   downloadPropietariosExcel,
   formatFileSize,
+  normalizeVehicleNumber,
   parsePropietariosUploadBuffer,
   type ParsedPropietarioRow,
   type PropietarioConfig,
 } from "@/lib/propietarios";
+import { isValidEmail } from "@/lib/pago-propietario";
 import {
   findPropietarioBankForSelection,
   getActivePropietarioBanks,
@@ -515,6 +517,27 @@ export default function PropietariosPage() {
       return;
     }
 
+    const isCreatingPropietario = !propietarioForm.id;
+
+    if (isCreatingPropietario) {
+      if (!normalizeVehicleNumber(propietarioForm.vehicleNumber)) {
+        setPropietarioError("Ingresa un número de móvil válido.");
+        return;
+      }
+
+      const email = propietarioForm.email.trim();
+
+      if (!email) {
+        setPropietarioError("Ingresa un correo electrónico.");
+        return;
+      }
+
+      if (!isValidEmail(email)) {
+        setPropietarioError("Ingresa un correo electrónico válido.");
+        return;
+      }
+    }
+
     if (!propietarioForm.isActive) {
       const inactiveReason = (propietarioForm.inactiveReason ?? "").trim();
 
@@ -532,6 +555,7 @@ export default function PropietariosPage() {
     }
 
     setIsSavingPropietario(true);
+    const wasEditingPropietario = Boolean(propietarioForm.id);
 
     try {
       const payload = {
@@ -567,7 +591,11 @@ export default function PropietariosPage() {
         setPropietarioMessage(
           "Registro guardado correctamente. Se envió la notificación por correo.",
         );
-      } else if ((data.changesDetected ?? 0) > 0) {
+      } else if (wasEditingPropietario && (data.changesDetected ?? 0) > 0) {
+        setPropietarioMessage(
+          "Registro guardado. No se pudo confirmar el envío del correo de notificación.",
+        );
+      } else if (!wasEditingPropietario) {
         setPropietarioMessage(
           "Registro guardado. No se pudo confirmar el envío del correo de notificación.",
         );
@@ -1096,7 +1124,12 @@ export default function PropietariosPage() {
                 </label>
 
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Móvil</span>
+                  <span className={labelClassName}>
+                    Móvil
+                    {!propietarioForm.id ? (
+                      <span className="ml-1 text-red-600">*</span>
+                    ) : null}
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1105,22 +1138,34 @@ export default function PropietariosPage() {
                       updateFormField("vehicleNumber", event.target.value)
                     }
                     className={inputClassName}
-                    placeholder="Opcional"
+                    placeholder={propietarioForm.id ? "Opcional" : undefined}
+                    required={!propietarioForm.id}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Razón Social</span>
+                  <span className={labelClassName}>
+                    Razón Social
+                    {!propietarioForm.id ? (
+                      <span className="ml-1 text-red-600">*</span>
+                    ) : null}
+                  </span>
                   <input
                     type="text"
                     value={propietarioForm.fullName}
                     onChange={(event) => handleFullNameChange(event.target.value)}
                     className={inputClassName}
+                    required={!propietarioForm.id}
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className={labelClassName}>Correo</span>
+                  <span className={labelClassName}>
+                    Correo
+                    {!propietarioForm.id ? (
+                      <span className="ml-1 text-red-600">*</span>
+                    ) : null}
+                  </span>
                   <input
                     type="email"
                     value={propietarioForm.email}
@@ -1128,7 +1173,8 @@ export default function PropietariosPage() {
                       updateFormField("email", event.target.value)
                     }
                     className={inputClassName}
-                    placeholder="Opcional"
+                    placeholder={propietarioForm.id ? "Opcional" : undefined}
+                    required={!propietarioForm.id}
                   />
                 </label>
 
