@@ -42,17 +42,26 @@ export function normalizeEmail(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, "");
 }
 
+export const LEGACY_ADMIN_USER = "ejecutivo";
+export const LEGACY_ADMIN_PASSWORD = "12345678";
+
+export function getLegacyAdminCredentials() {
+  return {
+    user: process.env.ADMIN_USER?.trim() || LEGACY_ADMIN_USER,
+    password: process.env.ADMIN_PASSWORD?.trim() || LEGACY_ADMIN_PASSWORD,
+  };
+}
+
 export function verifyAdminCredentials(user: string, password: string) {
-  const adminUser = (process.env.ADMIN_USER ?? "ejecutivo").trim();
-  const adminPassword = (process.env.ADMIN_PASSWORD ?? "1818").trim();
+  const { user: adminUser, password: adminPassword } = getLegacyAdminCredentials();
 
   if (!adminUser || !adminPassword) {
     return false;
   }
 
-  const providedUser = Buffer.from(user.trim());
-  const expectedUser = Buffer.from(adminUser);
-  const providedPassword = Buffer.from(password);
+  const providedUser = Buffer.from(user.trim().toLowerCase());
+  const expectedUser = Buffer.from(adminUser.toLowerCase());
+  const providedPassword = Buffer.from(password.trim());
   const expectedPassword = Buffer.from(adminPassword);
 
   if (

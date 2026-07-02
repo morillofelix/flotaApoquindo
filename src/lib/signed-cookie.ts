@@ -5,11 +5,13 @@ type SignedEnvelope<T> = {
   signature: string;
 };
 
+import { LEGACY_ADMIN_PASSWORD } from "@/lib/password-utils";
+
 export function getSessionSecret() {
   return (
     process.env.SESSION_SECRET?.trim() ||
     process.env.ADMIN_PASSWORD?.trim() ||
-    ""
+    LEGACY_ADMIN_PASSWORD
   );
 }
 

@@ -324,7 +324,8 @@ export default function ExecutiveAccessLoginScreen({
         {showCredentialHint ? (
           <p className="mt-5 rounded-2xl border-2 border-[#9fb8d9] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-slate-600">
             También puedes ingresar con usuario <strong>ejecutivo</strong> o con
-            tu correo si ya tienes acceso asignado.
+            tu correo si ya tienes acceso asignado. El usuario ejecutivo es de
+            respaldo para administración.
           </p>
         ) : null}
       </section>

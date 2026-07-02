@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
   }
 
   const userInput = typeof body.user === "string" ? body.user.trim() : "";
-  const password = typeof body.password === "string" ? body.password : "";
+  const password =
+    typeof body.password === "string" ? body.password.trim() : "";
 
   if (!userInput || !password) {
     return NextResponse.json(
