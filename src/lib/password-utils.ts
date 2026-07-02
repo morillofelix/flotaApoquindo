@@ -39,7 +39,7 @@ export function verifyPassword(password: string, storedHash: string) {
 }
 
 export function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().replace(/\s+/g, "");
 }
 
 export function verifyAdminCredentials(user: string, password: string) {
