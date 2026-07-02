@@ -444,15 +444,23 @@ function AppointmentsPageContent() {
         throw new Error("No se pudo asignar el ejecutivo.");
       }
 
+      const patchData = (await response.json()) as { appointment?: Appointment };
+      const savedAppointment = patchData.appointment ?? appointmentToInvite;
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment.id === id ? savedAppointment : appointment,
+        ),
+      );
       setExecutiveAssignmentPrompt(null);
 
-      if (shouldSendCalendarInvite(appointmentToInvite)) {
+      if (shouldSendCalendarInvite(savedAppointment)) {
         try {
           setEmailNotice({
             status: "sending",
             message: "Enviando cita y confirmación...",
           });
-          await sendExecutiveAssignmentEmails(appointmentToInvite);
+          await sendExecutiveAssignmentEmails(savedAppointment);
           setEmailNotice({
             status: "sent",
             message: "Correos enviados.",

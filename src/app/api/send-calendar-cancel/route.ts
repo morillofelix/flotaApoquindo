@@ -29,6 +29,8 @@ type CalendarCancelPayload = Pick<
   | "reasonAllowsExecutiveAssignment"
   | "reasonUsesAppointmentDuration"
   | "reasonAppointmentDurationMinutes"
+  | "scheduledStartTime"
+  | "scheduledEndTime"
   | "email"
   | "phone"
   | "assignedExecutive"
@@ -106,6 +108,8 @@ function getAppointmentSchedule(
     reasonUsesAppointmentDuration: appointment.reasonUsesAppointmentDuration,
     reasonAppointmentDurationMinutes:
       appointment.reasonAppointmentDurationMinutes,
+    scheduledStartTime: appointment.scheduledStartTime,
+    scheduledEndTime: appointment.scheduledEndTime,
     startHour: DEFAULT_APPOINTMENT_START_HOUR,
     startMinute: DEFAULT_APPOINTMENT_START_MINUTE,
     executiveLunchBreak,

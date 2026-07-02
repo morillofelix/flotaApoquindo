@@ -1,19 +1,16 @@
 import {
-  type Appointment,
-  type AppointmentStatus,
   type AppointmentReasonConfig,
   type PermitType,
   defaultAppointmentReasons,
-  getPermissionReasonLabel,
   RESTRICTED_DAY_MESSAGE,
 } from "@/lib/appointments";
 import {
   getSantiagoToday,
   isReasonRestrictedToday,
-  parseRestrictedWeekdays,
   serializeRestrictedWeekdays,
   checkBusinessDayAdvance,
 } from "@/lib/appointment-reason-weekdays";
+import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeEmail } from "@/lib/password-utils";
@@ -39,14 +36,6 @@ type AppointmentCreateBody = {
   email?: unknown;
   phone?: unknown;
 };
-
-const validStatuses: AppointmentStatus[] = [
-  "pendiente",
-  "revisado",
-  "aprobado",
-  "rechazado",
-  "cancelado",
-];
 
 function isValidAppointmentDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -88,78 +77,6 @@ function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-function formatDateOnly(value: Date) {
-  return value.toISOString().slice(0, 10);
-}
-
-function toAppointment(
-  value: {
-  id: string;
-  ticketNumber: number;
-  driverName: string;
-  vehicleNumber: string;
-  appointmentDate: Date;
-  vacationStartDate: Date | null;
-  vacationEndDate: Date | null;
-  permitType: string;
-  permitStartDate: Date | null;
-  permitEndDate: Date | null;
-  permitDate: Date | null;
-  permitStartTime: string;
-  permitEndTime: string;
-  appointmentReason: string;
-  email: string;
-  phone: string;
-  assignedExecutive: string;
-  status: string;
-  createdAt: Date;
-  },
-  reasonConfig?: AppointmentReasonConfig,
-): Appointment {
-  const status = validStatuses.includes(value.status as AppointmentStatus)
-    ? (value.status as AppointmentStatus)
-    : "pendiente";
-
-  return {
-    id: value.id,
-    ticketNumber: value.ticketNumber,
-    driverName: value.driverName,
-    vehicleNumber: value.vehicleNumber,
-    appointmentDate: formatDateOnly(value.appointmentDate),
-    vacationStartDate: value.vacationStartDate
-      ? formatDateOnly(value.vacationStartDate)
-      : "",
-    vacationEndDate: value.vacationEndDate
-      ? formatDateOnly(value.vacationEndDate)
-      : "",
-    permitType: isValidPermitType(value.permitType) ? value.permitType : "",
-    permitStartDate: value.permitStartDate
-      ? formatDateOnly(value.permitStartDate)
-      : "",
-    permitEndDate: value.permitEndDate ? formatDateOnly(value.permitEndDate) : "",
-    permitDate: value.permitDate ? formatDateOnly(value.permitDate) : "",
-    permitStartTime: value.permitStartTime,
-    permitEndTime: value.permitEndTime,
-    appointmentReason: value.appointmentReason,
-    appointmentReasonLabel: getPermissionReasonLabel(value.appointmentReason, reasonConfig ? [reasonConfig] : undefined),
-    reasonAllowsExecutiveAssignment: Boolean(
-      reasonConfig?.allowsExecutiveAssignment,
-    ),
-    reasonUsesAppointmentDuration: Boolean(
-      reasonConfig?.usesAppointmentDuration,
-    ),
-    reasonAppointmentDurationMinutes:
-      reasonConfig?.appointmentDurationMinutes ?? 30,
-    reasonUsesDateRange: Boolean(reasonConfig?.usesDateRange),
-    reasonUsesPermitDetails: Boolean(reasonConfig?.usesPermitDetails),
-    email: value.email,
-    phone: value.phone,
-    assignedExecutive: value.assignedExecutive,
-    status,
-    createdAt: value.createdAt.toISOString(),
-  };
-}
-
 async function ensureDefaultReasons() {
   await prisma.appointmentReason.createMany({
     data: defaultAppointmentReasons.map((reason) => ({
@@ -176,42 +93,6 @@ async function ensureDefaultReasons() {
     })),
     skipDuplicates: true,
   });
-}
-
-function toReasonConfig(
-  reason: {
-    value: string;
-    label: string;
-    allowsExecutiveAssignment: boolean;
-    usesAppointmentDuration: boolean;
-    appointmentDurationMinutes: number;
-    usesDateRange: boolean;
-    usesPermitDetails: boolean;
-    isActive: boolean;
-    restrictedWeekdays: string;
-    requiresBusinessDayAdvance: boolean;
-    businessDaysAdvance: number;
-    sortOrder: number;
-  } | null,
-): AppointmentReasonConfig | null {
-  if (!reason) {
-    return null;
-  }
-
-  return {
-    value: reason.value,
-    label: reason.label,
-    allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
-    usesAppointmentDuration: reason.usesAppointmentDuration,
-    appointmentDurationMinutes: reason.appointmentDurationMinutes,
-    usesDateRange: reason.usesDateRange,
-    usesPermitDetails: reason.usesPermitDetails,
-    isActive: reason.isActive,
-    restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
-    requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
-    businessDaysAdvance: reason.businessDaysAdvance,
-    sortOrder: reason.sortOrder,
-  };
 }
 
 function validateCreateBody(

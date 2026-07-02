@@ -19,6 +19,8 @@ type ReasonBody = {
   allowsExecutiveAssignment?: unknown;
   usesAppointmentDuration?: unknown;
   appointmentDurationMinutes?: unknown;
+  usesServiceStartTime?: unknown;
+  serviceStartTime?: unknown;
   usesDateRange?: unknown;
   usesPermitDetails?: unknown;
   isActive?: unknown;
@@ -26,6 +28,8 @@ type ReasonBody = {
   requiresBusinessDayAdvance?: unknown;
   businessDaysAdvance?: unknown;
 };
+
+const clockTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function slugify(value: string) {
   return value
@@ -45,6 +49,8 @@ function toReason(
     allowsExecutiveAssignment: boolean;
     usesAppointmentDuration: boolean;
     appointmentDurationMinutes: number;
+    usesServiceStartTime: boolean;
+    serviceStartTime: string;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
     isActive: boolean;
@@ -61,6 +67,8 @@ function toReason(
     allowsExecutiveAssignment: value.allowsExecutiveAssignment,
     usesAppointmentDuration: value.usesAppointmentDuration,
     appointmentDurationMinutes: value.appointmentDurationMinutes,
+    usesServiceStartTime: value.usesServiceStartTime,
+    serviceStartTime: value.serviceStartTime,
     usesDateRange: value.usesDateRange,
     usesPermitDetails: value.usesPermitDetails,
     isActive: value.isActive,
@@ -89,6 +97,8 @@ async function ensureDefaultReasons() {
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       usesAppointmentDuration: reason.usesAppointmentDuration,
       appointmentDurationMinutes: reason.appointmentDurationMinutes,
+      usesServiceStartTime: reason.usesServiceStartTime,
+      serviceStartTime: reason.serviceStartTime,
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
@@ -150,12 +160,38 @@ function normalizeReasonDurationFields(body: ReasonBody) {
   const appointmentDurationMinutes = usesAppointmentDuration
     ? parseAppointmentDurationMinutes(body.appointmentDurationMinutes)
     : 30;
+  const usesServiceStartTime =
+    allowsExecutiveAssignment && getBoolean(body.usesServiceStartTime);
+  const serviceStartTime =
+    typeof body.serviceStartTime === "string" ? body.serviceStartTime.trim() : "";
 
   return {
     allowsExecutiveAssignment,
     usesAppointmentDuration,
     appointmentDurationMinutes,
+    usesServiceStartTime,
+    serviceStartTime: usesServiceStartTime ? serviceStartTime : "",
   };
+}
+
+function validateReasonScheduleFields(
+  durationFields: ReturnType<typeof normalizeReasonDurationFields>,
+) {
+  if (
+    durationFields.usesAppointmentDuration &&
+    durationFields.appointmentDurationMinutes < 5
+  ) {
+    return "Ingresa una duración válida en minutos.";
+  }
+
+  if (
+    durationFields.usesServiceStartTime &&
+    !clockTimePattern.test(durationFields.serviceStartTime)
+  ) {
+    return "Ingresa una hora de inicio válida para la atención.";
+  }
+
+  return "";
 }
 
 export async function GET() {
@@ -210,6 +246,7 @@ export async function POST(request: NextRequest) {
   const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
   const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
   const durationFields = normalizeReasonDurationFields(body);
+  const scheduleValidationMessage = validateReasonScheduleFields(durationFields);
 
   if (requiresBusinessDayAdvance && businessDaysAdvance < 1) {
     return NextResponse.json(
@@ -218,11 +255,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (durationFields.usesAppointmentDuration && durationFields.appointmentDurationMinutes < 5) {
-    return NextResponse.json(
-      { message: "Ingresa una duración válida en minutos." },
-      { status: 400 },
-    );
+  if (scheduleValidationMessage) {
+    return NextResponse.json({ message: scheduleValidationMessage }, { status: 400 });
   }
 
   const reason = await prisma.appointmentReason.create({
@@ -232,6 +266,8 @@ export async function POST(request: NextRequest) {
       allowsExecutiveAssignment: durationFields.allowsExecutiveAssignment,
       usesAppointmentDuration: durationFields.usesAppointmentDuration,
       appointmentDurationMinutes: durationFields.appointmentDurationMinutes,
+      usesServiceStartTime: durationFields.usesServiceStartTime,
+      serviceStartTime: durationFields.serviceStartTime,
       usesDateRange: getBoolean(body.usesDateRange),
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
@@ -271,6 +307,7 @@ export async function PATCH(request: NextRequest) {
   const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
   const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
   const durationFields = normalizeReasonDurationFields(body);
+  const scheduleValidationMessage = validateReasonScheduleFields(durationFields);
 
   if (requiresBusinessDayAdvance && businessDaysAdvance < 1) {
     return NextResponse.json(
@@ -279,11 +316,8 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (durationFields.usesAppointmentDuration && durationFields.appointmentDurationMinutes < 5) {
-    return NextResponse.json(
-      { message: "Ingresa una duración válida en minutos." },
-      { status: 400 },
-    );
+  if (scheduleValidationMessage) {
+    return NextResponse.json({ message: scheduleValidationMessage }, { status: 400 });
   }
 
   try {
@@ -294,6 +328,8 @@ export async function PATCH(request: NextRequest) {
         allowsExecutiveAssignment: durationFields.allowsExecutiveAssignment,
         usesAppointmentDuration: durationFields.usesAppointmentDuration,
         appointmentDurationMinutes: durationFields.appointmentDurationMinutes,
+        usesServiceStartTime: durationFields.usesServiceStartTime,
+        serviceStartTime: durationFields.serviceStartTime,
         usesDateRange: getBoolean(body.usesDateRange),
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         isActive: getBoolean(body.isActive),

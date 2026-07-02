@@ -175,6 +175,8 @@ export function getAppointmentCalendarEvents(
       reasonUsesAppointmentDuration: appointment.reasonUsesAppointmentDuration,
       reasonAppointmentDurationMinutes:
         appointment.reasonAppointmentDurationMinutes,
+      scheduledStartTime: appointment.scheduledStartTime,
+      scheduledEndTime: appointment.scheduledEndTime,
       executiveLunchBreak: executive
         ? {
             lunchBreakEnabled: executive.lunchBreakEnabled,

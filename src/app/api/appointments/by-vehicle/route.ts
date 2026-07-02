@@ -3,8 +3,8 @@ import {
   type AppointmentStatus,
 } from "@/lib/appointments";
 import { resolveAppointmentSchedule } from "@/lib/appointment-scheduling";
-import { parseRestrictedWeekdays } from "@/lib/appointment-reason-weekdays";
 import { readDriverSession } from "@/lib/driver-auth";
+import { toReasonConfig } from "@/lib/appointments-mapper";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -79,6 +79,8 @@ export async function GET(request: NextRequest) {
         appointmentDate: true,
         appointmentReason: true,
         assignedExecutive: true,
+        scheduledStartTime: true,
+        scheduledEndTime: true,
         status: true,
         createdAt: true,
       },
@@ -96,24 +98,7 @@ export async function GET(request: NextRequest) {
         )
           ? (appointment.status as AppointmentStatus)
           : "pendiente";
-        const reasonConfig = reason
-          ? {
-              value: reason.value,
-              label: reason.label,
-              allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
-              usesAppointmentDuration: reason.usesAppointmentDuration,
-              appointmentDurationMinutes: reason.appointmentDurationMinutes,
-              usesDateRange: reason.usesDateRange,
-              usesPermitDetails: reason.usesPermitDetails,
-              isActive: reason.isActive,
-              restrictedWeekdays: parseRestrictedWeekdays(
-                reason.restrictedWeekdays,
-              ),
-              requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
-              businessDaysAdvance: reason.businessDaysAdvance,
-              sortOrder: reason.sortOrder,
-            }
-          : undefined;
+        const reasonConfig = toReasonConfig(reason ?? null) ?? undefined;
         const assignedExecutive = appointment.assignedExecutive.trim();
         const executive = executiveByName.get(assignedExecutive);
         const schedule =
@@ -128,6 +113,8 @@ export async function GET(request: NextRequest) {
                   reasonConfig.usesAppointmentDuration,
                 reasonAppointmentDurationMinutes:
                   reasonConfig.appointmentDurationMinutes,
+                scheduledStartTime: appointment.scheduledStartTime,
+                scheduledEndTime: appointment.scheduledEndTime,
                 executiveLunchBreak: executive
                   ? {
                       lunchBreakEnabled: executive.lunchBreakEnabled,

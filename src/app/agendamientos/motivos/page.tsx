@@ -21,6 +21,8 @@ type ReasonForm = {
   allowsExecutiveAssignment: boolean;
   usesAppointmentDuration: boolean;
   appointmentDurationMinutes: number;
+  usesServiceStartTime: boolean;
+  serviceStartTime: string;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   isActive: boolean;
@@ -47,6 +49,8 @@ const emptyReasonForm: ReasonForm = {
   allowsExecutiveAssignment: false,
   usesAppointmentDuration: false,
   appointmentDurationMinutes: 30,
+  usesServiceStartTime: false,
+  serviceStartTime: "09:00",
   usesDateRange: false,
   usesPermitDetails: false,
   isActive: true,
@@ -110,6 +114,8 @@ export default function MotivosPage() {
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       usesAppointmentDuration: reason.usesAppointmentDuration,
       appointmentDurationMinutes: reason.appointmentDurationMinutes || 30,
+      usesServiceStartTime: reason.usesServiceStartTime,
+      serviceStartTime: reason.serviceStartTime || "09:00",
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
@@ -160,6 +166,15 @@ export default function MotivosPage() {
       reasonForm.appointmentDurationMinutes < 5
     ) {
       setReasonError("Ingresa una duración válida en minutos.");
+      return;
+    }
+
+    if (
+      reasonForm.allowsExecutiveAssignment &&
+      reasonForm.usesServiceStartTime &&
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(reasonForm.serviceStartTime)
+    ) {
+      setReasonError("Ingresa una hora de inicio válida para la atención.");
       return;
     }
 
@@ -343,7 +358,10 @@ export default function MotivosPage() {
                           allowsExecutiveAssignment: event.target.checked,
                           ...(event.target.checked
                             ? {}
-                            : { usesAppointmentDuration: false }),
+                            : {
+                                usesAppointmentDuration: false,
+                                usesServiceStartTime: false,
+                              }),
                         }))
                       }
                       className="h-4 w-4 accent-[#0b5cab]"
@@ -356,8 +374,7 @@ export default function MotivosPage() {
                         Duración de la cita
                       </p>
                       <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                        Define cuánto durará la atención al derivar. Por ahora
-                        la hora de inicio es fija a las 09:00.
+                        Define cuánto durará la atención al derivar.
                       </p>
                       <div className="mt-3 flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-white px-3">
                         <span className="shrink-0 text-[11px] font-semibold text-[#173b68]">
@@ -394,6 +411,54 @@ export default function MotivosPage() {
                           />
                         </label>
                       </div>
+
+                      <p className="mt-4 text-xs font-semibold text-[#173b68]">
+                        Hora de inicio de atención
+                      </p>
+                      <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                        Primera cita del día para este motivo. Las siguientes se
+                        encadenan con 10 minutos de margen.
+                      </p>
+                      <div className="mt-3 flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-white px-3">
+                        <span className="shrink-0 text-[11px] font-semibold text-[#173b68]">
+                          Hora
+                        </span>
+                        <input
+                          type="time"
+                          value={reasonForm.serviceStartTime}
+                          disabled={!reasonForm.usesServiceStartTime}
+                          onChange={(event) =>
+                            setReasonForm((currentForm) => ({
+                              ...currentForm,
+                              serviceStartTime: event.target.value,
+                            }))
+                          }
+                          className="h-8 rounded-xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                        <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[#173b68]">
+                          Activo
+                          <input
+                            type="checkbox"
+                            checked={reasonForm.usesServiceStartTime}
+                            onChange={(event) =>
+                              setReasonForm((currentForm) => ({
+                                ...currentForm,
+                                usesServiceStartTime: event.target.checked,
+                                serviceStartTime: event.target.checked
+                                  ? currentForm.serviceStartTime || "09:00"
+                                  : "09:00",
+                              }))
+                            }
+                            className="h-3.5 w-3.5 accent-[#0b5cab]"
+                          />
+                        </label>
+                      </div>
+                      {!reasonForm.usesServiceStartTime ? (
+                        <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                          Inactivo: se usará las 09:00 como hora base para la
+                          primera cita del día.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

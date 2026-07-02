@@ -1,4 +1,6 @@
 import { type AppointmentStatus, defaultExecutives } from "@/lib/appointments";
+import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
+import { computeExecutiveAppointmentSlot } from "@/lib/executive-appointment-slot";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -46,6 +48,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const data: {
     status?: AppointmentStatus;
     assignedExecutive?: string;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
   } = {};
 
   if (body.status !== undefined) {
@@ -88,6 +92,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     data.assignedExecutive = body.assignedExecutive;
+
+    if (body.assignedExecutive === "") {
+      data.scheduledStartTime = "";
+      data.scheduledEndTime = "";
+    }
   }
 
   if (Object.keys(data).length === 0) {
@@ -98,12 +107,94 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    await prisma.appointment.update({
+    const currentAppointment = await prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!currentAppointment) {
+      return NextResponse.json(
+        { message: "Solicitud no encontrada." },
+        { status: 404 },
+      );
+    }
+
+    const assignedExecutiveName =
+      data.assignedExecutive ?? currentAppointment.assignedExecutive;
+
+    if (assignedExecutiveName && data.assignedExecutive !== "") {
+      const reasonRecord = await prisma.appointmentReason.findUnique({
+        where: { value: currentAppointment.appointmentReason },
+      });
+      const reason = toReasonConfig(reasonRecord);
+
+      if (!reason?.allowsExecutiveAssignment) {
+        return NextResponse.json(
+          { message: "Este motivo no permite derivación." },
+          { status: 400 },
+        );
+      }
+
+      const executive = await prisma.executive.findUnique({
+        where: { name: assignedExecutiveName },
+      });
+
+      if (!executive?.isActive) {
+        return NextResponse.json(
+          { message: "Ejecutivo inválido." },
+          { status: 400 },
+        );
+      }
+
+      const existingAppointments = await prisma.appointment.findMany({
+        where: {
+          id: { not: id },
+          assignedExecutive: assignedExecutiveName,
+          appointmentDate: currentAppointment.appointmentDate,
+          scheduledStartTime: { not: "" },
+          scheduledEndTime: { not: "" },
+        },
+        select: {
+          scheduledStartTime: true,
+          scheduledEndTime: true,
+        },
+      });
+
+      const slot = computeExecutiveAppointmentSlot({
+        reason,
+        executiveLunchBreak: {
+          lunchBreakEnabled: executive.lunchBreakEnabled,
+          lunchBreakStart: executive.lunchBreakStart,
+          lunchBreakEnd: executive.lunchBreakEnd,
+        },
+        existingSlots: existingAppointments.map((appointment) => ({
+          startTime: appointment.scheduledStartTime,
+          endTime: appointment.scheduledEndTime,
+        })),
+      });
+
+      if (!slot) {
+        return NextResponse.json(
+          { message: "No se pudo calcular el horario de la cita." },
+          { status: 400 },
+        );
+      }
+
+      data.scheduledStartTime = slot.startTime;
+      data.scheduledEndTime = slot.endTime;
+    }
+
+    const updatedAppointment = await prisma.appointment.update({
       where: { id },
       data,
     });
+    const reasonRecord = await prisma.appointmentReason.findUnique({
+      where: { value: updatedAppointment.appointmentReason },
+    });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      appointment: toAppointment(updatedAppointment, toReasonConfig(reasonRecord) ?? undefined),
+    });
   } catch {
     return NextResponse.json(
       { message: "No se pudo actualizar la solicitud." },

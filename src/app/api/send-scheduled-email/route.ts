@@ -21,6 +21,8 @@ type ScheduledEmailPayload = Pick<
   | "reasonAllowsExecutiveAssignment"
   | "reasonUsesAppointmentDuration"
   | "reasonAppointmentDurationMinutes"
+  | "scheduledStartTime"
+  | "scheduledEndTime"
   | "email"
   | "assignedExecutive"
   | "status"
@@ -144,6 +146,8 @@ export async function POST(request: NextRequest) {
     reasonAllowsExecutiveAssignment: body.reasonAllowsExecutiveAssignment,
     reasonUsesAppointmentDuration: body.reasonUsesAppointmentDuration,
     reasonAppointmentDurationMinutes: body.reasonAppointmentDurationMinutes,
+    scheduledStartTime: body.scheduledStartTime,
+    scheduledEndTime: body.scheduledEndTime,
     executiveLunchBreak,
   });
 

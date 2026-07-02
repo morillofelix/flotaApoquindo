@@ -26,6 +26,8 @@ model Appointment {
   email             String
   phone             String
   assignedExecutive String   @default("")
+  scheduledStartTime String @default("")
+  scheduledEndTime   String @default("")
   status            String   @default("pendiente")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -43,6 +45,8 @@ model AppointmentReason {
   allowsExecutiveAssignment  Boolean  @default(false)
   usesAppointmentDuration    Boolean  @default(false)
   appointmentDurationMinutes Int      @default(30)
+  usesServiceStartTime       Boolean  @default(false)
+  serviceStartTime           String   @default("")
   usesDateRange              Boolean  @default(false)
   usesPermitDetails          Boolean  @default(false)
   isActive                   Boolean  @default(true)

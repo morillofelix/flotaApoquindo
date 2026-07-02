@@ -146,9 +146,13 @@ type AppointmentSubmission = Omit<
   | "reasonAllowsExecutiveAssignment"
   | "reasonUsesAppointmentDuration"
   | "reasonAppointmentDurationMinutes"
+  | "reasonUsesServiceStartTime"
+  | "reasonServiceStartTime"
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
   | "assignedExecutive"
+  | "scheduledStartTime"
+  | "scheduledEndTime"
   | "createdAt"
   | "status"
 >;

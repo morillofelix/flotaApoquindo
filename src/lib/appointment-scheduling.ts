@@ -1,4 +1,5 @@
 import { type ExecutiveConfig, type AppointmentReasonConfig } from "@/lib/appointments";
+import { parseClockTime } from "@/lib/executive-appointment-slot";
 
 export const DEFAULT_APPOINTMENT_START_HOUR = 9;
 export const DEFAULT_APPOINTMENT_START_MINUTE = 0;
@@ -14,8 +15,12 @@ export type AppointmentScheduleInput = {
   reasonAllowsExecutiveAssignment: boolean;
   reasonUsesAppointmentDuration: boolean;
   reasonAppointmentDurationMinutes: number;
+  reasonUsesServiceStartTime?: boolean;
+  reasonServiceStartTime?: string;
   startHour?: number;
   startMinute?: number;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
   executiveLunchBreak?: ExecutiveLunchBreakConfig | null;
 };
 
@@ -157,6 +162,28 @@ export function resolveAppointmentSchedule(
     usesAppointmentDuration: input.reasonUsesAppointmentDuration,
     appointmentDurationMinutes: input.reasonAppointmentDurationMinutes,
   });
+
+  if (input.scheduledStartTime && input.scheduledEndTime) {
+    const storedStart = parseClockTime(input.scheduledStartTime);
+    const storedEnd = parseClockTime(input.scheduledEndTime);
+
+    if (storedStart && storedEnd) {
+      const timeRangeLabel = `${formatClockTime(storedStart.hour, storedStart.minute)} a ${formatClockTime(storedEnd.hour, storedEnd.minute)}`;
+      const dateLabel = formatDisplayDate(input.appointmentDate);
+
+      return {
+        startHour: storedStart.hour,
+        startMinute: storedStart.minute,
+        durationMinutes,
+        endHour: storedEnd.hour,
+        endMinute: storedEnd.minute,
+        dateLabel,
+        timeRangeLabel,
+        summaryLabel: `${dateLabel}, ${timeRangeLabel} (${durationMinutes} min)`,
+      };
+    }
+  }
+
   const baseStartHour = input.startHour ?? DEFAULT_APPOINTMENT_START_HOUR;
   const baseStartMinute = input.startMinute ?? DEFAULT_APPOINTMENT_START_MINUTE;
   const adjustedStart = adjustStartTimeForLunchBreak(

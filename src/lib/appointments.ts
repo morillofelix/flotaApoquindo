@@ -23,6 +23,8 @@ export type AppointmentReasonConfig = {
   allowsExecutiveAssignment: boolean;
   usesAppointmentDuration: boolean;
   appointmentDurationMinutes: number;
+  usesServiceStartTime: boolean;
+  serviceStartTime: string;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   isActive: boolean;
@@ -39,6 +41,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     allowsExecutiveAssignment: false,
     usesAppointmentDuration: false,
     appointmentDurationMinutes: 30,
+    usesServiceStartTime: false,
+    serviceStartTime: "",
     usesDateRange: true,
     usesPermitDetails: false,
     isActive: true,
@@ -53,6 +57,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     allowsExecutiveAssignment: false,
     usesAppointmentDuration: false,
     appointmentDurationMinutes: 30,
+    usesServiceStartTime: false,
+    serviceStartTime: "",
     usesDateRange: true,
     usesPermitDetails: false,
     isActive: true,
@@ -67,6 +73,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     allowsExecutiveAssignment: false,
     usesAppointmentDuration: false,
     appointmentDurationMinutes: 30,
+    usesServiceStartTime: false,
+    serviceStartTime: "",
     usesDateRange: false,
     usesPermitDetails: true,
     isActive: true,
@@ -81,6 +89,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     allowsExecutiveAssignment: true,
     usesAppointmentDuration: true,
     appointmentDurationMinutes: 30,
+    usesServiceStartTime: false,
+    serviceStartTime: "",
     usesDateRange: false,
     usesPermitDetails: false,
     isActive: true,
@@ -207,11 +217,15 @@ export type Appointment = {
   reasonAllowsExecutiveAssignment: boolean;
   reasonUsesAppointmentDuration: boolean;
   reasonAppointmentDurationMinutes: number;
+  reasonUsesServiceStartTime: boolean;
+  reasonServiceStartTime: string;
   reasonUsesDateRange: boolean;
   reasonUsesPermitDetails: boolean;
   email: string;
   phone: string;
   assignedExecutive: Executive | "";
+  scheduledStartTime: string;
+  scheduledEndTime: string;
   createdAt: string;
   status: AppointmentStatus;
 };

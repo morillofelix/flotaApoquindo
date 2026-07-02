@@ -30,6 +30,8 @@ type CalendarInvitePayload = Pick<
   | "reasonAllowsExecutiveAssignment"
   | "reasonUsesAppointmentDuration"
   | "reasonAppointmentDurationMinutes"
+  | "scheduledStartTime"
+  | "scheduledEndTime"
   | "reasonUsesDateRange"
   | "vacationStartDate"
   | "vacationEndDate"
@@ -114,6 +116,8 @@ function getAppointmentSchedule(
     reasonUsesAppointmentDuration: appointment.reasonUsesAppointmentDuration,
     reasonAppointmentDurationMinutes:
       appointment.reasonAppointmentDurationMinutes,
+    scheduledStartTime: appointment.scheduledStartTime,
+    scheduledEndTime: appointment.scheduledEndTime,
     startHour: DEFAULT_APPOINTMENT_START_HOUR,
     startMinute: DEFAULT_APPOINTMENT_START_MINUTE,
     executiveLunchBreak,
