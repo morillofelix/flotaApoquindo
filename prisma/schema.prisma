@@ -64,6 +64,9 @@ model Executive {
   isActive          Boolean  @default(true)
   dailyLimitEnabled Boolean  @default(false)
   dailyLimitMax     Int?
+  lunchBreakEnabled Boolean  @default(false)
+  lunchBreakStart   String   @default("")
+  lunchBreakEnd     String   @default("")
   sortOrder         Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

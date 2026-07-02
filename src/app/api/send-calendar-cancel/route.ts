@@ -7,6 +7,7 @@ import {
   DEFAULT_APPOINTMENT_START_HOUR,
   DEFAULT_APPOINTMENT_START_MINUTE,
   resolveAppointmentSchedule,
+  type ExecutiveLunchBreakConfig,
 } from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
 import {
@@ -95,7 +96,10 @@ function formatUtcDateTime(value: Date) {
   return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
-function getAppointmentSchedule(appointment: CalendarCancelPayload) {
+function getAppointmentSchedule(
+  appointment: CalendarCancelPayload,
+  executiveLunchBreak?: ExecutiveLunchBreakConfig | null,
+) {
   return resolveAppointmentSchedule({
     appointmentDate: appointment.appointmentDate,
     reasonAllowsExecutiveAssignment: appointment.reasonAllowsExecutiveAssignment,
@@ -104,6 +108,7 @@ function getAppointmentSchedule(appointment: CalendarCancelPayload) {
       appointment.reasonAppointmentDurationMinutes,
     startHour: DEFAULT_APPOINTMENT_START_HOUR,
     startMinute: DEFAULT_APPOINTMENT_START_MINUTE,
+    executiveLunchBreak,
   });
 }
 
@@ -111,8 +116,9 @@ function createCalendarCancel(
   appointment: CalendarCancelPayload,
   executiveEmail: string,
   emailFrom: string,
+  executiveLunchBreak?: ExecutiveLunchBreakConfig | null,
 ) {
-  const schedule = getAppointmentSchedule(appointment);
+  const schedule = getAppointmentSchedule(appointment, executiveLunchBreak);
 
   if (!schedule) {
     throw new Error("No se pudo calcular la duración de la cita.");
@@ -242,7 +248,19 @@ export async function POST(request: NextRequest) {
   }
 
   const transporter = createNotificaTransporter();
-  const calendarCancel = createCalendarCancel(body, executiveEmail, smtp.from);
+  const executiveLunchBreak = executive
+    ? {
+        lunchBreakEnabled: executive.lunchBreakEnabled,
+        lunchBreakStart: executive.lunchBreakStart,
+        lunchBreakEnd: executive.lunchBreakEnd,
+      }
+    : null;
+  const calendarCancel = createCalendarCancel(
+    body,
+    executiveEmail,
+    smtp.from,
+    executiveLunchBreak,
+  );
 
   try {
     const result = await transporter.sendMail({

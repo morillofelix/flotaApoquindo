@@ -222,9 +222,14 @@ export default function AppointmentsCalendar({
     month: selectedParts.month,
   });
 
+  const executivesByName = useMemo(
+    () => new Map(executives.map((executive) => [executive.name, executive])),
+    [executives],
+  );
+
   const allEvents = useMemo(
-    () => collectCalendarEvents(appointments),
-    [appointments],
+    () => collectCalendarEvents(appointments, executivesByName),
+    [appointments, executivesByName],
   );
 
   const filteredEvents = useMemo(() => {

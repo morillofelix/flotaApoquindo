@@ -7,6 +7,7 @@ import {
   DEFAULT_APPOINTMENT_START_HOUR,
   DEFAULT_APPOINTMENT_START_MINUTE,
   resolveAppointmentSchedule,
+  type ExecutiveLunchBreakConfig,
 } from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
 import {
@@ -103,7 +104,10 @@ function formatUtcDateTime(value: Date) {
   return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
-function getAppointmentSchedule(appointment: CalendarInvitePayload) {
+function getAppointmentSchedule(
+  appointment: CalendarInvitePayload,
+  executiveLunchBreak?: ExecutiveLunchBreakConfig | null,
+) {
   return resolveAppointmentSchedule({
     appointmentDate: appointment.appointmentDate,
     reasonAllowsExecutiveAssignment: appointment.reasonAllowsExecutiveAssignment,
@@ -112,6 +116,7 @@ function getAppointmentSchedule(appointment: CalendarInvitePayload) {
       appointment.reasonAppointmentDurationMinutes,
     startHour: DEFAULT_APPOINTMENT_START_HOUR,
     startMinute: DEFAULT_APPOINTMENT_START_MINUTE,
+    executiveLunchBreak,
   });
 }
 
@@ -149,8 +154,9 @@ function createCalendarInvite(
   appointment: CalendarInvitePayload,
   executiveEmail: string,
   emailFrom: string,
+  executiveLunchBreak?: ExecutiveLunchBreakConfig | null,
 ) {
-  const schedule = getAppointmentSchedule(appointment);
+  const schedule = getAppointmentSchedule(appointment, executiveLunchBreak);
 
   if (!schedule) {
     throw new Error("No se pudo calcular la duración de la cita.");
@@ -194,10 +200,13 @@ function createCalendarInvite(
   ].join("\r\n");
 }
 
-function createEmailHtml(appointment: CalendarInvitePayload) {
+function createEmailHtml(
+  appointment: CalendarInvitePayload,
+  executiveLunchBreak?: ExecutiveLunchBreakConfig | null,
+) {
   const reason = escapeHtml(appointment.appointmentReasonLabel);
   const dateRange = getAppointmentDateRange(appointment);
-  const schedule = getAppointmentSchedule(appointment);
+  const schedule = getAppointmentSchedule(appointment, executiveLunchBreak);
 
   if (!schedule) {
     return "";
@@ -223,8 +232,11 @@ function createEmailHtml(appointment: CalendarInvitePayload) {
   `;
 }
 
-function createEmailText(appointment: CalendarInvitePayload) {
-  const schedule = getAppointmentSchedule(appointment);
+function createEmailText(
+  appointment: CalendarInvitePayload,
+  executiveLunchBreak?: ExecutiveLunchBreakConfig | null,
+) {
+  const schedule = getAppointmentSchedule(appointment, executiveLunchBreak);
 
   if (!schedule) {
     return "";
@@ -287,15 +299,27 @@ export async function POST(request: NextRequest) {
   }
 
   const transporter = createNotificaTransporter();
-  const calendarInvite = createCalendarInvite(body, executiveEmail, smtp.from);
+  const executiveLunchBreak = executive
+    ? {
+        lunchBreakEnabled: executive.lunchBreakEnabled,
+        lunchBreakStart: executive.lunchBreakStart,
+        lunchBreakEnd: executive.lunchBreakEnd,
+      }
+    : null;
+  const calendarInvite = createCalendarInvite(
+    body,
+    executiveEmail,
+    smtp.from,
+    executiveLunchBreak,
+  );
 
   try {
     const result = await transporter.sendMail({
       from: smtp.from,
       to: executiveEmail,
       subject: `Cita agendada - Ticket ${getAppointmentTicketLabel(body)}`,
-      html: createEmailHtml(body),
-      text: createEmailText(body),
+      html: createEmailHtml(body, executiveLunchBreak),
+      text: createEmailText(body, executiveLunchBreak),
       icalEvent: {
         filename: `cita-${getAppointmentTicketLabel(body)}.ics`,
         method: "REQUEST",

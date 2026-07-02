@@ -64,7 +64,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const reasons = await prisma.appointmentReason.findMany();
+    const executives = await prisma.executive.findMany();
     const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));
+    const executiveByName = new Map(
+      executives.map((executive) => [executive.name, executive]),
+    );
 
     const candidates = await prisma.appointment.findMany({
       orderBy: { createdAt: "desc" },
@@ -111,6 +115,7 @@ export async function GET(request: NextRequest) {
             }
           : undefined;
         const assignedExecutive = appointment.assignedExecutive.trim();
+        const executive = executiveByName.get(assignedExecutive);
         const schedule =
           assignedExecutive &&
           (status === "revisado" || status === "aprobado") &&
@@ -123,6 +128,13 @@ export async function GET(request: NextRequest) {
                   reasonConfig.usesAppointmentDuration,
                 reasonAppointmentDurationMinutes:
                   reasonConfig.appointmentDurationMinutes,
+                executiveLunchBreak: executive
+                  ? {
+                      lunchBreakEnabled: executive.lunchBreakEnabled,
+                      lunchBreakStart: executive.lunchBreakStart,
+                      lunchBreakEnd: executive.lunchBreakEnd,
+                    }
+                  : null,
               })
             : null;
 

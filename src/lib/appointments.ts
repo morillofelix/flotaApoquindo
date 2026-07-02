@@ -102,6 +102,9 @@ export type ExecutiveConfig = {
   isActive: boolean;
   dailyLimitEnabled: boolean;
   dailyLimitMax: number | null;
+  lunchBreakEnabled: boolean;
+  lunchBreakStart: string;
+  lunchBreakEnd: string;
   sortOrder: number;
 };
 
@@ -112,6 +115,9 @@ export const defaultExecutives: ExecutiveConfig[] = [
     isActive: true,
     dailyLimitEnabled: false,
     dailyLimitMax: null,
+    lunchBreakEnabled: false,
+    lunchBreakStart: "",
+    lunchBreakEnd: "",
     sortOrder: 10,
   },
   {
@@ -120,6 +126,9 @@ export const defaultExecutives: ExecutiveConfig[] = [
     isActive: true,
     dailyLimitEnabled: false,
     dailyLimitMax: null,
+    lunchBreakEnabled: false,
+    lunchBreakStart: "",
+    lunchBreakEnd: "",
     sortOrder: 20,
   },
   {
@@ -128,6 +137,9 @@ export const defaultExecutives: ExecutiveConfig[] = [
     isActive: true,
     dailyLimitEnabled: false,
     dailyLimitMax: null,
+    lunchBreakEnabled: false,
+    lunchBreakStart: "",
+    lunchBreakEnd: "",
     sortOrder: 30,
   },
   {
@@ -136,6 +148,9 @@ export const defaultExecutives: ExecutiveConfig[] = [
     isActive: true,
     dailyLimitEnabled: false,
     dailyLimitMax: null,
+    lunchBreakEnabled: false,
+    lunchBreakStart: "",
+    lunchBreakEnd: "",
     sortOrder: 40,
   },
   {
@@ -144,6 +159,9 @@ export const defaultExecutives: ExecutiveConfig[] = [
     isActive: true,
     dailyLimitEnabled: false,
     dailyLimitMax: null,
+    lunchBreakEnabled: false,
+    lunchBreakStart: "",
+    lunchBreakEnd: "",
     sortOrder: 50,
   },
   {
@@ -152,6 +170,9 @@ export const defaultExecutives: ExecutiveConfig[] = [
     isActive: true,
     dailyLimitEnabled: false,
     dailyLimitMax: null,
+    lunchBreakEnabled: false,
+    lunchBreakStart: "",
+    lunchBreakEnd: "",
     sortOrder: 60,
   },
 ];

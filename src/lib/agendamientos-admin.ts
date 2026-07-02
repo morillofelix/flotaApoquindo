@@ -200,6 +200,9 @@ export function downloadExecutivesExcel(
           <td>${escapeExcelHtml(formatExcelActiveStatus(executive.isActive))}</td>
           <td>${escapeExcelHtml(executive.dailyLimitEnabled ? "Sí" : "No")}</td>
           <td>${escapeExcelHtml(executive.dailyLimitEnabled && executive.dailyLimitMax !== null ? String(executive.dailyLimitMax) : "")}</td>
+          <td>${escapeExcelHtml(executive.lunchBreakEnabled ? "Sí" : "No")}</td>
+          <td>${escapeExcelHtml(executive.lunchBreakEnabled ? executive.lunchBreakStart : "")}</td>
+          <td>${escapeExcelHtml(executive.lunchBreakEnabled ? executive.lunchBreakEnd : "")}</td>
           <td>${escapeExcelHtml(String(executive.sortOrder))}</td>
         </tr>`,
     )
@@ -219,6 +222,9 @@ export function downloadExecutivesExcel(
               <th>Estado</th>
               <th>Tope diario activo</th>
               <th>Máximo por día</th>
+              <th>Colación activa</th>
+              <th>Colación desde</th>
+              <th>Colación hasta</th>
               <th>Orden</th>
             </tr>
           </thead>

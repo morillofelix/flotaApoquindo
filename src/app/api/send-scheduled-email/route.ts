@@ -2,7 +2,8 @@ import {
   type Appointment,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
-import { resolveAppointmentSchedule } from "@/lib/appointment-scheduling";
+import { resolveAppointmentSchedule, type ExecutiveLunchBreakConfig } from "@/lib/appointment-scheduling";
+import { prisma } from "@/lib/prisma";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -127,11 +128,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const executive = await prisma.executive.findUnique({
+    where: { name: body.assignedExecutive },
+  });
+  const executiveLunchBreak: ExecutiveLunchBreakConfig | null = executive
+    ? {
+        lunchBreakEnabled: executive.lunchBreakEnabled,
+        lunchBreakStart: executive.lunchBreakStart,
+        lunchBreakEnd: executive.lunchBreakEnd,
+      }
+    : null;
+
   const schedule = resolveAppointmentSchedule({
     appointmentDate: body.appointmentDate,
     reasonAllowsExecutiveAssignment: body.reasonAllowsExecutiveAssignment,
     reasonUsesAppointmentDuration: body.reasonUsesAppointmentDuration,
     reasonAppointmentDurationMinutes: body.reasonAppointmentDurationMinutes,
+    executiveLunchBreak,
   });
 
   if (!schedule) {

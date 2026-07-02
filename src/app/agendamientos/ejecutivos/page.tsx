@@ -16,6 +16,9 @@ type ExecutiveForm = {
   isActive: boolean;
   dailyLimitEnabled: boolean;
   dailyLimitMax: string;
+  lunchBreakEnabled: boolean;
+  lunchBreakStart: string;
+  lunchBreakEnd: string;
 };
 
 const emptyExecutiveForm: ExecutiveForm = {
@@ -25,6 +28,9 @@ const emptyExecutiveForm: ExecutiveForm = {
   isActive: true,
   dailyLimitEnabled: false,
   dailyLimitMax: "",
+  lunchBreakEnabled: false,
+  lunchBreakStart: "",
+  lunchBreakEnd: "",
 };
 
 export default function EjecutivosPage() {
@@ -96,6 +102,9 @@ export default function EjecutivosPage() {
       dailyLimitEnabled: executive.dailyLimitEnabled,
       dailyLimitMax:
         executive.dailyLimitMax !== null ? String(executive.dailyLimitMax) : "",
+      lunchBreakEnabled: executive.lunchBreakEnabled,
+      lunchBreakStart: executive.lunchBreakStart,
+      lunchBreakEnd: executive.lunchBreakEnd,
     });
     setExecutiveMessage("");
     setExecutiveError("");
@@ -131,6 +140,21 @@ export default function EjecutivosPage() {
       }
     }
 
+    if (executiveForm.lunchBreakEnabled) {
+      const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+      if (
+        !timePattern.test(executiveForm.lunchBreakStart) ||
+        !timePattern.test(executiveForm.lunchBreakEnd) ||
+        executiveForm.lunchBreakEnd <= executiveForm.lunchBreakStart
+      ) {
+        setExecutiveError(
+          "Ingresa un horario de colación válido. La hora hasta debe ser posterior a la hora desde.",
+        );
+        return;
+      }
+    }
+
     setIsSavingExecutive(true);
 
     try {
@@ -148,6 +172,13 @@ export default function EjecutivosPage() {
           dailyLimitMax: executiveForm.dailyLimitEnabled
             ? Number(executiveForm.dailyLimitMax)
             : null,
+          lunchBreakEnabled: executiveForm.lunchBreakEnabled,
+          lunchBreakStart: executiveForm.lunchBreakEnabled
+            ? executiveForm.lunchBreakStart
+            : "",
+          lunchBreakEnd: executiveForm.lunchBreakEnabled
+            ? executiveForm.lunchBreakEnd
+            : "",
         }),
       });
 
@@ -392,6 +423,83 @@ export default function EjecutivosPage() {
                     <p className="mt-3 rounded-2xl border border-dashed border-[#c5d8eb] bg-[#f8fbff] px-3 py-2 text-[11px] leading-5 text-slate-500">
                       Sin límite activo. Este ejecutivo puede recibir todas las
                       citas del día.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#b7cce4] bg-white p-3 shadow-[0_1px_2px_rgba(15,39,71,0.04)]">
+                  <div className="mb-3 border-b border-[#c5d8eb] pb-2">
+                    <h5 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
+                      Horario de colación
+                    </h5>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                      Bloquea un rango horario para que las citas enviadas al
+                      ejecutivo no se agenden dentro de ese período.
+                    </p>
+                  </div>
+
+                  <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
+                    Activar bloqueo de colación
+                    <input
+                      type="checkbox"
+                      checked={executiveForm.lunchBreakEnabled}
+                      onChange={(event) =>
+                        setExecutiveForm((currentForm) => ({
+                          ...currentForm,
+                          lunchBreakEnabled: event.target.checked,
+                          lunchBreakStart: event.target.checked
+                            ? currentForm.lunchBreakStart
+                            : "",
+                          lunchBreakEnd: event.target.checked
+                            ? currentForm.lunchBreakEnd
+                            : "",
+                        }))
+                      }
+                      className="h-4 w-4 accent-[#0b5cab]"
+                    />
+                  </label>
+
+                  {executiveForm.lunchBreakEnabled ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold text-[#173b68]">
+                          Hora desde
+                        </span>
+                        <input
+                          type="time"
+                          required
+                          value={executiveForm.lunchBreakStart}
+                          onChange={(event) =>
+                            setExecutiveForm((currentForm) => ({
+                              ...currentForm,
+                              lunchBreakStart: event.target.value,
+                            }))
+                          }
+                          className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold text-[#173b68]">
+                          Hora hasta
+                        </span>
+                        <input
+                          type="time"
+                          required
+                          value={executiveForm.lunchBreakEnd}
+                          onChange={(event) =>
+                            setExecutiveForm((currentForm) => ({
+                              ...currentForm,
+                              lunchBreakEnd: event.target.value,
+                            }))
+                          }
+                          className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-2xl border border-dashed border-[#c5d8eb] bg-[#f8fbff] px-3 py-2 text-[11px] leading-5 text-slate-500">
+                      Sin bloqueo activo. Las citas pueden agendarse en cualquier
+                      horario operativo.
                     </p>
                   )}
                 </div>

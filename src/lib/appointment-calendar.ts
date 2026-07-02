@@ -1,6 +1,7 @@
 import {
   type Appointment,
   type AppointmentStatus,
+  type ExecutiveConfig,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import {
@@ -152,6 +153,7 @@ function pushApprovalDateRangeEvents(
 
 export function getAppointmentCalendarEvents(
   appointment: Appointment,
+  executivesByName?: Map<string, ExecutiveConfig>,
 ): AppointmentCalendarEvent[] {
   if (HIDDEN_STATUSES.has(appointment.status)) {
     return [];
@@ -165,6 +167,7 @@ export function getAppointmentCalendarEvents(
     appointment.reasonAllowsExecutiveAssignment &&
     appointment.assignedExecutive
   ) {
+    const executive = executivesByName?.get(appointment.assignedExecutive);
     const schedule = resolveAppointmentSchedule({
       appointmentDate: appointment.appointmentDate,
       reasonAllowsExecutiveAssignment:
@@ -172,6 +175,13 @@ export function getAppointmentCalendarEvents(
       reasonUsesAppointmentDuration: appointment.reasonUsesAppointmentDuration,
       reasonAppointmentDurationMinutes:
         appointment.reasonAppointmentDurationMinutes,
+      executiveLunchBreak: executive
+        ? {
+            lunchBreakEnabled: executive.lunchBreakEnabled,
+            lunchBreakStart: executive.lunchBreakStart,
+            lunchBreakEnd: executive.lunchBreakEnd,
+          }
+        : null,
     });
 
     if (schedule) {
@@ -264,9 +274,14 @@ export function getAppointmentCalendarEvents(
   return events;
 }
 
-export function collectCalendarEvents(appointments: Appointment[]) {
+export function collectCalendarEvents(
+  appointments: Appointment[],
+  executivesByName?: Map<string, ExecutiveConfig>,
+) {
   return appointments
-    .flatMap(getAppointmentCalendarEvents)
+    .flatMap((appointment) =>
+      getAppointmentCalendarEvents(appointment, executivesByName),
+    )
     .sort((left, right) => {
       if (left.date !== right.date) {
         return left.date.localeCompare(right.date);
