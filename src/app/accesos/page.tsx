@@ -15,8 +15,9 @@ import {
   type PublicAccessUser,
 } from "@/lib/access-users";
 import { uiFieldClass, uiListRowClass } from "@/lib/ui-borders";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type AccessUserForm = {
   id: string;
@@ -73,7 +74,22 @@ export default function AccesosPage() {
 
     const data = (await response.json()) as { users?: PublicAccessUser[] };
     setUsers(data.users ?? []);
+    setError("");
   }
+
+  const reloadUsers = useCallback(async () => {
+    await loadUsers();
+  }, []);
+
+  const {
+    refresh: refreshUsers,
+    isRefreshing,
+    lastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadUsers,
+    enabled: view === "panel",
+    pause: isSaving || sendingTempPasswordId !== "",
+  });
 
   async function bootstrapSession() {
     const data = await fetchAdminSessionClient();
@@ -355,6 +371,9 @@ export default function AccesosPage() {
         <MaintainerPageHeader
           title="Usuarios de administración"
           subtitle="Crea accesos por correo, define permisos por módulo y envía claves temporales."
+          onRefresh={() => void refreshUsers()}
+          isRefreshing={isRefreshing}
+          lastUpdatedAt={lastUpdatedAt}
         />
 
         {message ? (

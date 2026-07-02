@@ -35,7 +35,8 @@ import {
   displayVehicleNumber,
   type PropietarioConfig,
 } from "@/lib/propietarios";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const inputClassName =
   "h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
@@ -124,15 +125,26 @@ export default function PagoPropietarioPage() {
   const bulkDirectoryInputRef = useRef<HTMLInputElement>(null);
   const pendingFramesetFileRef = useRef<File | null>(null);
 
+  const reloadPagoPropietarios = useCallback(async () => {
+    const loaded = await loadPropietarios();
+    setPropietarios(loaded.filter((item) => item.isActive));
+    setLoadError("");
+  }, []);
+
+  const {
+    refresh: refreshPagoPropietarios,
+    isRefreshing,
+    lastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadPagoPropietarios,
+    pause: isSendingBulk || isLoadingBulkFile,
+  });
+
   useEffect(() => {
-    loadPropietarios()
-      .then((loaded) => {
-        setPropietarios(loaded.filter((item) => item.isActive));
-        setLoadError("");
-      })
+    reloadPagoPropietarios()
       .catch(() => setLoadError("No se pudieron cargar los propietarios."))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [reloadPagoPropietarios]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -620,6 +632,9 @@ export default function PagoPropietarioPage() {
         <MaintainerPageHeader
           title="Pago propietario"
           subtitle="Pagos y comprobantes"
+          onRefresh={() => void refreshPagoPropietarios()}
+          isRefreshing={isRefreshing}
+          lastUpdatedAt={lastUpdatedAt}
         />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">

@@ -1,14 +1,21 @@
 import Link from "next/link";
+import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import { UI_CARD_SHELL } from "@/lib/ui-borders";
 
 export default function MaintainerPageHeader({
   title,
   subtitle = "Mantenedores",
   actions,
+  onRefresh,
+  isRefreshing,
+  lastUpdatedAt,
 }: {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  lastUpdatedAt?: Date | null;
 }) {
   return (
     <header className={`mb-4 flex flex-col gap-1.5 ${UI_CARD_SHELL} px-4 py-3 sm:flex-row sm:items-center sm:justify-between`}>
@@ -22,6 +29,13 @@ export default function MaintainerPageHeader({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {actions}
+        {onRefresh ? (
+          <DataRefreshButton
+            onRefresh={onRefresh}
+            isRefreshing={isRefreshing}
+            lastUpdatedAt={lastUpdatedAt}
+          />
+        ) : null}
         <Link
           href="/agendamientos"
           className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"

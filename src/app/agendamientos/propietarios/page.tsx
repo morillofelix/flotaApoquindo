@@ -28,7 +28,8 @@ import {
   matchesVehicleNumberSearch,
 } from "@/lib/maintainer-search";
 import { uiListRowClass } from "@/lib/ui-borders";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type PropietarioForm = PropietarioConfig & { id: string };
 
@@ -172,17 +173,31 @@ export default function PropietariosPage() {
   const titularRutManuallyEditedRef = useRef(false);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
 
-  useEffect(() => {
-    loadPropietarios()
-      .then((loaded) => setPropietarios(loaded))
-      .catch(() => setPropietarioError("No se pudieron cargar los propietarios."));
+  const reloadPropietariosData = useCallback(async () => {
+    const [loadedPropietarios, loadedBanks] = await Promise.all([
+      loadPropietarios(),
+      loadPropietarioBanks(),
+    ]);
 
-    loadPropietarioBanks()
-      .then((loaded) => setPropietarioBanks(loaded))
-      .catch(() => {
-        // El catálogo se puede abrir manualmente desde el botón Banco.
-      });
+    setPropietarios(loadedPropietarios);
+    setPropietarioBanks(loadedBanks);
+    setPropietarioError("");
   }, []);
+
+  const {
+    refresh: refreshPropietariosData,
+    isRefreshing,
+    lastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadPropietariosData,
+    pause: isSavingPropietario,
+  });
+
+  useEffect(() => {
+    reloadPropietariosData().catch(() =>
+      setPropietarioError("No se pudieron cargar los propietarios."),
+    );
+  }, [reloadPropietariosData]);
 
   const activePropietarioBanks = useMemo(
     () => getActivePropietarioBanks(propietarioBanks),
@@ -838,6 +853,9 @@ export default function PropietariosPage() {
       <section className="mx-auto w-full max-w-[1540px]">
         <MaintainerPageHeader
           title="Propietarios"
+          onRefresh={() => void refreshPropietariosData()}
+          isRefreshing={isRefreshing}
+          lastUpdatedAt={lastUpdatedAt}
           actions={
             <button
               type="button"

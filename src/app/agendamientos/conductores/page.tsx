@@ -31,7 +31,8 @@ import {
   matchesVehicleNumberSearch,
 } from "@/lib/maintainer-search";
 import { uiListRowClass } from "@/lib/ui-borders";
-import { useEffect, useMemo, useState } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type DriverOwnerForm = DriverOwnerConfig & {
   id: string;
@@ -157,13 +158,26 @@ export default function ConductoresPage() {
   const [bulkImportFilters, setBulkImportFilters] =
     useState<BulkImportFilters>(defaultBulkImportFilters);
 
-  useEffect(() => {
-    loadDriverOwners()
-      .then((loadedDriverOwners) => setDriverOwners(loadedDriverOwners))
-      .catch(() =>
-        setDriverOwnerError("No se pudieron cargar conductores y propietarios."),
-      );
+  const reloadDriverOwners = useCallback(async () => {
+    const loadedDriverOwners = await loadDriverOwners();
+    setDriverOwners(loadedDriverOwners);
+    setDriverOwnerError("");
   }, []);
+
+  const {
+    refresh: refreshDriverOwners,
+    isRefreshing,
+    lastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadDriverOwners,
+    pause: isSavingDriverOwner || isSendingBulkTempPassword,
+  });
+
+  useEffect(() => {
+    reloadDriverOwners().catch(() =>
+      setDriverOwnerError("No se pudieron cargar conductores y propietarios."),
+    );
+  }, [reloadDriverOwners]);
 
   const filteredDriverOwners = useMemo(() => {
     const normalizedSearch = driverOwnerSearch.trim();
@@ -826,7 +840,12 @@ export default function ConductoresPage() {
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <MaintainerPageHeader title="Conductores y propietarios" />
+        <MaintainerPageHeader
+          title="Conductores y propietarios"
+          onRefresh={() => void refreshDriverOwners()}
+          isRefreshing={isRefreshing}
+          lastUpdatedAt={lastUpdatedAt}
+        />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">

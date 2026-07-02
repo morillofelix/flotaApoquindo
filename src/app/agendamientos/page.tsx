@@ -36,11 +36,13 @@ import {
   statusStyles,
 } from "@/lib/agendamientos-appointments";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
+import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 
 function AppointmentsPageContent() {
@@ -81,28 +83,44 @@ function AppointmentsPageContent() {
     max: number;
   } | null>(null);
 
-  useEffect(() => {
-    loadAppointmentReasons()
-      .then((loadedReasons) => setReasons(loadedReasons))
-      .catch(() => setAppointmentsError("No se pudieron cargar los motivos."));
-    loadExecutives()
-      .then((loadedExecutives) => setExecutiveOptions(loadedExecutives))
-      .catch(() =>
-        setAppointmentsError("No se pudieron cargar los ejecutivos."),
-      );
+  const reloadAppointmentsData = useCallback(async () => {
+    const [loadedAppointments, loadedReasons, loadedExecutives] =
+      await Promise.all([
+        loadAppointments(),
+        loadAppointmentReasons(),
+        loadExecutives(),
+      ]);
+
+    setAppointments(loadedAppointments);
+    setReasons(loadedReasons);
+    setExecutiveOptions(loadedExecutives);
+    setAppointmentsError("");
   }, []);
+
+  const shouldPauseAutoRefresh =
+    isConfirmingExecutive ||
+    executiveAssignmentPrompt !== null ||
+    isLoadingAppointments;
+
+  const {
+    refresh: refreshAppointmentsData,
+    isRefreshing: isRefreshingAppointments,
+    lastUpdatedAt: appointmentsLastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadAppointmentsData,
+    pause: shouldPauseAutoRefresh,
+  });
 
   useEffect(() => {
     setIsLoadingAppointments(true);
     setAppointmentsError("");
 
-    loadAppointments()
-      .then((loadedAppointments) => setAppointments(loadedAppointments))
+    reloadAppointmentsData()
       .catch(() =>
         setAppointmentsError("No se pudieron cargar las solicitudes."),
       )
       .finally(() => setIsLoadingAppointments(false));
-  }, []);
+  }, [reloadAppointmentsData]);
 
   const activeReasons = useMemo(
     () => reasons.filter((reason) => reason.isActive),
@@ -531,6 +549,9 @@ function AppointmentsPageContent() {
             executives={executiveOptions}
             reasons={reasons}
             isLoading={isLoadingAppointments}
+            onRefresh={() => void refreshAppointmentsData()}
+            isRefreshing={isRefreshingAppointments}
+            lastUpdatedAt={appointmentsLastUpdatedAt}
           />
         </section>
       </main>
@@ -551,13 +572,20 @@ function AppointmentsPageContent() {
       <section className="mx-auto w-full max-w-[1540px]">
         <header className="mb-3 rounded-[22px] border border-[#b7cce4] bg-white p-4 shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
-                Administración de citas
-              </p>
-              <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747]">
-                Agendamientos recibidos
-              </h1>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
+                  Administración de citas
+                </p>
+                <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747]">
+                  Agendamientos recibidos
+                </h1>
+              </div>
+              <DataRefreshButton
+                onRefresh={() => void refreshAppointmentsData()}
+                isRefreshing={isRefreshingAppointments}
+                lastUpdatedAt={appointmentsLastUpdatedAt}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[600px]">

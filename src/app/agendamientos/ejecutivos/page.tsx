@@ -7,7 +7,8 @@ import {
   loadExecutives,
 } from "@/lib/agendamientos-admin";
 import { uiListRowClass } from "@/lib/ui-borders";
-import { useEffect, useMemo, useState } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ExecutiveForm = {
   id: string;
@@ -43,11 +44,26 @@ export default function EjecutivosPage() {
   const [executiveError, setExecutiveError] = useState("");
   const [isSavingExecutive, setIsSavingExecutive] = useState(false);
 
-  useEffect(() => {
-    loadExecutives()
-      .then((loadedExecutives) => setExecutiveOptions(loadedExecutives))
-      .catch(() => setExecutiveError("No se pudieron cargar los ejecutivos."));
+  const reloadExecutives = useCallback(async () => {
+    const loadedExecutives = await loadExecutives();
+    setExecutiveOptions(loadedExecutives);
+    setExecutiveError("");
   }, []);
+
+  const {
+    refresh: refreshExecutives,
+    isRefreshing,
+    lastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadExecutives,
+    pause: isSavingExecutive,
+  });
+
+  useEffect(() => {
+    reloadExecutives().catch(() =>
+      setExecutiveError("No se pudieron cargar los ejecutivos."),
+    );
+  }, [reloadExecutives]);
 
   const filteredExecutives = useMemo(() => {
     const normalizedSearch = executiveSearch.trim().toLowerCase();
@@ -207,7 +223,12 @@ export default function EjecutivosPage() {
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <MaintainerPageHeader title="Ejecutivos" />
+        <MaintainerPageHeader
+          title="Ejecutivos"
+          onRefresh={() => void refreshExecutives()}
+          isRefreshing={isRefreshing}
+          lastUpdatedAt={lastUpdatedAt}
+        />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">

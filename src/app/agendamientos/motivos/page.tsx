@@ -13,7 +13,8 @@ import {
   loadAppointmentReasons,
 } from "@/lib/agendamientos-admin";
 import { uiListRowClass } from "@/lib/ui-borders";
-import { useEffect, useMemo, useState } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ReasonForm = {
   id: string;
@@ -67,11 +68,26 @@ export default function MotivosPage() {
   const [reasonError, setReasonError] = useState("");
   const [isSavingReason, setIsSavingReason] = useState(false);
 
-  useEffect(() => {
-    loadAppointmentReasons()
-      .then((loadedReasons) => setReasons(loadedReasons))
-      .catch(() => setReasonError("No se pudieron cargar los motivos."));
+  const reloadReasons = useCallback(async () => {
+    const loadedReasons = await loadAppointmentReasons();
+    setReasons(loadedReasons);
+    setReasonError("");
   }, []);
+
+  const {
+    refresh: refreshReasons,
+    isRefreshing,
+    lastUpdatedAt,
+  } = useAutoRefresh({
+    onRefresh: reloadReasons,
+    pause: isSavingReason,
+  });
+
+  useEffect(() => {
+    reloadReasons().catch(() =>
+      setReasonError("No se pudieron cargar los motivos."),
+    );
+  }, [reloadReasons]);
 
   const filteredReasons = useMemo(() => {
     const normalizedSearch = reasonSearch.trim().toLowerCase();
@@ -207,7 +223,12 @@ export default function MotivosPage() {
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
       <section className="mx-auto w-full max-w-[1540px]">
-        <MaintainerPageHeader title="Motivos de cita" />
+        <MaintainerPageHeader
+          title="Motivos de cita"
+          onRefresh={() => void refreshReasons()}
+          isRefreshing={isRefreshing}
+          lastUpdatedAt={lastUpdatedAt}
+        />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
