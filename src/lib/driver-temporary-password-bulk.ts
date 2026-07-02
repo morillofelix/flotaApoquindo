@@ -6,6 +6,8 @@ import {
 /** Pausa entre envíos masivos para no activar filtros antispam del servidor SMTP. */
 export const DRIVER_TEMP_PASSWORD_BULK_DELAY_MS = 5000;
 
+/** Usa el mismo endpoint y correo PWA que el envío individual en Datos generales. */
+
 export type DriverTemporaryPasswordSendResult = {
   id: string;
   ok: boolean;

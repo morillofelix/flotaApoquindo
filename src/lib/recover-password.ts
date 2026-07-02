@@ -3,15 +3,13 @@ import {
   findActiveAccessUserByEmail,
   issueAccessUserTemporaryPassword,
 } from "@/lib/access-users-server";
+import {
+  DriverTemporaryPasswordError,
+  issueDriverOwnerTemporaryPassword,
+} from "@/lib/driver-temporary-password-server";
 import { isNotificaSmtpConfigured } from "@/lib/notifica-smtp";
 import { prisma } from "@/lib/prisma";
-import {
-  canSendTemporaryPassword,
-  getTemporaryPasswordFromRut,
-  hashPassword,
-  normalizeEmail,
-} from "@/lib/password-utils";
-import { sendTemporaryPasswordEmail } from "@/lib/temporary-password-mail";
+import { normalizeEmail } from "@/lib/password-utils";
 
 export type RecoverPasswordAudience = "driver" | "admin";
 
@@ -80,36 +78,27 @@ async function recoverAccessUserPassword(email: string) {
 async function recoverDriverPassword(email: string) {
   const driverOwner = await findActiveDriverByEmail(email);
 
-  if (!driverOwner?.email.trim()) {
+  if (!driverOwner?.email.trim() || !driverOwner.id) {
     return false;
   }
 
-  const temporaryPassword = getTemporaryPasswordFromRut(driverOwner.rut);
+  try {
+    await issueDriverOwnerTemporaryPassword(driverOwner.id);
+    return true;
+  } catch (error) {
+    if (error instanceof DriverTemporaryPasswordError && error.status === 429) {
+      throw new RecoverPasswordRateLimitError();
+    }
 
-  if (!temporaryPassword) {
-    return false;
+    if (
+      error instanceof DriverTemporaryPasswordError &&
+      (error.status === 400 || error.status === 404)
+    ) {
+      return false;
+    }
+
+    throw error;
   }
-
-  if (!canSendTemporaryPassword(driverOwner.tempPasswordSentAt)) {
-    throw new RecoverPasswordRateLimitError();
-  }
-
-  await sendTemporaryPasswordEmail({
-    to: driverOwner.email.trim(),
-    fullName: driverOwner.fullName,
-    temporaryPassword,
-  });
-
-  await prisma.driverOwner.update({
-    where: { id: driverOwner.id },
-    data: {
-      passwordHash: hashPassword(temporaryPassword),
-      mustChangePassword: true,
-      tempPasswordSentAt: new Date(),
-    },
-  });
-
-  return true;
 }
 
 export function isRecoverPasswordMailConfigured() {

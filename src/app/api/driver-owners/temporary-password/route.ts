@@ -1,14 +1,8 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import {
-  canSendTemporaryPassword,
-  getTemporaryPasswordFromRut,
-  hashPassword,
-} from "@/lib/password-utils";
-import { prisma } from "@/lib/prisma";
-import {
-  isTemporaryPasswordMailConfigured,
-  sendTemporaryPasswordEmail,
-} from "@/lib/temporary-password-mail";
+  DriverTemporaryPasswordError,
+  issueDriverOwnerTemporaryPassword,
+} from "@/lib/driver-temporary-password-server";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -43,90 +37,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Conductor inválido." }, { status: 400 });
   }
 
-  if (!isTemporaryPasswordMailConfigured()) {
-    return NextResponse.json(
-      {
-        message:
-          "El envío de correo no está configurado. Contacta al administrador del sistema.",
-      },
-      { status: 503 },
-    );
-  }
-
-  const driverOwner = await prisma.driverOwner.findUnique({
-    where: { id: driverOwnerId },
-  });
-
-  if (!driverOwner) {
-    return NextResponse.json(
-      { message: "Conductor no encontrado." },
-      { status: 404 },
-    );
-  }
-
-  if (!driverOwner.isConductor) {
-    return NextResponse.json(
-      { message: "Solo se puede enviar clave a conductores." },
-      { status: 400 },
-    );
-  }
-
-  if (!driverOwner.email.trim()) {
-    return NextResponse.json(
-      { message: "El conductor no tiene correo registrado." },
-      { status: 400 },
-    );
-  }
-
-  const temporaryPassword = getTemporaryPasswordFromRut(driverOwner.rut);
-
-  if (!temporaryPassword) {
-    return NextResponse.json(
-      {
-        message:
-          "El RUT debe tener al menos 4 dígitos para generar la clave temporal.",
-      },
-      { status: 400 },
-    );
-  }
-
-  if (!canSendTemporaryPassword(driverOwner.tempPasswordSentAt)) {
-    return NextResponse.json(
-      {
-        message:
-          "Ya se envió una clave recientemente. Espera unos minutos antes de reenviar.",
-      },
-      { status: 429 },
-    );
-  }
-
   try {
-    await sendTemporaryPasswordEmail({
-      to: driverOwner.email.trim(),
-      fullName: driverOwner.fullName,
-      temporaryPassword,
-    });
-
-    await prisma.driverOwner.update({
-      where: { id: driverOwner.id },
-      data: {
-        passwordHash: hashPassword(temporaryPassword),
-        mustChangePassword: true,
-        tempPasswordSentAt: new Date(),
-      },
-    });
+    const result = await issueDriverOwnerTemporaryPassword(driverOwnerId);
 
     return NextResponse.json({
-      message: `Clave temporal enviada a ${driverOwner.email.trim()}.`,
+      message: result.message,
     });
   } catch (error) {
-    const detail =
-      error instanceof Error ? error.message : "Error desconocido de correo.";
+    if (error instanceof DriverTemporaryPasswordError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
 
     return NextResponse.json(
       {
         message: "No se pudo enviar la clave temporal.",
-        detail,
+        detail:
+          error instanceof Error ? error.message : "Error desconocido de correo.",
       },
       { status: 500 },
     );
