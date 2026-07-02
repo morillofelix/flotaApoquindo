@@ -1,5 +1,10 @@
-import nodemailer from "nodemailer";
 import { PERMANENT_PASSWORD_EMAIL_LINES } from "@/lib/password-policy";
+import { getAdminPlatformUrl } from "@/lib/admin-platform-url";
+import {
+  createNotificaTransporter,
+  getNotificaSmtpConfig,
+  isNotificaSmtpConfigured,
+} from "@/lib/notifica-smtp";
 
 type TemporaryPasswordEmailInput = {
   to: string;
@@ -7,47 +12,8 @@ type TemporaryPasswordEmailInput = {
   temporaryPassword: string;
 };
 
-function getNotificaSmtpConfig() {
-  const host = (
-    process.env.NOTIFICA_SMTP_HOST ??
-    process.env.SMTP_HOST ??
-    ""
-  ).trim();
-  const port = Number(
-    (process.env.NOTIFICA_SMTP_PORT ?? process.env.SMTP_PORT ?? "465").trim(),
-  );
-  const user = (
-    process.env.NOTIFICA_SMTP_USER ??
-    process.env.SMTP_USER ??
-    ""
-  ).trim();
-  const pass = (
-    process.env.NOTIFICA_SMTP_PASSWORD ??
-    process.env.SMTP_PASSWORD ??
-    process.env.SMTP_PASS ??
-    ""
-  ).trim();
-  const from = (
-    process.env.NOTIFICA_EMAIL_FROM ??
-    process.env.EMAIL_FROM ??
-    user
-  ).trim();
-
-  if (!host || !user || !pass || !from) {
-    return null;
-  }
-
-  return {
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-    from,
-  };
-}
-
 export function isTemporaryPasswordMailConfigured() {
-  return getNotificaSmtpConfig() !== null;
+  return isNotificaSmtpConfigured();
 }
 
 export async function sendTemporaryPasswordEmail(
@@ -59,22 +25,21 @@ export async function sendTemporaryPasswordEmail(
     throw new Error("Correo de notificaciones no configurado en el servidor.");
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: smtp.auth,
-  });
+  const transporter = createNotificaTransporter();
+  const loginUrl = getAdminPlatformUrl();
 
   const subject = "Clave temporal - Transportes Apoquindo";
   const text = [
     `Hola ${input.fullName},`,
     "",
-    "Tu clave temporal para ingresar al sistema de solicitud de citas es:",
+    "Tu clave temporal para ingresar al sistema de Transportes Apoquindo es:",
     "",
     input.temporaryPassword,
     "",
-    "Ingresa con tu correo y esta clave temporal.",
+    "Ingresa con tu correo y esta clave temporal en:",
+    loginUrl,
+    "",
+    "Si tu acceso es de administración o agendamientos, usa el enlace de agendamientos dentro de la plataforma.",
     "",
     ...PERMANENT_PASSWORD_EMAIL_LINES,
     "",

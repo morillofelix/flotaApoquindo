@@ -4,8 +4,6 @@ import {
   toPublicDriverOwner,
 } from "@/lib/driver-auth";
 import {
-  canSendTemporaryPassword,
-  getTemporaryPasswordFromRut,
   hashPassword,
   normalizeEmail,
   validatePermanentPassword,
@@ -13,9 +11,11 @@ import {
 } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 import {
-  isTemporaryPasswordMailConfigured,
-  sendTemporaryPasswordEmail,
-} from "@/lib/temporary-password-mail";
+  GENERIC_RECOVER_PASSWORD_MESSAGE,
+  RecoverPasswordRateLimitError,
+  RecoverPasswordSmtpError,
+  recoverPasswordByEmail,
+} from "@/lib/recover-password";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -175,63 +175,24 @@ async function handleChangePassword(body: AuthBody) {
 
 async function handleRecoverPassword(body: AuthBody) {
   const email = typeof body.email === "string" ? body.email.trim() : "";
-  const genericMessage =
-    "Si el correo está registrado, recibirás una clave temporal en los próximos minutos.";
 
   if (!email) {
     return NextResponse.json({ message: "Ingresa tu correo." }, { status: 400 });
   }
 
-  if (!isTemporaryPasswordMailConfigured()) {
-    return NextResponse.json(
-      {
-        message:
-          "El envío de correo no está configurado. Contacta al administrador del sistema.",
-      },
-      { status: 503 },
-    );
-  }
-
-  const driverOwner = await findActiveDriverByEmail(normalizeEmail(email));
-
-  if (!driverOwner || !driverOwner.email.trim()) {
-    return NextResponse.json({ message: genericMessage });
-  }
-
-  const temporaryPassword = getTemporaryPasswordFromRut(driverOwner.rut);
-
-  if (!temporaryPassword) {
-    return NextResponse.json({ message: genericMessage });
-  }
-
-  if (!canSendTemporaryPassword(driverOwner.tempPasswordSentAt)) {
-    return NextResponse.json(
-      {
-        message:
-          "Ya se envió una clave recientemente. Espera unos minutos antes de reenviar.",
-      },
-      { status: 429 },
-    );
-  }
-
   try {
-    await sendTemporaryPasswordEmail({
-      to: driverOwner.email.trim(),
-      fullName: driverOwner.fullName,
-      temporaryPassword,
-    });
+    await recoverPasswordByEmail(email);
 
-    await prisma.driverOwner.update({
-      where: { id: driverOwner.id },
-      data: {
-        passwordHash: hashPassword(temporaryPassword),
-        mustChangePassword: true,
-        tempPasswordSentAt: new Date(),
-      },
-    });
-
-    return NextResponse.json({ message: genericMessage });
+    return NextResponse.json({ message: GENERIC_RECOVER_PASSWORD_MESSAGE });
   } catch (error) {
+    if (error instanceof RecoverPasswordSmtpError) {
+      return NextResponse.json({ message: error.message }, { status: 503 });
+    }
+
+    if (error instanceof RecoverPasswordRateLimitError) {
+      return NextResponse.json({ message: error.message }, { status: 429 });
+    }
+
     const detail =
       error instanceof Error ? error.message : "Error desconocido de correo.";
 

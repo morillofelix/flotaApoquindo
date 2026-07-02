@@ -126,7 +126,7 @@ export default function ExecutiveAccessLoginScreen({
     setIsRecoveringPassword(true);
 
     try {
-      const response = await fetch("/api/admin-login/recover-password", {
+      const response = await fetch("/api/recover-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -265,9 +265,9 @@ export default function ExecutiveAccessLoginScreen({
         ) : (
         <form noValidate onSubmit={handleRecoverPassword} className="grid gap-5">
               <p className="text-sm leading-6 text-slate-600">
-                Te enviaremos una clave temporal al correo registrado para
-                ingresar a la plataforma de administración. Al ingresar deberás
-                crear una clave definitiva.
+                Te enviaremos una clave temporal al correo registrado, ya sea
+                para agendamientos o para solicitud de citas como conductor.
+                Al ingresar deberás crear una clave definitiva.
               </p>
               <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
                 {PERMANENT_PASSWORD_REQUIREMENTS_HINT}

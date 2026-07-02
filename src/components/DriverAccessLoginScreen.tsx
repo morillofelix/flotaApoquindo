@@ -108,7 +108,7 @@ export default function DriverAccessLoginScreen({
     setIsRecoveringPassword(true);
 
     try {
-      const response = await fetch("/api/auth?action=recover-password", {
+      const response = await fetch("/api/recover-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -243,8 +243,9 @@ export default function DriverAccessLoginScreen({
             className="grid gap-5"
           >
             <p className="text-sm leading-6 text-slate-600">
-              Te enviaremos una clave temporal al correo registrado. Al ingresar
-              deberás crear una clave definitiva.
+              Te enviaremos una clave temporal al correo registrado, ya sea para
+              solicitud de citas como conductor o para acceso de agendamientos.
+              Al ingresar deberás crear una clave definitiva.
             </p>
             <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
               {PERMANENT_PASSWORD_REQUIREMENTS_HINT}

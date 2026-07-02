@@ -1,5 +1,10 @@
 import { PERMANENT_PASSWORD_EMAIL_LINES } from "@/lib/password-policy";
 import { getAdminLoginUrl } from "@/lib/admin-platform-url";
+import {
+  createNotificaTransporter,
+  getNotificaSmtpConfig,
+  isNotificaSmtpConfigured,
+} from "@/lib/notifica-smtp";
 
 type AccessTemporaryPasswordEmailInput = {
   to: string;
@@ -9,47 +14,8 @@ type AccessTemporaryPasswordEmailInput = {
   isNewUser?: boolean;
 };
 
-function getNotificaSmtpConfig() {
-  const host = (
-    process.env.NOTIFICA_SMTP_HOST ??
-    process.env.SMTP_HOST ??
-    ""
-  ).trim();
-  const port = Number(
-    (process.env.NOTIFICA_SMTP_PORT ?? process.env.SMTP_PORT ?? "465").trim(),
-  );
-  const user = (
-    process.env.NOTIFICA_SMTP_USER ??
-    process.env.SMTP_USER ??
-    ""
-  ).trim();
-  const pass = (
-    process.env.NOTIFICA_SMTP_PASSWORD ??
-    process.env.SMTP_PASSWORD ??
-    process.env.SMTP_PASS ??
-    ""
-  ).trim();
-  const from = (
-    process.env.NOTIFICA_EMAIL_FROM ??
-    process.env.EMAIL_FROM ??
-    user
-  ).trim();
-
-  if (!host || !user || !pass || !from) {
-    return null;
-  }
-
-  return {
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-    from,
-  };
-}
-
 export function isAccessUserMailConfigured() {
-  return getNotificaSmtpConfig() !== null;
+  return isNotificaSmtpConfigured();
 }
 
 export async function sendAccessUserTemporaryPasswordEmail(
@@ -61,13 +27,7 @@ export async function sendAccessUserTemporaryPasswordEmail(
     throw new Error("Correo de notificaciones no configurado en el servidor.");
   }
 
-  const nodemailer = await import("nodemailer");
-  const transporter = nodemailer.default.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: smtp.auth,
-  });
+  const transporter = createNotificaTransporter();
 
   const loginUrl = getAdminLoginUrl();
   const greeting = input.fullName ? `Estimado/a ${input.fullName},` : "Estimado/a,";
