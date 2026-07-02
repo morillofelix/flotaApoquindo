@@ -1,21 +1,30 @@
 {
+  "id": "/agendamiento-apoquindo",
   "name": "Agendamiento Apoquindo",
   "short_name": "Agendamiento Apoquindo",
   "description": "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
-  "start_url": "/",
+  "scope": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#eef3f9",
   "theme_color": "#0b5cab",
   "lang": "es-CL",
   "icons": [
     {
-      "src": "/agendamiento-citas-apoquindo.png",
+      "src": "/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/agendamiento-citas-apoquindo.png",
+      "src": "/pwa-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

@@ -28,6 +28,14 @@ export function isAndroidDevice() {
   return /android/i.test(window.navigator.userAgent);
 }
 
+export function isDesktopDevice() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return !isIosDevice() && !isAndroidDevice();
+}
+
 export function hasInstallQueryParam() {
   if (typeof window === "undefined") {
     return false;
