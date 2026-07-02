@@ -1,5 +1,6 @@
 import {
   clearDriverSessionCookie,
+  readDriverSession,
   setDriverSessionCookie,
   toPublicDriverOwner,
 } from "@/lib/driver-auth";
@@ -206,10 +207,29 @@ async function handleRecoverPassword(body: AuthBody) {
   }
 }
 
-export async function GET() {
-  const response = NextResponse.json({ authenticated: false });
-  clearDriverSessionCookie(response);
-  return response;
+export async function GET(request: NextRequest) {
+  const session = readDriverSession(request);
+
+  if (!session) {
+    return NextResponse.json({ authenticated: false });
+  }
+
+  const driverOwner = await findActiveDriverByEmail(session.email);
+
+  if (
+    !driverOwner ||
+    driverOwner.vehicleNumber !== session.vehicleNumber ||
+    driverOwner.mustChangePassword
+  ) {
+    const response = NextResponse.json({ authenticated: false });
+    clearDriverSessionCookie(response);
+    return response;
+  }
+
+  return NextResponse.json({
+    authenticated: true,
+    driverOwner: toPublicDriverOwner(driverOwner),
+  });
 }
 
 export async function POST(request: NextRequest) {

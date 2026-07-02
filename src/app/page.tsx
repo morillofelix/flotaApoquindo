@@ -20,7 +20,7 @@ import DriverAccessLoginScreen, {
 import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
 import PwaInstallLanding from "@/components/PwaInstallLanding";
 import PublicPageBanner from "@/components/PublicPageBanner";
-import { clearDriverSession } from "@/lib/driver-auth-client";
+import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
 import {
   clearInstallQueryParam,
   shouldShowPwaInstallLanding,
@@ -259,38 +259,34 @@ export default function HomePage() {
     let cancelled = false;
 
     async function bootstrap() {
-      await clearDriverSession();
+      const restored = await restoreDriverSession();
 
-      if (!cancelled) {
-        setDriverOwner(null);
-        setPendingPasswordChange(null);
-        setAuthView(
-          shouldShowPwaInstallLanding() ? "pwa-install" : "login",
-        );
+      if (cancelled) {
+        return;
       }
+
+      if (
+        restored.authenticated &&
+        restored.driverOwner &&
+        !restored.driverOwner.mustChangePassword
+      ) {
+        setDriverOwner(restored.driverOwner);
+        setPendingPasswordChange(null);
+        setAuthView("form");
+        return;
+      }
+
+      setDriverOwner(null);
+      setPendingPasswordChange(null);
+      setAuthView(
+        shouldShowPwaInstallLanding() ? "pwa-install" : "login",
+      );
     }
 
     void bootstrap();
 
-    function handlePageShow(event: PageTransitionEvent) {
-      if (!event.persisted) {
-        return;
-      }
-
-      void clearDriverSession().then(() => {
-        setDriverOwner(null);
-        setPendingPasswordChange(null);
-        setAuthView(
-          shouldShowPwaInstallLanding() ? "pwa-install" : "login",
-        );
-      });
-    }
-
-    window.addEventListener("pageshow", handlePageShow);
-
     return () => {
       cancelled = true;
-      window.removeEventListener("pageshow", handlePageShow);
     };
   }, []);
 
@@ -740,7 +736,7 @@ function AppointmentRequestForm({
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col bg-[#eef3f9] text-[#0f2747]">
+    <main className="flex min-h-[100dvh] flex-col overflow-y-auto overscroll-y-contain bg-[#eef3f9] text-[#0f2747]">
       <div className="sticky top-0 z-10 bg-[#eef3f9]/95 backdrop-blur-sm">
         <PublicPageBanner title="Solicitud de cita" />
         <div className="mx-auto flex w-full max-w-2xl justify-end px-4 pb-2 sm:px-6 md:max-w-3xl md:px-8">
