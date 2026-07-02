@@ -57,3 +57,8 @@ export function getAdminLoginUrl() {
 
   return ADMIN_AGENDAMIENTOS_LOGIN_URL;
 }
+
+/** Portal público de conductores (solicitud de citas). */
+export function getDriverLoginUrl() {
+  return getAdminPlatformUrl();
+}

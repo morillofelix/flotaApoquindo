@@ -13,6 +13,8 @@ import {
 } from "@/lib/password-utils";
 import { sendTemporaryPasswordEmail } from "@/lib/temporary-password-mail";
 
+export type RecoverPasswordAudience = "driver" | "admin";
+
 export const GENERIC_RECOVER_PASSWORD_MESSAGE =
   "Si el correo está registrado, recibirás una clave temporal en los próximos minutos.";
 
@@ -32,6 +34,19 @@ export class RecoverPasswordSmtpError extends Error {
     );
     this.name = "RecoverPasswordSmtpError";
   }
+}
+
+export class RecoverPasswordAudienceError extends Error {
+  constructor() {
+    super("Tipo de recuperación inválido.");
+    this.name = "RecoverPasswordAudienceError";
+  }
+}
+
+function isRecoverPasswordAudience(
+  value: unknown,
+): value is RecoverPasswordAudience {
+  return value === "driver" || value === "admin";
 }
 
 async function findActiveDriverByEmail(email: string) {
@@ -101,20 +116,33 @@ export function isRecoverPasswordMailConfigured() {
   return isNotificaSmtpConfigured();
 }
 
-export async function recoverPasswordByEmail(rawEmail: string) {
+export async function recoverPasswordByEmail(
+  rawEmail: string,
+  audience: RecoverPasswordAudience,
+) {
   const email = normalizeEmail(rawEmail);
 
   if (!isRecoverPasswordMailConfigured()) {
     throw new RecoverPasswordSmtpError();
   }
 
-  if (await recoverAccessUserPassword(email)) {
-    return { sent: true, accountType: "access" as const };
+  if (audience === "admin") {
+    const sent = await recoverAccessUserPassword(email);
+    return { sent, accountType: sent ? ("access" as const) : null };
   }
 
-  if (await recoverDriverPassword(email)) {
-    return { sent: true, accountType: "driver" as const };
+  if (audience === "driver") {
+    const sent = await recoverDriverPassword(email);
+    return { sent, accountType: sent ? ("driver" as const) : null };
   }
 
-  return { sent: false, accountType: null };
+  throw new RecoverPasswordAudienceError();
+}
+
+export function parseRecoverPasswordAudience(value: unknown) {
+  if (!isRecoverPasswordAudience(value)) {
+    throw new RecoverPasswordAudienceError();
+  }
+
+  return value;
 }

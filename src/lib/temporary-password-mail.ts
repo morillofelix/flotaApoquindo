@@ -1,5 +1,5 @@
 import { PERMANENT_PASSWORD_EMAIL_LINES } from "@/lib/password-policy";
-import { getAdminPlatformUrl } from "@/lib/admin-platform-url";
+import { getDriverLoginUrl } from "@/lib/admin-platform-url";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -26,20 +26,18 @@ export async function sendTemporaryPasswordEmail(
   }
 
   const transporter = createNotificaTransporter();
-  const loginUrl = getAdminPlatformUrl();
+  const loginUrl = getDriverLoginUrl();
 
-  const subject = "Clave temporal - Transportes Apoquindo";
+  const subject = "Clave temporal - Solicitud de citas";
   const text = [
     `Hola ${input.fullName},`,
     "",
-    "Tu clave temporal para ingresar al sistema de Transportes Apoquindo es:",
+    "Tu clave temporal para ingresar al portal de solicitud de citas es:",
     "",
     input.temporaryPassword,
     "",
     "Ingresa con tu correo y esta clave temporal en:",
     loginUrl,
-    "",
-    "Si tu acceso es de administración o agendamientos, usa el enlace de agendamientos dentro de la plataforma.",
     "",
     ...PERMANENT_PASSWORD_EMAIL_LINES,
     "",

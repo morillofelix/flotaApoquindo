@@ -181,7 +181,7 @@ async function handleRecoverPassword(body: AuthBody) {
   }
 
   try {
-    await recoverPasswordByEmail(email);
+    await recoverPasswordByEmail(email, "admin");
 
     return NextResponse.json({ message: GENERIC_RECOVER_PASSWORD_MESSAGE });
   } catch (error) {

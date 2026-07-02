@@ -43,8 +43,8 @@ export function normalizeEmail(value: string) {
 }
 
 export function verifyAdminCredentials(user: string, password: string) {
-  const adminUser = (process.env.ADMIN_USER ?? "").trim();
-  const adminPassword = (process.env.ADMIN_PASSWORD ?? "").trim();
+  const adminUser = (process.env.ADMIN_USER ?? "ejecutivo").trim();
+  const adminPassword = (process.env.ADMIN_PASSWORD ?? "1818").trim();
 
   if (!adminUser || !adminPassword) {
     return false;

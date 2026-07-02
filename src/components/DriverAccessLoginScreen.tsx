@@ -111,7 +111,7 @@ export default function DriverAccessLoginScreen({
       const response = await fetch("/api/recover-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, audience: "driver" }),
       });
 
       const data = (await response.json()) as { message?: string; detail?: string };
@@ -243,9 +243,9 @@ export default function DriverAccessLoginScreen({
             className="grid gap-5"
           >
             <p className="text-sm leading-6 text-slate-600">
-              Te enviaremos una clave temporal al correo registrado, ya sea para
-              solicitud de citas como conductor o para acceso de agendamientos.
-              Al ingresar deberás crear una clave definitiva.
+              Te enviaremos una clave temporal al correo registrado como
+              conductor para ingresar al portal de solicitud de citas. Al
+              ingresar deberás crear una clave definitiva.
             </p>
             <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
               {PERMANENT_PASSWORD_REQUIREMENTS_HINT}
