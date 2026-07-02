@@ -45,6 +45,17 @@ export function normalizeEmail(value: string) {
 export const LEGACY_ADMIN_USER = "ejecutivo";
 export const LEGACY_ADMIN_PASSWORD = "12345678";
 
+function compareSecretStrings(provided: string, expected: string) {
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
 export function getLegacyAdminCredentials() {
   return {
     user: process.env.ADMIN_USER?.trim() || LEGACY_ADMIN_USER,
@@ -53,28 +64,21 @@ export function getLegacyAdminCredentials() {
 }
 
 export function verifyAdminCredentials(user: string, password: string) {
-  const { user: adminUser, password: adminPassword } = getLegacyAdminCredentials();
+  const normalizedUser = user.trim().toLowerCase();
+  const normalizedPassword = password.trim();
 
-  if (!adminUser || !adminPassword) {
+  if (normalizedUser === LEGACY_ADMIN_USER.toLowerCase()) {
+    return compareSecretStrings(normalizedPassword, LEGACY_ADMIN_PASSWORD);
+  }
+
+  const envUser = process.env.ADMIN_USER?.trim().toLowerCase();
+  const envPassword = process.env.ADMIN_PASSWORD?.trim();
+
+  if (!envUser || !envPassword || normalizedUser !== envUser) {
     return false;
   }
 
-  const providedUser = Buffer.from(user.trim().toLowerCase());
-  const expectedUser = Buffer.from(adminUser.toLowerCase());
-  const providedPassword = Buffer.from(password.trim());
-  const expectedPassword = Buffer.from(adminPassword);
-
-  if (
-    providedUser.length !== expectedUser.length ||
-    providedPassword.length !== expectedPassword.length
-  ) {
-    return false;
-  }
-
-  return (
-    timingSafeEqual(providedUser, expectedUser) &&
-    timingSafeEqual(providedPassword, expectedPassword)
-  );
+  return compareSecretStrings(normalizedPassword, envPassword);
 }
 
 export function canSendTemporaryPassword(
