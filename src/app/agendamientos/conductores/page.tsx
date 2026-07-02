@@ -22,6 +22,10 @@ import {
   type ShiftType,
 } from "@/lib/driver-owners";
 import {
+  isDriverTemporaryPasswordEligible,
+  sendDriverTemporaryPasswordsBatched,
+} from "@/lib/driver-temporary-password-bulk";
+import {
   isDigitOnlySearch,
   matchesTextSearch,
   matchesVehicleNumberSearch,
@@ -143,6 +147,12 @@ export default function ConductoresPage() {
   const [driverOwnerError, setDriverOwnerError] = useState("");
   const [isSavingDriverOwner, setIsSavingDriverOwner] = useState(false);
   const [sendingTempPassword, setSendingTempPassword] = useState(false);
+  const [selectedDriverOwnerIds, setSelectedDriverOwnerIds] = useState<string[]>(
+    [],
+  );
+  const [isSendingBulkTempPassword, setIsSendingBulkTempPassword] =
+    useState(false);
+  const [bulkTempPasswordProgress, setBulkTempPasswordProgress] = useState("");
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
   const [bulkImportFilters, setBulkImportFilters] =
     useState<BulkImportFilters>(defaultBulkImportFilters);
@@ -202,6 +212,22 @@ export default function ConductoresPage() {
       return matchesSearch && matchesActiveStatus && matchesShift;
     });
   }, [activeStatusFilter, driverOwnerSearch, driverOwners, shiftFilters]);
+
+  const bulkTempPasswordEligibleOwners = useMemo(
+    () => filteredDriverOwners.filter(isDriverTemporaryPasswordEligible),
+    [filteredDriverOwners],
+  );
+
+  const allBulkTempPasswordSelected =
+    bulkTempPasswordEligibleOwners.length > 0 &&
+    bulkTempPasswordEligibleOwners.every(
+      (owner) => owner.id && selectedDriverOwnerIds.includes(owner.id),
+    );
+
+  const someBulkTempPasswordSelected =
+    bulkTempPasswordEligibleOwners.some(
+      (owner) => owner.id && selectedDriverOwnerIds.includes(owner.id),
+    ) && !allBulkTempPasswordSelected;
 
   const hasListFilters =
     driverOwnerSearch.trim().length > 0 ||
@@ -644,6 +670,119 @@ export default function ConductoresPage() {
     }
   }
 
+  function toggleDriverOwnerSelection(driverOwnerId: string) {
+    setSelectedDriverOwnerIds((current) =>
+      current.includes(driverOwnerId)
+        ? current.filter((id) => id !== driverOwnerId)
+        : [...current, driverOwnerId],
+    );
+  }
+
+  function toggleSelectAllBulkTempPassword() {
+    const eligibleIds = bulkTempPasswordEligibleOwners
+      .map((owner) => owner.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (allBulkTempPasswordSelected) {
+      setSelectedDriverOwnerIds((current) =>
+        current.filter((id) => !eligibleIds.includes(id)),
+      );
+      return;
+    }
+
+    setSelectedDriverOwnerIds((current) => [
+      ...new Set([...current, ...eligibleIds]),
+    ]);
+  }
+
+  async function sendBulkTemporaryPasswords() {
+    const idsToSend = selectedDriverOwnerIds.filter((id) =>
+      bulkTempPasswordEligibleOwners.some((owner) => owner.id === id),
+    );
+
+    if (!idsToSend.length) {
+      setDriverOwnerError(
+        "Selecciona al menos un conductor con correo y RUT válido.",
+      );
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Enviar claves temporales",
+      message: `¿Enviar clave temporal a ${idsToSend.length} conductor(es)?`,
+      detail:
+        "Los correos se enviarán uno a uno con pausa entre cada envío. Los conductores que recibieron clave hace menos de 5 minutos serán omitidos.",
+      confirmLabel: "Enviar correos",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDriverOwnerMessage("");
+    setDriverOwnerError("");
+    setIsSendingBulkTempPassword(true);
+    setSendingTempPassword(true);
+    setBulkTempPasswordProgress(`Preparando envío de ${idsToSend.length} correos...`);
+
+    try {
+      const results = await sendDriverTemporaryPasswordsBatched(idsToSend, {
+        onProgress: (processedCount, totalCount) => {
+          setBulkTempPasswordProgress(
+            `Enviando ${processedCount} de ${totalCount}...`,
+          );
+        },
+      });
+
+      const successCount = results.filter((result) => result.ok).length;
+      const failedCount = results.length - successCount;
+
+      if (successCount && !failedCount) {
+        setDriverOwnerMessage(
+          `${successCount} clave(s) temporal(es) enviada(s) correctamente.`,
+        );
+        setSelectedDriverOwnerIds([]);
+      } else if (successCount && failedCount) {
+        const failedDetails = results
+          .filter((result) => !result.ok)
+          .slice(0, 3)
+          .map((result) => {
+            const owner = driverOwners.find(
+              (driverOwner) => driverOwner.id === result.id,
+            );
+            const label = owner?.fullName ?? result.id;
+
+            return `${label}: ${result.error}`;
+          })
+          .join(" · ");
+
+        setDriverOwnerMessage(
+          `${successCount} enviada(s), ${failedCount} omitida(s) o con error.${failedDetails ? ` ${failedDetails}` : ""}`,
+        );
+        setSelectedDriverOwnerIds((current) =>
+          current.filter((id) =>
+            results.some((result) => result.id === id && !result.ok),
+          ),
+        );
+      } else {
+        const firstError = results.find((result) => !result.ok)?.error;
+        setDriverOwnerError(
+          firstError ?? "No se pudo enviar ninguna clave temporal.",
+        );
+      }
+    } catch (error) {
+      setDriverOwnerError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar el envío masivo.",
+      );
+    } finally {
+      setIsSendingBulkTempPassword(false);
+      setSendingTempPassword(false);
+      setBulkTempPasswordProgress("");
+    }
+  }
+
   async function removeDriverOwner() {
     if (!driverOwnerForm.id) {
       return;
@@ -992,10 +1131,53 @@ export default function ConductoresPage() {
                   Mostrando {filteredDriverOwners.length} de {driverOwners.length}{" "}
                   registros
                 </p>
+
+                <div className="flex flex-col gap-2 rounded-2xl border border-[#b7cce4] bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-[#173b68]">
+                      <input
+                        type="checkbox"
+                        checked={allBulkTempPasswordSelected}
+                        ref={(input) => {
+                          if (input) {
+                            input.indeterminate = someBulkTempPasswordSelected;
+                          }
+                        }}
+                        onChange={toggleSelectAllBulkTempPassword}
+                        disabled={
+                          !bulkTempPasswordEligibleOwners.length ||
+                          isSendingBulkTempPassword
+                        }
+                        className="h-4 w-4 accent-[#0b5cab] disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      Todos
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      {selectedDriverOwnerIds.length} seleccionado(s) ·{" "}
+                      {bulkTempPasswordEligibleOwners.length} conductor(es) con
+                      correo y RUT válido
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={sendBulkTemporaryPasswords}
+                    disabled={
+                      !selectedDriverOwnerIds.length ||
+                      isSendingBulkTempPassword ||
+                      sendingTempPassword
+                    }
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSendingBulkTempPassword
+                      ? bulkTempPasswordProgress || "Enviando..."
+                      : `Enviar clave temporal (${selectedDriverOwnerIds.length})`}
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
-                <div className="grid grid-cols-[0.55fr_1fr_0.9fr_0.8fr_0.55fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+                <div className="grid grid-cols-[auto_0.55fr_1fr_0.9fr_0.8fr_0.55fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+                  <span className="sr-only">Seleccionar</span>
                   <span>Móvil</span>
                   <span>Nombre</span>
                   <span>Tipo</span>
@@ -1004,16 +1186,47 @@ export default function ConductoresPage() {
                 </div>
                 <div className="max-h-[50dvh] overflow-auto divide-y divide-[#c5d8eb]">
                   {filteredDriverOwners.map((driverOwner) => (
-                    <button
+                    <div
                       key={driverOwner.id ?? driverOwner.vehicleNumber}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       aria-selected={isSelectedDriverOwner(driverOwner)}
                       onClick={() => editDriverOwner(driverOwner)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          editDriverOwner(driverOwner);
+                        }
+                      }}
                       className={uiListRowClass(
                         isSelectedDriverOwner(driverOwner),
-                        "grid w-full grid-cols-[0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 px-3 py-2 text-left text-xs",
+                        "grid w-full cursor-pointer grid-cols-[auto_0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 px-3 py-2 text-left text-xs",
                       )}
                     >
+                      <label
+                        className="flex items-center"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(
+                            driverOwner.id &&
+                              selectedDriverOwnerIds.includes(driverOwner.id),
+                          )}
+                          disabled={
+                            !isDriverTemporaryPasswordEligible(driverOwner) ||
+                            isSendingBulkTempPassword
+                          }
+                          onChange={() => {
+                            if (driverOwner.id) {
+                              toggleDriverOwnerSelection(driverOwner.id);
+                            }
+                          }}
+                          className="h-4 w-4 accent-[#0b5cab] disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label={`Seleccionar ${driverOwner.fullName}`}
+                        />
+                      </label>
                       <strong className="text-[#0f2747]">
                         {displayVehicleNumber(driverOwner.vehicleNumber)}
                       </strong>
@@ -1038,7 +1251,7 @@ export default function ConductoresPage() {
                       >
                         {driverOwner.isActive ? "Activo" : "Inactivo"}
                       </span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1063,7 +1276,7 @@ export default function ConductoresPage() {
                   {driverOwnerForm.id && driverOwnerForm.isConductor ? (
                     <button
                       type="button"
-                      disabled={sendingTempPassword}
+                      disabled={sendingTempPassword || isSendingBulkTempPassword}
                       onClick={sendTemporaryPassword}
                       className="inline-flex h-9 shrink-0 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#eef3f9] disabled:cursor-not-allowed disabled:opacity-60"
                     >
