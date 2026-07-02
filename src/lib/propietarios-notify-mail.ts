@@ -1,4 +1,7 @@
-import nodemailer from "nodemailer";
+import {
+  createNotificaTransporter,
+  getNotificaSmtpConfig,
+} from "@/lib/notifica-smtp";
 import {
   formatPropietarioChangesForEmail,
   formatPropietarioCreateForEmail,
@@ -12,45 +15,6 @@ const DEFAULT_NOTIFY_RECIPIENTS = [
   "administracion@transportesapoquindo.cl",
 ];
 
-function getSmtpConfig() {
-  const host = (
-    process.env.NOTIFICA_SMTP_HOST ??
-    process.env.SMTP_HOST ??
-    ""
-  ).trim();
-  const port = Number(
-    (process.env.NOTIFICA_SMTP_PORT ?? process.env.SMTP_PORT ?? "587").trim(),
-  );
-  const user = (
-    process.env.NOTIFICA_SMTP_USER ??
-    process.env.SMTP_USER ??
-    ""
-  ).trim();
-  const pass = (
-    process.env.NOTIFICA_SMTP_PASSWORD ??
-    process.env.SMTP_PASSWORD ??
-    process.env.SMTP_PASS ??
-    ""
-  ).trim();
-  const from = (
-    process.env.NOTIFICA_EMAIL_FROM ??
-    process.env.EMAIL_FROM ??
-    user
-  ).trim();
-
-  if (!host || !user || !pass || !from) {
-    return null;
-  }
-
-  return {
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-    from,
-  };
-}
-
 export function getPropietariosNotifyRecipients() {
   const configured = (process.env.PROPIETARIOS_NOTIFY_EMAILS ?? "")
     .split(",")
@@ -61,22 +25,17 @@ export function getPropietariosNotifyRecipients() {
 }
 
 export function isPropietariosNotifyMailConfigured() {
-  return getSmtpConfig() !== null;
+  return getNotificaSmtpConfig() !== null;
 }
 
 async function sendPropietariosNotification(subject: string, lines: string[]) {
-  const smtp = getSmtpConfig();
+  const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {
     throw new Error("Correo SMTP no configurado en el servidor.");
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: smtp.auth,
-  });
+  const transporter = createNotificaTransporter();
 
   const text = [...lines, "", "Transportes Apoquindo", "Sistema de gestión de flota"].join(
     "\n",

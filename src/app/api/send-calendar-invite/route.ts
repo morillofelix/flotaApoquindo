@@ -9,8 +9,11 @@ import {
   resolveAppointmentSchedule,
 } from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
+import {
+  createNotificaTransporter,
+  getNotificaSmtpConfig,
+} from "@/lib/notifica-smtp";
 import { NextResponse, type NextRequest } from "next/server";
-import nodemailer from "nodemailer";
 
 const calendarTimezone = "America/Santiago";
 
@@ -240,13 +243,9 @@ function createEmailText(appointment: CalendarInvitePayload) {
 }
 
 export async function POST(request: NextRequest) {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPassword = process.env.SMTP_PASSWORD;
-  const emailFrom = process.env.EMAIL_FROM;
+  const smtp = getNotificaSmtpConfig();
 
-  if (!smtpHost || !smtpUser || !smtpPassword || !emailFrom) {
+  if (!smtp) {
     return NextResponse.json(
       { message: "Servicio de correo no configurado." },
       { status: 500 },
@@ -287,20 +286,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPassword,
-    },
-  });
-  const calendarInvite = createCalendarInvite(body, executiveEmail, emailFrom);
+  const transporter = createNotificaTransporter();
+  const calendarInvite = createCalendarInvite(body, executiveEmail, smtp.from);
 
   try {
     const result = await transporter.sendMail({
-      from: emailFrom,
+      from: smtp.from,
       to: executiveEmail,
       subject: `Cita agendada - Ticket ${getAppointmentTicketLabel(body)}`,
       html: createEmailHtml(body),
