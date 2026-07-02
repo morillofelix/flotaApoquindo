@@ -100,6 +100,8 @@ export type ExecutiveConfig = {
   name: string;
   email: string;
   isActive: boolean;
+  dailyLimitEnabled: boolean;
+  dailyLimitMax: number | null;
   sortOrder: number;
 };
 
@@ -108,36 +110,48 @@ export const defaultExecutives: ExecutiveConfig[] = [
     name: "Félix Morillo",
     email: "fmorillo@transportesapoquindo.cl",
     isActive: true,
+    dailyLimitEnabled: false,
+    dailyLimitMax: null,
     sortOrder: 10,
   },
   {
     name: "Verónica Díaz",
     email: "",
     isActive: true,
+    dailyLimitEnabled: false,
+    dailyLimitMax: null,
     sortOrder: 20,
   },
   {
     name: "Juan Pablo González",
     email: "",
     isActive: true,
+    dailyLimitEnabled: false,
+    dailyLimitMax: null,
     sortOrder: 30,
   },
   {
     name: "Margot Lozada",
     email: "",
     isActive: true,
+    dailyLimitEnabled: false,
+    dailyLimitMax: null,
     sortOrder: 40,
   },
   {
     name: "Carlos Rojas",
     email: "",
     isActive: true,
+    dailyLimitEnabled: false,
+    dailyLimitMax: null,
     sortOrder: 50,
   },
   {
     name: "Gonzalo Domingez",
     email: "",
     isActive: true,
+    dailyLimitEnabled: false,
+    dailyLimitMax: null,
     sortOrder: 60,
   },
 ];

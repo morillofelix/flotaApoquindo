@@ -198,6 +198,8 @@ export function downloadExecutivesExcel(
           <td>${escapeExcelHtml(executive.name)}</td>
           <td>${escapeExcelHtml(executive.email)}</td>
           <td>${escapeExcelHtml(formatExcelActiveStatus(executive.isActive))}</td>
+          <td>${escapeExcelHtml(executive.dailyLimitEnabled ? "Sí" : "No")}</td>
+          <td>${escapeExcelHtml(executive.dailyLimitEnabled && executive.dailyLimitMax !== null ? String(executive.dailyLimitMax) : "")}</td>
           <td>${escapeExcelHtml(String(executive.sortOrder))}</td>
         </tr>`,
     )
@@ -215,6 +217,8 @@ export function downloadExecutivesExcel(
               <th>Nombre</th>
               <th>Correo</th>
               <th>Estado</th>
+              <th>Tope diario activo</th>
+              <th>Máximo por día</th>
               <th>Orden</th>
             </tr>
           </thead>

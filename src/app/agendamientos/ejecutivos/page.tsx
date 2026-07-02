@@ -14,6 +14,8 @@ type ExecutiveForm = {
   name: string;
   email: string;
   isActive: boolean;
+  dailyLimitEnabled: boolean;
+  dailyLimitMax: string;
 };
 
 const emptyExecutiveForm: ExecutiveForm = {
@@ -21,6 +23,8 @@ const emptyExecutiveForm: ExecutiveForm = {
   name: "",
   email: "",
   isActive: true,
+  dailyLimitEnabled: false,
+  dailyLimitMax: "",
 };
 
 export default function EjecutivosPage() {
@@ -89,6 +93,9 @@ export default function EjecutivosPage() {
       name: executive.name,
       email: executive.email,
       isActive: executive.isActive,
+      dailyLimitEnabled: executive.dailyLimitEnabled,
+      dailyLimitMax:
+        executive.dailyLimitMax !== null ? String(executive.dailyLimitMax) : "",
     });
     setExecutiveMessage("");
     setExecutiveError("");
@@ -113,6 +120,17 @@ export default function EjecutivosPage() {
       return;
     }
 
+    if (executiveForm.dailyLimitEnabled) {
+      const parsedMax = Number(executiveForm.dailyLimitMax);
+
+      if (!Number.isFinite(parsedMax) || parsedMax < 1) {
+        setExecutiveError(
+          "Ingresa una cantidad máxima válida cuando el tope diario está activo.",
+        );
+        return;
+      }
+    }
+
     setIsSavingExecutive(true);
 
     try {
@@ -122,21 +140,34 @@ export default function EjecutivosPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...executiveForm,
           id: selectedExecutiveId,
+          name: executiveForm.name,
+          email: executiveForm.email,
+          isActive: executiveForm.isActive,
+          dailyLimitEnabled: executiveForm.dailyLimitEnabled,
+          dailyLimitMax: executiveForm.dailyLimitEnabled
+            ? Number(executiveForm.dailyLimitMax)
+            : null,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("No se pudo guardar el ejecutivo.");
+        const data = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        throw new Error(data?.message ?? "No se pudo guardar el ejecutivo.");
       }
 
       const loadedExecutives = await loadExecutives();
       setExecutiveOptions(loadedExecutives);
       setExecutiveForm(emptyExecutiveForm);
       setExecutiveMessage("Ejecutivo guardado correctamente.");
-    } catch {
-      setExecutiveError("No se pudo guardar el ejecutivo.");
+    } catch (error) {
+      setExecutiveError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el ejecutivo.",
+      );
     } finally {
       setIsSavingExecutive(false);
     }
@@ -193,10 +224,11 @@ export default function EjecutivosPage() {
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
-                <div className="grid grid-cols-[1fr_1.2fr_0.6fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+                <div className="grid grid-cols-[1fr_1.2fr_0.6fr_0.7fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
                   <span>Nombre</span>
                   <span>Correo</span>
                   <span>Estado</span>
+                  <span>Tope día</span>
                 </div>
                 <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
                   {filteredExecutives.map((executive) => (
@@ -207,7 +239,7 @@ export default function EjecutivosPage() {
                       onClick={() => editExecutive(executive)}
                       className={uiListRowClass(
                         isSelectedExecutive(executive),
-                        "grid w-full grid-cols-[1fr_1.2fr_0.6fr] gap-2 px-3 py-2 text-left text-xs",
+                        "grid w-full grid-cols-[1fr_1.2fr_0.6fr_0.7fr] gap-2 px-3 py-2 text-left text-xs",
                       )}
                     >
                       <strong className="text-[#0f2747]">{executive.name}</strong>
@@ -222,6 +254,17 @@ export default function EjecutivosPage() {
                         }`}
                       >
                         {executive.isActive ? "Activo" : "Inactivo"}
+                      </span>
+                      <span
+                        className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          executive.dailyLimitEnabled
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {executive.dailyLimitEnabled
+                          ? `Máx. ${executive.dailyLimitMax ?? 0}`
+                          : "Sin tope"}
                       </span>
                     </button>
                   ))}
@@ -294,6 +337,64 @@ export default function EjecutivosPage() {
                     className="h-4 w-4 accent-[#0b5cab]"
                   />
                 </label>
+
+                <div className="rounded-2xl border border-[#b7cce4] bg-white p-3 shadow-[0_1px_2px_rgba(15,39,71,0.04)]">
+                  <div className="mb-3 border-b border-[#c5d8eb] pb-2">
+                    <h5 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0b5cab]">
+                      Tope diario de citas
+                    </h5>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                      Limita cuántas solicitudes puede recibir este ejecutivo
+                      en un mismo día, sumando todos los motivos.
+                    </p>
+                  </div>
+
+                  <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-[#f8fbff] px-3 text-xs font-semibold text-[#173b68]">
+                    Activar límite diario
+                    <input
+                      type="checkbox"
+                      checked={executiveForm.dailyLimitEnabled}
+                      onChange={(event) =>
+                        setExecutiveForm((currentForm) => ({
+                          ...currentForm,
+                          dailyLimitEnabled: event.target.checked,
+                          dailyLimitMax: event.target.checked
+                            ? currentForm.dailyLimitMax
+                            : "",
+                        }))
+                      }
+                      className="h-4 w-4 accent-[#0b5cab]"
+                    />
+                  </label>
+
+                  {executiveForm.dailyLimitEnabled ? (
+                    <label className="mt-3 flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-[#173b68]">
+                        Cantidad máxima por día
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        required
+                        value={executiveForm.dailyLimitMax}
+                        onChange={(event) =>
+                          setExecutiveForm((currentForm) => ({
+                            ...currentForm,
+                            dailyLimitMax: event.target.value,
+                          }))
+                        }
+                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                        placeholder="Ej: 5"
+                      />
+                    </label>
+                  ) : (
+                    <p className="mt-3 rounded-2xl border border-dashed border-[#c5d8eb] bg-[#f8fbff] px-3 py-2 text-[11px] leading-5 text-slate-500">
+                      Sin límite activo. Este ejecutivo puede recibir todas las
+                      citas del día.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {executiveMessage ? (

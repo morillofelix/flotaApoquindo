@@ -9,9 +9,36 @@ type ExecutiveBody = {
   name?: unknown;
   email?: unknown;
   isActive?: unknown;
+  dailyLimitEnabled?: unknown;
+  dailyLimitMax?: unknown;
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function parseDailyLimit(body: ExecutiveBody) {
+  const dailyLimitEnabled = body.dailyLimitEnabled === true;
+  const rawMax =
+    typeof body.dailyLimitMax === "number"
+      ? body.dailyLimitMax
+      : typeof body.dailyLimitMax === "string"
+        ? Number(body.dailyLimitMax)
+        : NaN;
+  const dailyLimitMax =
+    dailyLimitEnabled && Number.isFinite(rawMax) && rawMax > 0
+      ? Math.floor(rawMax)
+      : null;
+
+  if (dailyLimitEnabled && dailyLimitMax === null) {
+    return {
+      error: "Ingresa una cantidad máxima válida cuando el tope diario está activo.",
+    } as const;
+  }
+
+  return {
+    dailyLimitEnabled,
+    dailyLimitMax: dailyLimitEnabled ? dailyLimitMax : null,
+  } as const;
+}
 
 function toExecutive(value: ExecutiveConfig): ExecutiveConfig {
   return {
@@ -19,13 +46,19 @@ function toExecutive(value: ExecutiveConfig): ExecutiveConfig {
     name: value.name,
     email: value.email,
     isActive: value.isActive,
+    dailyLimitEnabled: value.dailyLimitEnabled ?? false,
+    dailyLimitMax: value.dailyLimitMax ?? null,
     sortOrder: value.sortOrder,
   };
 }
 
 async function ensureDefaultExecutives() {
   await prisma.executive.createMany({
-    data: defaultExecutives,
+    data: defaultExecutives.map((executive) => ({
+      ...executive,
+      dailyLimitEnabled: executive.dailyLimitEnabled ?? false,
+      dailyLimitMax: executive.dailyLimitMax ?? null,
+    })),
     skipDuplicates: true,
   });
 }
@@ -60,6 +93,11 @@ export async function POST(request: NextRequest) {
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
+  const dailyLimit = parseDailyLimit(body);
+
+  if ("error" in dailyLimit) {
+    return NextResponse.json({ message: dailyLimit.error }, { status: 400 });
+  }
 
   if (name.length < 3 || !emailPattern.test(email)) {
     return NextResponse.json(
@@ -87,6 +125,8 @@ export async function POST(request: NextRequest) {
         name,
         email,
         isActive: body.isActive === undefined ? true : body.isActive === true,
+        dailyLimitEnabled: dailyLimit.dailyLimitEnabled,
+        dailyLimitMax: dailyLimit.dailyLimitMax,
         sortOrder: (existingCount + 1) * 10,
       },
     });
@@ -118,6 +158,11 @@ export async function PATCH(request: NextRequest) {
   const id = typeof body.id === "string" ? body.id : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
+  const dailyLimit = parseDailyLimit(body);
+
+  if ("error" in dailyLimit) {
+    return NextResponse.json({ message: dailyLimit.error }, { status: 400 });
+  }
 
   if (!id || name.length < 3 || !emailPattern.test(email)) {
     return NextResponse.json(
@@ -133,6 +178,8 @@ export async function PATCH(request: NextRequest) {
         name,
         email,
         isActive: body.isActive === true,
+        dailyLimitEnabled: dailyLimit.dailyLimitEnabled,
+        dailyLimitMax: dailyLimit.dailyLimitMax,
       },
     });
 

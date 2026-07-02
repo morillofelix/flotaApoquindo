@@ -58,13 +58,15 @@ model AppointmentReason {
 }
 
 model Executive {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  email     String   @default("")
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(uuid())
+  name              String   @unique
+  email             String   @default("")
+  isActive          Boolean  @default(true)
+  dailyLimitEnabled Boolean  @default(false)
+  dailyLimitMax     Int?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([isActive])
   @@index([sortOrder])

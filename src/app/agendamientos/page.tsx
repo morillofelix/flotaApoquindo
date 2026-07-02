@@ -37,9 +37,11 @@ import {
 } from "@/lib/agendamientos-appointments";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
 import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
+import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 
 function AppointmentsPageContent() {
   const { confirm, dialog } = useConfirmAction();
@@ -72,6 +74,12 @@ function AppointmentsPageContent() {
     willSendEmail: boolean;
   } | null>(null);
   const [isConfirmingExecutive, setIsConfirmingExecutive] = useState(false);
+  const [dailyLimitAlert, setDailyLimitAlert] = useState<{
+    executiveName: string;
+    appointmentDate: string;
+    currentCount: number;
+    max: number;
+  } | null>(null);
 
   useEffect(() => {
     loadAppointmentReasons()
@@ -119,6 +127,18 @@ function AppointmentsPageContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [emailNotice]);
+
+  useEffect(() => {
+    if (!dailyLimitAlert) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDailyLimitAlert(null);
+    }, 7000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [dailyLimitAlert]);
 
   const filteredAppointments = useMemo(() => {
     const normalizedVehicleFilter = vehicleFilter.trim();
@@ -297,6 +317,29 @@ function AppointmentsPageContent() {
       return;
     }
 
+    if (assignedExecutive !== "") {
+      const executive = executiveOptions.find(
+        (option) => option.name === assignedExecutive,
+      );
+      const limitStatus = getExecutiveDailyLimitStatus(
+        executive,
+        appointments,
+        currentAppointment,
+        assignedExecutive,
+      );
+
+      if (limitStatus.blocked) {
+        setExecutiveAssignmentPrompt(null);
+        setDailyLimitAlert({
+          executiveName: limitStatus.executiveName,
+          appointmentDate: limitStatus.appointmentDate,
+          currentCount: limitStatus.currentCount,
+          max: limitStatus.max,
+        });
+        return;
+      }
+    }
+
     const nextStatusForPreview =
       assignedExecutive !== ""
         ? ("revisado" as const)
@@ -336,6 +379,29 @@ function AppointmentsPageContent() {
 
     if (!currentAppointment) {
       return;
+    }
+
+    if (assignedExecutive !== "") {
+      const executive = executiveOptions.find(
+        (option) => option.name === assignedExecutive,
+      );
+      const limitStatus = getExecutiveDailyLimitStatus(
+        executive,
+        appointments,
+        currentAppointment,
+        assignedExecutive,
+      );
+
+      if (limitStatus.blocked) {
+        setExecutiveAssignmentPrompt(null);
+        setDailyLimitAlert({
+          executiveName: limitStatus.executiveName,
+          appointmentDate: limitStatus.appointmentDate,
+          currentCount: limitStatus.currentCount,
+          max: limitStatus.max,
+        });
+        return;
+      }
     }
 
     const nextStatus: AppointmentStatus =
@@ -465,6 +531,15 @@ function AppointmentsPageContent() {
 
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
+      {dailyLimitAlert ? (
+        <ExecutiveDailyLimitAlert
+          executiveName={dailyLimitAlert.executiveName}
+          appointmentDate={dailyLimitAlert.appointmentDate}
+          currentCount={dailyLimitAlert.currentCount}
+          max={dailyLimitAlert.max}
+          onClose={() => setDailyLimitAlert(null)}
+        />
+      ) : null}
       <section className="mx-auto w-full max-w-[1540px]">
         <header className="mb-3 rounded-[22px] border border-[#b7cce4] bg-white p-4 shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-center">
