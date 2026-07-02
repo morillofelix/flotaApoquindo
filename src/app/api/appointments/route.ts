@@ -61,6 +61,25 @@ function isValidTime(value: string) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
+function resolveAppointmentDate(
+  body: AppointmentCreateBody,
+  reasonConfig: AppointmentReasonConfig | null,
+  today: string,
+) {
+  if (reasonConfig?.allowsExecutiveAssignment) {
+    const requested =
+      typeof body.appointmentDate === "string" ? body.appointmentDate.trim() : "";
+
+    if (!isValidAppointmentDate(requested) || requested < today) {
+      return null;
+    }
+
+    return requested;
+  }
+
+  return today;
+}
+
 function normalizeVehicleNumber(value: string) {
   return value.trim().padStart(3, "0");
 }
@@ -347,7 +366,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const appointment = validateCreateBody(body, reason, today.date);
+  const appointment = validateCreateBody(
+    body,
+    reason,
+    resolveAppointmentDate(body, reason, today.date) ?? "",
+  );
 
   if (!appointment) {
     return NextResponse.json(
@@ -370,10 +393,12 @@ export async function POST(request: NextRequest) {
     const advanceCheck = checkBusinessDayAdvance(reason, today.date, {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       vacationStartDate: appointment.vacationStartDate,
       permitType: appointment.permitType,
       permitStartDate: appointment.permitStartDate,
       permitDate: appointment.permitDate,
+      appointmentDate: appointment.appointmentDate,
     });
 
     if (advanceCheck.blocked) {

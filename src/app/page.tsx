@@ -5,6 +5,7 @@ import {
   type AppointmentReasonConfig,
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
+  appointmentReasonAllowsExecutive,
   defaultAppointmentReasons,
   getAppointmentTicketLabel,
   getSantiagoToday,
@@ -39,6 +40,7 @@ type FormValues = {
   driverName: string;
   vehicleNumber: string;
   appointmentReason: string;
+  appointmentDate: string;
   vacationStartDate: string;
   vacationEndDate: string;
   permitType: string;
@@ -57,6 +59,7 @@ const initialValues: FormValues = {
   driverName: "",
   vehicleNumber: "",
   appointmentReason: "",
+  appointmentDate: "",
   vacationStartDate: "",
   vacationEndDate: "",
   permitType: "",
@@ -103,7 +106,7 @@ function validateField(
   }
 
   if (
-    (name === "permitStartDate" || name === "permitDate") &&
+    (name === "permitStartDate" || name === "permitDate" || name === "appointmentDate") &&
     trimmedValue < today
   ) {
     return "La fecha debe ser hoy o posterior.";
@@ -162,11 +165,17 @@ function createAppointment(
     values.appointmentReason,
     reasons,
   );
+  const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
+    values.appointmentReason,
+    reasons,
+  );
 
   return {
     driverName: values.driverName.trim(),
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
-    appointmentDate: getSantiagoToday().date,
+    appointmentDate: allowsExecutiveAssignment
+      ? values.appointmentDate
+      : getSantiagoToday().date,
     vacationStartDate: usesDateRange ? values.vacationStartDate : "",
     vacationEndDate: usesDateRange ? values.vacationEndDate : "",
     permitType: usesPermitDetails
@@ -401,6 +410,10 @@ function AppointmentRequestForm({
     values.appointmentReason,
     reasons,
   );
+  const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
+    values.appointmentReason,
+    reasons,
+  );
   const selectedReasonConfig = useMemo(
     () =>
       activeReasons.find((reason) => reason.value === values.appointmentReason),
@@ -421,10 +434,12 @@ function AppointmentRequestForm({
     return checkBusinessDayAdvance(selectedReasonConfig, today, {
       usesDateRange: selectedReasonConfig.usesDateRange,
       usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+      allowsExecutiveAssignment: selectedReasonConfig.allowsExecutiveAssignment,
       vacationStartDate: values.vacationStartDate,
       permitType: values.permitType,
       permitStartDate: values.permitStartDate,
       permitDate: values.permitDate,
+      appointmentDate: values.appointmentDate,
     }).message;
   }, [selectedReasonConfig, today, values]);
 
@@ -518,6 +533,9 @@ function AppointmentRequestForm({
       usesPermitDetails && values.permitType === "horas"
         ? validateField("permitEndTime", values.permitEndTime, today, reasons)
         : "";
+    const appointmentDate = allowsExecutiveAssignment
+      ? validateField("appointmentDate", values.appointmentDate, today, reasons)
+      : "";
 
     return {
       driverName: linkedVehicleNumber
@@ -547,6 +565,7 @@ function AppointmentRequestForm({
         today,
         reasons,
       ),
+      appointmentDate,
       vacationStartDate,
       vacationEndDate:
         !vacationEndDate &&
@@ -585,7 +604,7 @@ function AppointmentRequestForm({
         ? validateField("phone", values.phone, today, reasons)
         : "",
     };
-  }, [today, usesDateRange, usesPermitDetails, values, reasons, linkedVehicleNumber]);
+  }, [today, usesDateRange, usesPermitDetails, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
 
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
@@ -627,6 +646,10 @@ function AppointmentRequestForm({
             permitEndTime: "",
           }
         : {}),
+      ...(name === "appointmentReason" &&
+      !appointmentReasonAllowsExecutive(value, reasons)
+        ? { appointmentDate: "" }
+        : {}),
       ...(name === "permitType" && value === "dias"
         ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
         : {}),
@@ -651,6 +674,7 @@ function AppointmentRequestForm({
       driverName: true,
       vehicleNumber: true,
       appointmentReason: true,
+      appointmentDate: allowsExecutiveAssignment,
       vacationStartDate: usesDateRange,
       vacationEndDate: usesDateRange,
       permitType: usesPermitDetails,
@@ -834,6 +858,44 @@ function AppointmentRequestForm({
                 </div>
               ) : null}
             </label>
+
+            {allowsExecutiveAssignment ? (
+              <div className={`rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2`}>
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-[#173b68]">
+                    Fecha requerida para la cita
+                  </span>
+                  <input
+                    type="date"
+                    name="appointmentDate"
+                    required
+                    value={values.appointmentDate}
+                    min={today}
+                    onBlur={() => markFieldAsTouched("appointmentDate")}
+                    onChange={(event) =>
+                      updateField("appointmentDate", event.target.value)
+                    }
+                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("appointmentDate")}`}
+                  />
+                  <p className="text-[11px] leading-5 text-slate-500">
+                    Día en que necesitas ir a la empresa para este trámite. La
+                    fecha de registro de la solicitud se guarda automáticamente
+                    al enviarla.
+                  </p>
+                  {touched.appointmentDate && errors.appointmentDate ? (
+                    <span className="text-sm text-red-600">
+                      {errors.appointmentDate}
+                    </span>
+                  ) : null}
+                </label>
+
+                {businessDayAdvanceMessage && !usesDateRange && !usesPermitDetails ? (
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+                    {businessDayAdvanceMessage}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {usesDateRange ? (
               <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>

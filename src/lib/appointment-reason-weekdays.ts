@@ -39,6 +39,7 @@ function formatBusinessDayMinimumDate(dateValue: string) {
 function getBusinessDayAdvanceActionPhrase(reason: {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  allowsExecutiveAssignment?: boolean;
 }) {
   if (reason.usesDateRange) {
     return "pedir tus vacaciones";
@@ -46,6 +47,10 @@ function getBusinessDayAdvanceActionPhrase(reason: {
 
   if (reason.usesPermitDetails) {
     return "solicitar este permiso";
+  }
+
+  if (reason.allowsExecutiveAssignment) {
+    return "agendar esta cita";
   }
 
   return "realizar esta solicitud";
@@ -57,6 +62,7 @@ export function getBusinessDayAdvanceMessage(
   reason: {
     usesDateRange: boolean;
     usesPermitDetails: boolean;
+    allowsExecutiveAssignment?: boolean;
   },
 ) {
   const formattedDate = formatBusinessDayMinimumDate(minimumStartDate);
@@ -79,10 +85,12 @@ export function formatBusinessDayAdvanceSummary(
 type ReasonStartDateInput = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  allowsExecutiveAssignment?: boolean;
   vacationStartDate?: string;
   permitType?: string;
   permitStartDate?: string;
   permitDate?: string;
+  appointmentDate?: string;
 };
 
 function parseDateOnlyValue(dateValue: string) {
@@ -149,6 +157,10 @@ export function getReasonStartDate(input: ReasonStartDateInput) {
     }
   }
 
+  if (input.allowsExecutiveAssignment) {
+    return input.appointmentDate?.trim() || null;
+  }
+
   return null;
 }
 
@@ -158,6 +170,7 @@ export function checkBusinessDayAdvance(
     businessDaysAdvance: number;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
+    allowsExecutiveAssignment?: boolean;
   },
   todayDate: string,
   startDateInput: ReasonStartDateInput,
