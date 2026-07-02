@@ -27,15 +27,22 @@ export default function MaintainerPageHeader({
           {title}
         </h1>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {actions}
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         {onRefresh ? (
-          <DataRefreshButton
-            onRefresh={onRefresh}
-            isRefreshing={isRefreshing}
-            lastUpdatedAt={lastUpdatedAt}
-          />
+          <>
+            <DataRefreshButton
+              onRefresh={onRefresh}
+              isRefreshing={isRefreshing}
+              lastUpdatedAt={lastUpdatedAt}
+              variant="toolbar"
+            />
+            <span
+              aria-hidden="true"
+              className="mx-0.5 hidden h-5 w-px bg-[#c5d8eb] sm:block"
+            />
+          </>
         ) : null}
+        {actions}
         <Link
           href="/agendamientos"
           className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"

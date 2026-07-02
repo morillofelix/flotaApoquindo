@@ -332,26 +332,17 @@ export default function AppointmentsCalendar({
     <section className={`${UI_CARD_SHELL} overflow-hidden`}>
       <div className="border-b border-[#b7cce4] px-4 py-4 sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
-                Visualización
-              </p>
-              <h2 className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
-                Calendario de citas
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Revisa por fecha las citas agendadas, el ejecutivo asignado y el
-                móvil a atender.
-              </p>
-            </div>
-            {onRefresh ? (
-              <DataRefreshButton
-                onRefresh={onRefresh}
-                isRefreshing={isRefreshing}
-                lastUpdatedAt={lastUpdatedAt}
-              />
-            ) : null}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
+              Visualización
+            </p>
+            <h2 className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
+              Calendario de citas
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Revisa por fecha las citas agendadas, el ejecutivo asignado y el
+              móvil a atender.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
@@ -380,7 +371,16 @@ export default function AppointmentsCalendar({
               />
             </label>
 
-            <div className="inline-flex rounded-2xl border border-[#9fb8d9] bg-[#f8fbff] p-1">
+            <div className="inline-flex items-center gap-1 rounded-2xl border border-[#9fb8d9] bg-[#f8fbff] p-1">
+              {onRefresh ? (
+                <DataRefreshButton
+                  onRefresh={onRefresh}
+                  isRefreshing={isRefreshing}
+                  lastUpdatedAt={lastUpdatedAt}
+                  variant="toolbar"
+                  className="rounded-xl"
+                />
+              ) : null}
               {(["month", "day"] as const).map((mode) => (
                 <button
                   key={mode}

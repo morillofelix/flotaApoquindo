@@ -570,22 +570,23 @@ function AppointmentsPageContent() {
         />
       ) : null}
       <section className="mx-auto w-full max-w-[1540px]">
-        <header className="mb-3 rounded-[22px] border border-[#b7cce4] bg-white p-4 shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
-          <div className="grid gap-4 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-center">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
-                  Administración de citas
-                </p>
-                <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747]">
-                  Agendamientos recibidos
-                </h1>
-              </div>
-              <DataRefreshButton
-                onRefresh={() => void refreshAppointmentsData()}
-                isRefreshing={isRefreshingAppointments}
-                lastUpdatedAt={appointmentsLastUpdatedAt}
-              />
+        <header className="relative mb-3 rounded-[22px] border border-[#b7cce4] bg-white p-4 shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
+          <div className="absolute right-4 top-4 z-10">
+            <DataRefreshButton
+              onRefresh={() => void refreshAppointmentsData()}
+              isRefreshing={isRefreshingAppointments}
+              lastUpdatedAt={appointmentsLastUpdatedAt}
+              variant="toolbar"
+            />
+          </div>
+          <div className="grid gap-4 pr-10 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0b5cab]">
+                Administración de citas
+              </p>
+              <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747]">
+                Agendamientos recibidos
+              </h1>
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[600px]">

@@ -7,6 +7,14 @@ type DataRefreshButtonProps = {
   isRefreshing?: boolean;
   lastUpdatedAt?: Date | null;
   className?: string;
+  variant?: "default" | "toolbar";
+};
+
+const variantClassName = {
+  default:
+    "h-9 w-9 rounded-full border border-[#9fb8d9] bg-white text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] hover:border-[#0b5cab] hover:bg-[#f8fbff]",
+  toolbar:
+    "h-8 w-8 rounded-xl border border-transparent bg-transparent text-slate-500 shadow-none hover:border-[#c5d8eb] hover:bg-[#f8fbff] hover:text-[#0b5cab]",
 };
 
 export default function DataRefreshButton({
@@ -14,6 +22,7 @@ export default function DataRefreshButton({
   isRefreshing = false,
   lastUpdatedAt = null,
   className = "",
+  variant = "default",
 }: DataRefreshButtonProps) {
   return (
     <button
@@ -21,7 +30,7 @@ export default function DataRefreshButton({
       onClick={onRefresh}
       aria-label="Actualizar datos"
       title={formatRefreshTooltip(lastUpdatedAt)}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#9fb8d9] bg-white text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] transition hover:border-[#0b5cab] hover:bg-[#f8fbff] active:translate-y-px disabled:cursor-wait disabled:opacity-70 ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center transition active:translate-y-px disabled:cursor-wait disabled:opacity-70 ${variantClassName[variant]} ${className}`}
       disabled={isRefreshing}
     >
       <svg
