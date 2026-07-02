@@ -1,5 +1,8 @@
 const PRODUCTION_APP_URL = "https://flota-apoquindo.vercel.app";
 
+/** Portal público de conductores (solicitud de citas). */
+export const DRIVER_APP_URL = PRODUCTION_APP_URL;
+
 /** Enlace oficial de ingreso administrativo (correos de acceso). */
 export const ADMIN_AGENDAMIENTOS_LOGIN_URL =
   "https://flota-apoquindo.vercel.app/agendamientos";
@@ -60,5 +63,24 @@ export function getAdminLoginUrl() {
 
 /** Portal público de conductores (solicitud de citas). */
 export function getDriverLoginUrl() {
-  return getAdminPlatformUrl();
+  const configured = normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL ?? "");
+
+  if (configured && !isLocalAppUrl(configured) && !isPreviewVercelUrl(configured)) {
+    return configured;
+  }
+
+  const productionUrl = normalizeBaseUrl(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "",
+  );
+
+  if (productionUrl && !isPreviewVercelUrl(productionUrl)) {
+    return productionUrl;
+  }
+
+  return DRIVER_APP_URL;
+}
+
+/** Enlace para instalar el portal de conductores como acceso directo (PWA). */
+export function getDriverInstallUrl() {
+  return `${getDriverLoginUrl()}/?instalar=1`;
 }

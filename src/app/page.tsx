@@ -18,8 +18,13 @@ import DriverAccessLoginScreen, {
   type PublicDriverOwner,
 } from "@/components/DriverAccessLoginScreen";
 import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
+import PwaInstallLanding from "@/components/PwaInstallLanding";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession } from "@/lib/driver-auth-client";
+import {
+  clearInstallQueryParam,
+  shouldShowPwaInstallLanding,
+} from "@/lib/pwa-utils";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
@@ -237,7 +242,7 @@ async function sendTicketEmail(newAppointment: Appointment) {
   }
 }
 
-type AuthView = "bootstrapping" | "login" | "change-password" | "form";
+type AuthView = "bootstrapping" | "pwa-install" | "login" | "change-password" | "form";
 
 type PendingPasswordChange = {
   driverOwner: PublicDriverOwner;
@@ -259,7 +264,9 @@ export default function HomePage() {
       if (!cancelled) {
         setDriverOwner(null);
         setPendingPasswordChange(null);
-        setAuthView("login");
+        setAuthView(
+          shouldShowPwaInstallLanding() ? "pwa-install" : "login",
+        );
       }
     }
 
@@ -273,7 +280,9 @@ export default function HomePage() {
       void clearDriverSession().then(() => {
         setDriverOwner(null);
         setPendingPasswordChange(null);
-        setAuthView("login");
+        setAuthView(
+          shouldShowPwaInstallLanding() ? "pwa-install" : "login",
+        );
       });
     }
 
@@ -287,6 +296,17 @@ export default function HomePage() {
 
   if (authView === "bootstrapping") {
     return null;
+  }
+
+  if (authView === "pwa-install") {
+    return (
+      <PwaInstallLanding
+        onContinueInBrowser={() => {
+          clearInstallQueryParam();
+          setAuthView("login");
+        }}
+      />
+    );
   }
 
   if (authView === "login") {

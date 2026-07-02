@@ -10,23 +10,33 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: `${SITE_CONFIG.name} — Gestión Inteligente`,
-    template: `%s | ${SITE_CONFIG.name}`,
+    default: "Agendamiento Apoquindo",
+    template: "%s | Agendamiento Apoquindo",
   },
-  description: SITE_CONFIG.description,
+  description:
+    "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
+  applicationName: "Agendamiento Apoquindo",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Agendamiento Apoquindo",
+    statusBarStyle: "default",
+  },
   metadataBase: new URL(SITE_CONFIG.url),
   openGraph: {
     type: "website",
     locale: "es_CL",
     url: SITE_CONFIG.url,
-    siteName: SITE_CONFIG.name,
-    title: `${SITE_CONFIG.name} — Gestión Inteligente`,
-    description: SITE_CONFIG.description,
+    siteName: "Agendamiento Apoquindo",
+    title: "Agendamiento Apoquindo",
+    description:
+      "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_CONFIG.name} — Gestión Inteligente`,
-    description: SITE_CONFIG.description,
+    title: "Agendamiento Apoquindo",
+    description:
+      "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
   },
   robots: {
     index: true,
