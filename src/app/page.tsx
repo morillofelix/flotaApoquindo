@@ -349,9 +349,9 @@ export default function HomePage() {
     <AppointmentRequestForm
       driverOwner={driverOwner}
       onLogout={() => {
-        void clearDriverSession().then(() => {
-          window.location.assign("/");
-        });
+        setDriverOwner(null);
+        setPendingPasswordChange(null);
+        setAuthView("login");
       }}
     />
   );

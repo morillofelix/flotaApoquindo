@@ -235,18 +235,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const action = request.nextUrl.searchParams.get("action");
 
+  if (action === "logout") {
+    const response = NextResponse.json({ ok: true });
+    clearDriverSessionCookie(response);
+    return response;
+  }
+
   let body: AuthBody;
 
   try {
     body = (await request.json()) as AuthBody;
   } catch {
     return NextResponse.json({ message: "Solicitud inválida." }, { status: 400 });
-  }
-
-  if (action === "logout") {
-    const response = NextResponse.json({ ok: true });
-    clearDriverSessionCookie(response);
-    return response;
   }
 
   if (action === "change-password") {

@@ -3,8 +3,10 @@ import type { PublicDriverOwner } from "@/components/DriverAccessLoginScreen";
 export async function clearDriverSession() {
   await fetch("/api/auth?action=logout", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     cache: "no-store",
+    body: "{}",
   }).catch(() => undefined);
 }
 
