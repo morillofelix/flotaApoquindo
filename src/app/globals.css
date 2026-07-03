@@ -142,17 +142,31 @@
   .ui-admin-panel {
     border: 1px solid #b7cce4;
   }
+
+  .pwa-app-shell {
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
 }
 
 html,
 body {
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: contain;
 }
 
 @media (display-mode: standalone) {
   html,
   body {
+    height: 100%;
+    overflow: hidden;
     overscroll-behavior: none;
-    touch-action: pan-x pan-y;
+  }
+
+  .pwa-app-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 }

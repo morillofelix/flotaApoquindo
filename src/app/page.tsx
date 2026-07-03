@@ -764,7 +764,7 @@ function AppointmentRequestForm({
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col overflow-y-auto overscroll-y-contain bg-[#eef3f9] text-[#0f2747]">
+    <main className="pwa-app-shell flex flex-col bg-[#eef3f9] text-[#0f2747]">
       <div className="sticky top-0 z-10 bg-[#eef3f9]/95 backdrop-blur-sm">
         <PublicPageBanner title="Solicitud de cita" />
         <div className="mx-auto flex w-full max-w-2xl justify-end px-4 pb-2 sm:px-6 md:max-w-3xl md:px-8">
@@ -778,7 +778,7 @@ function AppointmentRequestForm({
         </div>
       </div>
 
-      <div className="flex-1 px-4 pb-5 pt-0 sm:px-6 md:px-8">
+      <div className="flex-1 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-0 sm:px-6 md:px-8">
         <form
           noValidate
           onSubmit={handleSubmit}
