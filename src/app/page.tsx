@@ -13,6 +13,11 @@ import {
   checkBusinessDayAdvance,
   type PermissionReason,
 } from "@/lib/appointments";
+import {
+  type HolidayConfig,
+  checkHolidayRestrictedDates,
+  getActiveHolidayDateSet,
+} from "@/lib/holidays";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import DriverAccessLoginScreen, {
   type PublicDriverOwner,
@@ -398,6 +403,7 @@ function AppointmentRequestForm({
   const [reasons, setReasons] = useState<AppointmentReasonConfig[]>(
     defaultAppointmentReasons,
   );
+  const [holidays, setHolidays] = useState<HolidayConfig[]>([]);
   const linkedVehicleNumber = driverOwner.vehicleNumber;
   const [recentAppointments, setRecentAppointments] = useState<
     PublicAppointmentSummary[]
@@ -424,44 +430,61 @@ function AppointmentRequestForm({
       activeReasons.find((reason) => reason.value === values.appointmentReason),
     [activeReasons, values.appointmentReason],
   );
+  const holidayDateSet = useMemo(
+    () => getActiveHolidayDateSet(holidays),
+    [holidays],
+  );
   const restrictedDateCheck = useMemo(() => {
     if (!selectedReasonConfig) {
       return { blocked: false, message: "" };
     }
 
-    return checkReasonRestrictedDates(
+    const dateInput = {
+      usesDateRange: selectedReasonConfig.usesDateRange,
+      usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+      allowsExecutiveAssignment:
+        selectedReasonConfig.allowsExecutiveAssignment,
+      vacationStartDate: values.vacationStartDate,
+      vacationEndDate: values.vacationEndDate,
+      permitType: values.permitType,
+      permitStartDate: values.permitStartDate,
+      permitEndDate: values.permitEndDate,
+      permitDate: values.permitDate,
+      appointmentDate: values.appointmentDate,
+    };
+
+    const weekdayCheck = checkReasonRestrictedDates(
       selectedReasonConfig.restrictedWeekdays,
-      {
-        usesDateRange: selectedReasonConfig.usesDateRange,
-        usesPermitDetails: selectedReasonConfig.usesPermitDetails,
-        allowsExecutiveAssignment:
-          selectedReasonConfig.allowsExecutiveAssignment,
-        vacationStartDate: values.vacationStartDate,
-        vacationEndDate: values.vacationEndDate,
-        permitType: values.permitType,
-        permitStartDate: values.permitStartDate,
-        permitEndDate: values.permitEndDate,
-        permitDate: values.permitDate,
-        appointmentDate: values.appointmentDate,
-      },
+      dateInput,
     );
-  }, [selectedReasonConfig, values]);
+
+    if (weekdayCheck.blocked) {
+      return weekdayCheck;
+    }
+
+    return checkHolidayRestrictedDates(holidays, dateInput);
+  }, [selectedReasonConfig, values, holidays]);
   const businessDayAdvanceMessage = useMemo(() => {
     if (!selectedReasonConfig) {
       return "";
     }
 
-    return checkBusinessDayAdvance(selectedReasonConfig, today, {
-      usesDateRange: selectedReasonConfig.usesDateRange,
-      usesPermitDetails: selectedReasonConfig.usesPermitDetails,
-      allowsExecutiveAssignment: selectedReasonConfig.allowsExecutiveAssignment,
-      vacationStartDate: values.vacationStartDate,
-      permitType: values.permitType,
-      permitStartDate: values.permitStartDate,
-      permitDate: values.permitDate,
-      appointmentDate: values.appointmentDate,
-    }).message;
-  }, [selectedReasonConfig, today, values]);
+    return checkBusinessDayAdvance(
+      selectedReasonConfig,
+      today,
+      {
+        usesDateRange: selectedReasonConfig.usesDateRange,
+        usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+        allowsExecutiveAssignment: selectedReasonConfig.allowsExecutiveAssignment,
+        vacationStartDate: values.vacationStartDate,
+        permitType: values.permitType,
+        permitStartDate: values.permitStartDate,
+        permitDate: values.permitDate,
+        appointmentDate: values.appointmentDate,
+      },
+      holidayDateSet,
+    ).message;
+  }, [selectedReasonConfig, today, values, holidayDateSet]);
 
   useEffect(() => {
     if (!linkedVehicleNumber) {
@@ -550,6 +573,23 @@ function AppointmentRequestForm({
       })
       .catch(() => {
         setReasons(defaultAppointmentReasons);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/holidays", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los feriados.");
+        }
+
+        return response.json() as Promise<{ holidays?: HolidayConfig[] }>;
+      })
+      .then((data) => {
+        setHolidays(data.holidays ?? []);
+      })
+      .catch(() => {
+        setHolidays([]);
       });
   }, []);
 

@@ -24,6 +24,17 @@ export const weekdayOptions: Array<{
 export const RESTRICTED_DAY_MESSAGE =
   "Estimado usuario: las solicitudes para los días viernes, sábado, domingo y feriados deben ser tramitadas directamente en las oficinas de la empresa Transportes Apoquindo.";
 
+export type ReasonStartDateInput = {
+  usesDateRange: boolean;
+  usesPermitDetails: boolean;
+  allowsExecutiveAssignment?: boolean;
+  vacationStartDate?: string;
+  permitType?: string;
+  permitStartDate?: string;
+  permitDate?: string;
+  appointmentDate?: string;
+};
+
 function formatBusinessDayMinimumDate(dateValue: string) {
   const parsed = parseDateOnlyValue(dateValue);
   const formatted = new Intl.DateTimeFormat("es-CL", {
@@ -208,17 +219,6 @@ export function formatBusinessDayAdvanceSummary(
   return parts.length ? `Anticip: ${parts.join(" ")}` : "";
 }
 
-type ReasonStartDateInput = {
-  usesDateRange: boolean;
-  usesPermitDetails: boolean;
-  allowsExecutiveAssignment?: boolean;
-  vacationStartDate?: string;
-  permitType?: string;
-  permitStartDate?: string;
-  permitDate?: string;
-  appointmentDate?: string;
-};
-
 function parseDateOnlyValue(dateValue: string) {
   const [yearValue, monthValue, dayValue] = dateValue.split("-").map(Number);
   return new Date(yearValue || 0, (monthValue || 1) - 1, dayValue || 1);
@@ -231,12 +231,32 @@ function formatDateOnlyValue(dateValue: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function isBusinessDay(dateValue: Date) {
+function isBusinessDay(dateValue: Date, holidayDates?: Set<string>) {
   const weekday = dateValue.getDay();
-  return weekday !== 0 && weekday !== 6;
+
+  if (weekday === 0 || weekday === 6) {
+    return false;
+  }
+
+  if (holidayDates?.size) {
+    const year = dateValue.getFullYear();
+    const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+    const day = String(dateValue.getDate()).padStart(2, "0");
+    const dateKey = `${year}-${month}-${day}`;
+
+    if (holidayDates.has(dateKey)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
-export function addBusinessDays(fromDate: string, businessDays: number) {
+export function addBusinessDays(
+  fromDate: string,
+  businessDays: number,
+  holidayDates?: Set<string>,
+) {
   if (businessDays <= 0) {
     return fromDate;
   }
@@ -247,7 +267,7 @@ export function addBusinessDays(fromDate: string, businessDays: number) {
   while (addedDays < businessDays) {
     currentDate.setDate(currentDate.getDate() + 1);
 
-    if (isBusinessDay(currentDate)) {
+    if (isBusinessDay(currentDate, holidayDates)) {
       addedDays += 1;
     }
   }
@@ -259,12 +279,17 @@ export function meetsBusinessDayAdvance(
   todayDate: string,
   startDate: string,
   requiredBusinessDays: number,
+  holidayDates?: Set<string>,
 ) {
   if (requiredBusinessDays <= 0) {
     return true;
   }
 
-  const minimumStartDate = addBusinessDays(todayDate, requiredBusinessDays);
+  const minimumStartDate = addBusinessDays(
+    todayDate,
+    requiredBusinessDays,
+    holidayDates,
+  );
   return startDate >= minimumStartDate;
 }
 
@@ -299,6 +324,7 @@ export function checkBusinessDayAdvance(
   },
   todayDate: string,
   startDateInput: ReasonStartDateInput,
+  holidayDates?: Set<string>,
 ) {
   const config = reason.weekdayBusinessAdvance;
 
@@ -324,8 +350,8 @@ export function checkBusinessDayAdvance(
     return { blocked: false, message: "" };
   }
 
-  if (!meetsBusinessDayAdvance(todayDate, startDate, rule.days)) {
-    const minimumStartDate = addBusinessDays(todayDate, rule.days);
+  if (!meetsBusinessDayAdvance(todayDate, startDate, rule.days, holidayDates)) {
+    const minimumStartDate = addBusinessDays(todayDate, rule.days, holidayDates);
 
     return {
       blocked: true,

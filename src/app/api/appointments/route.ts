@@ -10,6 +10,11 @@ import {
   checkBusinessDayAdvance,
   checkReasonRestrictedDates,
 } from "@/lib/appointment-reason-weekdays";
+import {
+  checkHolidayRestrictedDates,
+  getActiveHolidayDateSet,
+  toHolidayConfig,
+} from "@/lib/holidays";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
@@ -253,26 +258,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const holidayRecords = reason
+    ? await prisma.holiday.findMany({
+        where: { isActive: true },
+        orderBy: { date: "asc" },
+      })
+    : [];
+  const holidays = holidayRecords.map(toHolidayConfig);
+  const holidayDateSet = getActiveHolidayDateSet(holidays);
+
   if (reason) {
+    const dateInput = {
+      usesDateRange: reason.usesDateRange,
+      usesPermitDetails: reason.usesPermitDetails,
+      allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+      vacationStartDate: appointment.vacationStartDate,
+      vacationEndDate: appointment.vacationEndDate,
+      permitType: appointment.permitType,
+      permitStartDate: appointment.permitStartDate,
+      permitEndDate: appointment.permitEndDate,
+      permitDate: appointment.permitDate,
+      appointmentDate: appointment.appointmentDate,
+    };
+
     const restrictedCheck = checkReasonRestrictedDates(
       reason.restrictedWeekdays,
-      {
-        usesDateRange: reason.usesDateRange,
-        usesPermitDetails: reason.usesPermitDetails,
-        allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
-        vacationStartDate: appointment.vacationStartDate,
-        vacationEndDate: appointment.vacationEndDate,
-        permitType: appointment.permitType,
-        permitStartDate: appointment.permitStartDate,
-        permitEndDate: appointment.permitEndDate,
-        permitDate: appointment.permitDate,
-        appointmentDate: appointment.appointmentDate,
-      },
+      dateInput,
     );
 
     if (restrictedCheck.blocked) {
       return NextResponse.json(
         { message: restrictedCheck.message },
+        { status: 403 },
+      );
+    }
+
+    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput);
+
+    if (holidayCheck.blocked) {
+      return NextResponse.json(
+        { message: holidayCheck.message },
         { status: 403 },
       );
     }
@@ -289,16 +314,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (reason) {
-    const advanceCheck = checkBusinessDayAdvance(reason, today.date, {
-      usesDateRange: reason.usesDateRange,
-      usesPermitDetails: reason.usesPermitDetails,
-      allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
-      vacationStartDate: appointment.vacationStartDate,
-      permitType: appointment.permitType,
-      permitStartDate: appointment.permitStartDate,
-      permitDate: appointment.permitDate,
-      appointmentDate: appointment.appointmentDate,
-    });
+    const advanceCheck = checkBusinessDayAdvance(
+      reason,
+      today.date,
+      {
+        usesDateRange: reason.usesDateRange,
+        usesPermitDetails: reason.usesPermitDetails,
+        allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+        vacationStartDate: appointment.vacationStartDate,
+        permitType: appointment.permitType,
+        permitStartDate: appointment.permitStartDate,
+        permitDate: appointment.permitDate,
+        appointmentDate: appointment.appointmentDate,
+      },
+      holidayDateSet,
+    );
 
     if (advanceCheck.blocked) {
       return NextResponse.json(

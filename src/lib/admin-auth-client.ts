@@ -29,6 +29,12 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     isActive: (pathname) => pathname.startsWith("/agendamientos/motivos"),
   },
   {
+    label: "Feriados",
+    href: "/agendamientos/feriados",
+    permission: "motivos",
+    isActive: (pathname) => pathname.startsWith("/agendamientos/feriados"),
+  },
+  {
     label: "Ejecutivos",
     href: "/agendamientos/ejecutivos",
     permission: "ejecutivos",

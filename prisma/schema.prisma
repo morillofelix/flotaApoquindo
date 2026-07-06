@@ -183,6 +183,22 @@ model PropietarioBank {
   @@index([isActive])
 }
 
+model Holiday {
+  id                  String   @id @default(uuid())
+  date                DateTime @unique @db.Date
+  name                String
+  year                Int
+  scope               String   @default("nacional")
+  businessDaysAdvance Int      @default(15)
+  isActive            Boolean  @default(true)
+  source              String   @default("manual")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([year])
+  @@index([isActive])
+}
+
 model AccessUser {
   id                 String    @id @default(uuid())
   email              String    @unique
