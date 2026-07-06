@@ -1,5 +1,5 @@
 import {
-  RESTRICTED_DAY_MESSAGE,
+  formatBusinessDaysLabel,
   getReasonDatesToCheck,
   type ReasonStartDateInput,
 } from "@/lib/appointment-reason-weekdays";
@@ -14,6 +14,10 @@ export type HolidayConfig = {
   isActive: boolean;
   source: string;
 };
+
+export function getHolidayRestrictedMessage(requiredDays: number) {
+  return `Esta solicitud debe tramitarse con ${formatBusinessDaysLabel(requiredDays)} de anticipación por tratarse de un día feriado. Por favor, diríjase a la oficina administrativa o contacte al departamento de flota.`;
+}
 
 export function formatHolidayDateLabel(dateValue: string) {
   const parsed = new Date(`${dateValue}T12:00:00`);
@@ -84,8 +88,16 @@ export function checkHolidayRestrictedDates(
   }
 
   for (const date of dates) {
-    if (holidayMap.has(date)) {
-      return { blocked: true, message: RESTRICTED_DAY_MESSAGE };
+    const holiday = holidayMap.get(date);
+
+    if (holiday) {
+      const requiredDays =
+        holiday.businessDaysAdvance >= 1 ? holiday.businessDaysAdvance : 1;
+
+      return {
+        blocked: true,
+        message: getHolidayRestrictedMessage(requiredDays),
+      };
     }
   }
 

@@ -301,10 +301,10 @@ export default function FeriadosPage() {
             </div>
 
             <p className="mb-3 text-xs leading-relaxed text-slate-600">
-              Los feriados activos bloquean solicitudes en línea para esas fechas
-              (vacaciones, permisos, citas). El conductor verá el mensaje general
-              de tramitación en oficinas. Los días hábiles de anticipación se usan
-              al calcular plazos y quedan registrados por feriado (por defecto 15).
+              Los feriados activos bloquean solicitudes en línea para esas fechas.
+              El conductor verá un mensaje con los días hábiles de anticipación
+              configurados para cada feriado. Los días hábiles también se excluyen
+              al calcular plazos de anticipación.
             </p>
 
             <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">

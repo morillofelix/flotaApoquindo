@@ -281,23 +281,24 @@ export async function POST(request: NextRequest) {
       appointmentDate: appointment.appointmentDate,
     };
 
+    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput);
+
+    if (holidayCheck.blocked) {
+      return NextResponse.json(
+        { message: holidayCheck.message },
+        { status: 403 },
+      );
+    }
+
     const restrictedCheck = checkReasonRestrictedDates(
       reason.restrictedWeekdays,
+      reason.weekdayBusinessAdvance,
       dateInput,
     );
 
     if (restrictedCheck.blocked) {
       return NextResponse.json(
         { message: restrictedCheck.message },
-        { status: 403 },
-      );
-    }
-
-    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput);
-
-    if (holidayCheck.blocked) {
-      return NextResponse.json(
-        { message: holidayCheck.message },
         { status: 403 },
       );
     }

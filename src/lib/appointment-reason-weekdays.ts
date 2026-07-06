@@ -24,6 +24,18 @@ export const weekdayOptions: Array<{
 export const RESTRICTED_DAY_MESSAGE =
   "Estimado usuario: las solicitudes para los días viernes, sábado, domingo y feriados deben ser tramitadas directamente en las oficinas de la empresa Transportes Apoquindo.";
 
+export function formatBusinessDaysLabel(requiredDays: number) {
+  if (requiredDays === 1) {
+    return "1 día hábil";
+  }
+
+  return `${requiredDays} días hábiles`;
+}
+
+export function getReasonRestrictedMessage(requiredDays: number) {
+  return `Existe una restricción para la fecha solicitada, la cual debe tramitarse con ${formatBusinessDaysLabel(requiredDays)} de anticipación según la configuración del motivo. Por favor, diríjase a la oficina administrativa o contacte al departamento de flota.`;
+}
+
 export type ReasonStartDateInput = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
@@ -35,51 +47,8 @@ export type ReasonStartDateInput = {
   appointmentDate?: string;
 };
 
-function formatBusinessDayMinimumDate(dateValue: string) {
-  const parsed = parseDateOnlyValue(dateValue);
-  const formatted = new Intl.DateTimeFormat("es-CL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(parsed);
-
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-}
-
-function getBusinessDayAdvanceActionPhrase(reason: {
-  usesDateRange: boolean;
-  usesPermitDetails: boolean;
-  allowsExecutiveAssignment?: boolean;
-}) {
-  if (reason.usesDateRange) {
-    return "pedir tus vacaciones";
-  }
-
-  if (reason.usesPermitDetails) {
-    return "solicitar este permiso";
-  }
-
-  if (reason.allowsExecutiveAssignment) {
-    return "agendar esta cita";
-  }
-
-  return "realizar esta solicitud";
-}
-
-export function getBusinessDayAdvanceMessage(
-  requiredDays: number,
-  minimumStartDate: string,
-  reason: {
-    usesDateRange: boolean;
-    usesPermitDetails: boolean;
-    allowsExecutiveAssignment?: boolean;
-  },
-) {
-  const formattedDate = formatBusinessDayMinimumDate(minimumStartDate);
-  const actionPhrase = getBusinessDayAdvanceActionPhrase(reason);
-
-  return `Esta solicitud requiere ${requiredDays} días hábiles de anticipación. A partir del ${formattedDate} puedes ${actionPhrase} con esa fecha de inicio. Ajusta la fecha de inicio o contacta al departamento de flota.`;
+export function getBusinessDayAdvanceMessage(requiredDays: number) {
+  return getReasonRestrictedMessage(requiredDays);
 }
 
 export type WeekdayBusinessAdvanceRule = {
@@ -91,6 +60,19 @@ export type WeekdayBusinessAdvanceConfig = Record<
   WeekdayKey,
   WeekdayBusinessAdvanceRule
 >;
+
+function getWeekdayAdvanceDays(
+  config: WeekdayBusinessAdvanceConfig,
+  weekday: WeekdayKey,
+) {
+  const rule = config[weekday];
+
+  if (rule && rule.days >= 1) {
+    return rule.days;
+  }
+
+  return 1;
+}
 
 export function createDefaultWeekdayBusinessAdvance(): WeekdayBusinessAdvanceConfig {
   return Object.fromEntries(
@@ -351,12 +333,10 @@ export function checkBusinessDayAdvance(
   }
 
   if (!meetsBusinessDayAdvance(todayDate, startDate, rule.days, holidayDates)) {
-    const minimumStartDate = addBusinessDays(todayDate, rule.days, holidayDates);
-
     return {
       blocked: true,
-      message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate, reason),
-      minimumStartDate,
+      message: getBusinessDayAdvanceMessage(rule.days),
+      minimumStartDate: addBusinessDays(todayDate, rule.days, holidayDates),
     };
   }
 
@@ -519,6 +499,7 @@ export function getReasonDatesToCheck(input: ReasonDateRangeInput) {
 
 export function checkReasonRestrictedDates(
   restrictedWeekdays: WeekdayKey[],
+  weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig,
   input: ReasonDateRangeInput,
 ) {
   if (restrictedWeekdays.length === 0) {
@@ -533,7 +514,18 @@ export function checkReasonRestrictedDates(
 
   for (const date of dates) {
     if (isReasonRestrictedOnDate(restrictedWeekdays, date)) {
-      return { blocked: true, message: RESTRICTED_DAY_MESSAGE };
+      const weekday = getWeekdayFromDate(date);
+
+      if (!weekday) {
+        return { blocked: true, message: getReasonRestrictedMessage(1) };
+      }
+
+      return {
+        blocked: true,
+        message: getReasonRestrictedMessage(
+          getWeekdayAdvanceDays(weekdayBusinessAdvance, weekday),
+        ),
+      };
     }
   }
 

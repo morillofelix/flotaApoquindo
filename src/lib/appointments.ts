@@ -10,6 +10,8 @@ export type { WeekdayKey, WeekdayBusinessAdvanceConfig };
 export {
   weekdayOptions,
   RESTRICTED_DAY_MESSAGE,
+  formatBusinessDaysLabel,
+  getReasonRestrictedMessage,
   formatRestrictedWeekdays,
   formatBusinessDayAdvanceSummary,
   getBusinessDayAdvanceMessage,
