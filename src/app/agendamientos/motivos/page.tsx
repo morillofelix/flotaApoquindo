@@ -509,6 +509,11 @@ export default function MotivosPage() {
                 <p className="text-xs font-semibold text-[#173b68]">
                   Días restringidos
                 </p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                  Marca los días en que este motivo no puede solicitarse en
+                  línea. Si la fecha elegida cae en uno de ellos, el conductor
+                  verá que debe tramitarlo presencialmente en la oficina.
+                </p>
                 <div className="mt-2 flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5">
                   {weekdayOptions.map((option) => (
                     <label

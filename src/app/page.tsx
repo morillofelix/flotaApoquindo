@@ -9,9 +9,8 @@ import {
   defaultAppointmentReasons,
   getAppointmentTicketLabel,
   getSantiagoToday,
-  isReasonRestrictedToday,
+  checkReasonRestrictedDates,
   checkBusinessDayAdvance,
-  RESTRICTED_DAY_MESSAGE,
   type PermissionReason,
 } from "@/lib/appointments";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
@@ -423,13 +422,28 @@ function AppointmentRequestForm({
       activeReasons.find((reason) => reason.value === values.appointmentReason),
     [activeReasons, values.appointmentReason],
   );
-  const isSelectedReasonRestricted = useMemo(
-    () =>
-      selectedReasonConfig
-        ? isReasonRestrictedToday(selectedReasonConfig.restrictedWeekdays)
-        : false,
-    [selectedReasonConfig],
-  );
+  const restrictedDateCheck = useMemo(() => {
+    if (!selectedReasonConfig) {
+      return { blocked: false, message: "" };
+    }
+
+    return checkReasonRestrictedDates(
+      selectedReasonConfig.restrictedWeekdays,
+      {
+        usesDateRange: selectedReasonConfig.usesDateRange,
+        usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+        allowsExecutiveAssignment:
+          selectedReasonConfig.allowsExecutiveAssignment,
+        vacationStartDate: values.vacationStartDate,
+        vacationEndDate: values.vacationEndDate,
+        permitType: values.permitType,
+        permitStartDate: values.permitStartDate,
+        permitEndDate: values.permitEndDate,
+        permitDate: values.permitDate,
+        appointmentDate: values.appointmentDate,
+      },
+    );
+  }, [selectedReasonConfig, values]);
   const businessDayAdvanceMessage = useMemo(() => {
     if (!selectedReasonConfig) {
       return "";
@@ -612,7 +626,7 @@ function AppointmentRequestForm({
 
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
-    !isSelectedReasonRestricted &&
+    !restrictedDateCheck.blocked &&
     !businessDayAdvanceMessage;
 
   async function handleLogout() {
@@ -692,8 +706,8 @@ function AppointmentRequestForm({
     });
     const submittedTooFast = Date.now() - formStartedAt < 2000;
 
-    if (isSelectedReasonRestricted) {
-      setSubmitError(RESTRICTED_DAY_MESSAGE);
+    if (restrictedDateCheck.blocked) {
+      setSubmitError(restrictedDateCheck.message);
       setShowSuccess(false);
       return;
     }
@@ -856,11 +870,6 @@ function AppointmentRequestForm({
                   {errors.appointmentReason}
                 </span>
               ) : null}
-              {isSelectedReasonRestricted ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
-                  {RESTRICTED_DAY_MESSAGE}
-                </div>
-              ) : null}
             </label>
 
             {allowsExecutiveAssignment ? (
@@ -896,6 +905,11 @@ function AppointmentRequestForm({
                 {businessDayAdvanceMessage && !usesDateRange && !usesPermitDetails ? (
                   <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
                     {businessDayAdvanceMessage}
+                  </div>
+                ) : null}
+                {restrictedDateCheck.blocked ? (
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+                    {restrictedDateCheck.message}
                   </div>
                 ) : null}
               </div>
@@ -952,6 +966,11 @@ function AppointmentRequestForm({
                 {businessDayAdvanceMessage ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900 sm:col-span-2">
                     {businessDayAdvanceMessage}
+                  </div>
+                ) : null}
+                {restrictedDateCheck.blocked ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900 sm:col-span-2">
+                    {restrictedDateCheck.message}
                   </div>
                 ) : null}
               </div>
@@ -1110,6 +1129,11 @@ function AppointmentRequestForm({
                     {businessDayAdvanceMessage}
                   </div>
                 ) : null}
+                {restrictedDateCheck.blocked ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+                    {restrictedDateCheck.message}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1140,7 +1164,7 @@ function AppointmentRequestForm({
             </p>
             <button
               type="submit"
-              disabled={isSubmitting || isSelectedReasonRestricted || Boolean(businessDayAdvanceMessage)}
+              disabled={isSubmitting || restrictedDateCheck.blocked || Boolean(businessDayAdvanceMessage)}
               className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto sm:min-w-44"
             >
               {isSubmitting ? "Registrando..." : "Validar cita"}

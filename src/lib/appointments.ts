@@ -11,6 +11,7 @@ export {
   getBusinessDayAdvanceMessage,
   getSantiagoToday,
   isReasonRestrictedToday,
+  checkReasonRestrictedDates,
   checkBusinessDayAdvance,
   parseRestrictedWeekdays,
   serializeRestrictedWeekdays,

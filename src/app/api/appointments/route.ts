@@ -2,13 +2,12 @@ import {
   type AppointmentReasonConfig,
   type PermitType,
   defaultAppointmentReasons,
-  RESTRICTED_DAY_MESSAGE,
 } from "@/lib/appointments";
 import {
   getSantiagoToday,
-  isReasonRestrictedToday,
   serializeRestrictedWeekdays,
   checkBusinessDayAdvance,
+  checkReasonRestrictedDates,
 } from "@/lib/appointment-reason-weekdays";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { prisma } from "@/lib/prisma";
@@ -237,16 +236,6 @@ export async function POST(request: NextRequest) {
   const reason = toReasonConfig(reasonConfig);
   const today = getSantiagoToday();
 
-  if (
-    reason &&
-    isReasonRestrictedToday(reason.restrictedWeekdays, today)
-  ) {
-    return NextResponse.json(
-      { message: RESTRICTED_DAY_MESSAGE },
-      { status: 403 },
-    );
-  }
-
   const appointment = validateCreateBody(
     body,
     reason,
@@ -258,6 +247,31 @@ export async function POST(request: NextRequest) {
       { message: "Datos de solicitud incompletos." },
       { status: 400 },
     );
+  }
+
+  if (reason) {
+    const restrictedCheck = checkReasonRestrictedDates(
+      reason.restrictedWeekdays,
+      {
+        usesDateRange: reason.usesDateRange,
+        usesPermitDetails: reason.usesPermitDetails,
+        allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+        vacationStartDate: appointment.vacationStartDate,
+        vacationEndDate: appointment.vacationEndDate,
+        permitType: appointment.permitType,
+        permitStartDate: appointment.permitStartDate,
+        permitEndDate: appointment.permitEndDate,
+        permitDate: appointment.permitDate,
+        appointmentDate: appointment.appointmentDate,
+      },
+    );
+
+    if (restrictedCheck.blocked) {
+      return NextResponse.json(
+        { message: restrictedCheck.message },
+        { status: 403 },
+      );
+    }
   }
 
   if (

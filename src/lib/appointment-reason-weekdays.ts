@@ -22,7 +22,7 @@ export const weekdayOptions: Array<{
 ];
 
 export const RESTRICTED_DAY_MESSAGE =
-  "Este día se encuentra restringido, por favor contactar al departamento de flota.";
+  "Este tipo de solicitud debe ser realizada de manera presencial en la oficina de Apoquindo.";
 
 function formatBusinessDayMinimumDate(dateValue: string) {
   const parsed = parseDateOnlyValue(dateValue);
@@ -271,6 +271,121 @@ export function getSantiagoToday() {
     date,
     weekday: weekdayShortMap[weekdayShort] ?? ("lunes" as WeekdayKey),
   };
+}
+
+type ReasonDateRangeInput = ReasonStartDateInput & {
+  vacationEndDate?: string;
+  permitEndDate?: string;
+};
+
+function enumerateDateRange(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const current = parseDateOnlyValue(startDate);
+  const end = parseDateOnlyValue(endDate);
+
+  while (current <= end) {
+    dates.push(formatDateOnlyValue(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+export function getWeekdayFromDate(
+  dateValue: string,
+  timeZone = "America/Santiago",
+): WeekdayKey | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return null;
+  }
+
+  const weekdayShort = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+  }).format(new Date(`${dateValue}T12:00:00`));
+
+  return weekdayShortMap[weekdayShort] ?? null;
+}
+
+export function isReasonRestrictedOnDate(
+  restrictedWeekdays: WeekdayKey[],
+  dateValue: string,
+) {
+  if (restrictedWeekdays.length === 0) {
+    return false;
+  }
+
+  const weekday = getWeekdayFromDate(dateValue);
+  return weekday !== null && restrictedWeekdays.includes(weekday);
+}
+
+export function getReasonDatesToCheck(input: ReasonDateRangeInput) {
+  if (input.usesDateRange) {
+    const start = input.vacationStartDate?.trim() ?? "";
+    const end = input.vacationEndDate?.trim() ?? "";
+
+    if (start && end && end >= start) {
+      return enumerateDateRange(start, end);
+    }
+
+    if (start) {
+      return [start];
+    }
+
+    return [];
+  }
+
+  if (input.usesPermitDetails) {
+    if (input.permitType === "dias") {
+      const start = input.permitStartDate?.trim() ?? "";
+      const end = input.permitEndDate?.trim() ?? "";
+
+      if (start && end && end >= start) {
+        return enumerateDateRange(start, end);
+      }
+
+      if (start) {
+        return [start];
+      }
+
+      return [];
+    }
+
+    if (input.permitType === "horas") {
+      const date = input.permitDate?.trim() ?? "";
+      return date ? [date] : [];
+    }
+  }
+
+  if (input.allowsExecutiveAssignment) {
+    const date = input.appointmentDate?.trim() ?? "";
+    return date ? [date] : [];
+  }
+
+  return [];
+}
+
+export function checkReasonRestrictedDates(
+  restrictedWeekdays: WeekdayKey[],
+  input: ReasonDateRangeInput,
+) {
+  if (restrictedWeekdays.length === 0) {
+    return { blocked: false, message: "" };
+  }
+
+  const dates = getReasonDatesToCheck(input);
+
+  if (dates.length === 0) {
+    return { blocked: false, message: "" };
+  }
+
+  for (const date of dates) {
+    if (isReasonRestrictedOnDate(restrictedWeekdays, date)) {
+      return { blocked: true, message: RESTRICTED_DAY_MESSAGE };
+    }
+  }
+
+  return { blocked: false, message: "" };
 }
 
 export function isReasonRestrictedToday(
