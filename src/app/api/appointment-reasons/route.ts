@@ -6,7 +6,13 @@ import {
   isWeekdayKey,
   parseRestrictedWeekdays,
   serializeRestrictedWeekdays,
+  createDefaultWeekdayBusinessAdvance,
+  parseWeekdayBusinessAdvance,
+  deriveLegacyBusinessAdvanceFields,
+  serializeWeekdayBusinessAdvance,
+  hasEnabledWeekdayBusinessAdvance,
   type WeekdayKey,
+  type WeekdayBusinessAdvanceConfig,
 } from "@/lib/appointment-reason-weekdays";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -25,6 +31,7 @@ type ReasonBody = {
   usesPermitDetails?: unknown;
   isActive?: unknown;
   restrictedWeekdays?: unknown;
+  weekdayBusinessAdvance?: unknown;
   requiresBusinessDayAdvance?: unknown;
   businessDaysAdvance?: unknown;
 };
@@ -55,6 +62,7 @@ function toReason(
     usesPermitDetails: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
+    weekdayBusinessAdvance: string;
     requiresBusinessDayAdvance: boolean;
     businessDaysAdvance: number;
     sortOrder: number;
@@ -73,6 +81,13 @@ function toReason(
     usesPermitDetails: value.usesPermitDetails,
     isActive: value.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(value.restrictedWeekdays),
+    weekdayBusinessAdvance: parseWeekdayBusinessAdvance(
+      value.weekdayBusinessAdvance,
+      {
+        requiresBusinessDayAdvance: value.requiresBusinessDayAdvance,
+        businessDaysAdvance: value.businessDaysAdvance,
+      },
+    ),
     requiresBusinessDayAdvance: value.requiresBusinessDayAdvance,
     businessDaysAdvance: value.businessDaysAdvance,
     sortOrder: value.sortOrder,
@@ -89,6 +104,70 @@ function parseRestrictedWeekdaysBody(value: unknown): WeekdayKey[] {
   );
 }
 
+function parseWeekdayBusinessAdvanceBody(
+  value: unknown,
+): WeekdayBusinessAdvanceConfig | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const config = createDefaultWeekdayBusinessAdvance();
+
+  for (const option of Object.keys(config) as WeekdayKey[]) {
+    const rule = (value as Record<string, unknown>)[option];
+
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) {
+      continue;
+    }
+
+    const ruleRecord = rule as Record<string, unknown>;
+    config[option] = {
+      enabled: ruleRecord.enabled === true,
+      days: parseBusinessDaysAdvance(ruleRecord.days) || 1,
+    };
+  }
+
+  return config;
+}
+
+function resolveWeekdayBusinessAdvanceFromBody(
+  body: ReasonBody,
+): WeekdayBusinessAdvanceConfig {
+  const parsedBody = parseWeekdayBusinessAdvanceBody(body.weekdayBusinessAdvance);
+
+  if (parsedBody) {
+    return parsedBody;
+  }
+
+  const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
+  const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
+  const config = createDefaultWeekdayBusinessAdvance();
+
+  if (requiresBusinessDayAdvance && businessDaysAdvance >= 1) {
+    for (const option of Object.keys(config) as WeekdayKey[]) {
+      config[option] = { enabled: true, days: businessDaysAdvance };
+    }
+  }
+
+  return config;
+}
+
+function validateWeekdayBusinessAdvance(config: WeekdayBusinessAdvanceConfig) {
+  if (!hasEnabledWeekdayBusinessAdvance(config)) {
+    return "";
+  }
+
+  for (const option of Object.keys(config) as WeekdayKey[]) {
+    const rule = config[option];
+
+    if (rule.enabled && rule.days < 1) {
+      return "Ingresa días hábiles válidos para cada día activo.";
+    }
+  }
+
+  return "";
+}
+
 async function ensureDefaultReasons() {
   await prisma.appointmentReason.createMany({
     data: defaultAppointmentReasons.map((reason) => ({
@@ -103,6 +182,9 @@ async function ensureDefaultReasons() {
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
+      weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
+        reason.weekdayBusinessAdvance,
+      ),
       requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
       businessDaysAdvance: reason.businessDaysAdvance,
       sortOrder: reason.sortOrder,
@@ -243,14 +325,18 @@ export async function POST(request: NextRequest) {
   }
 
   const restrictedWeekdays = parseRestrictedWeekdaysBody(body.restrictedWeekdays);
-  const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
-  const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
+  const weekdayBusinessAdvance = resolveWeekdayBusinessAdvanceFromBody(body);
+  const advanceValidationMessage =
+    validateWeekdayBusinessAdvance(weekdayBusinessAdvance);
+  const legacyAdvanceFields = deriveLegacyBusinessAdvanceFields(
+    weekdayBusinessAdvance,
+  );
   const durationFields = normalizeReasonDurationFields(body);
   const scheduleValidationMessage = validateReasonScheduleFields(durationFields);
 
-  if (requiresBusinessDayAdvance && businessDaysAdvance < 1) {
+  if (advanceValidationMessage) {
     return NextResponse.json(
-      { message: "Ingresa un número válido de días hábiles." },
+      { message: advanceValidationMessage },
       { status: 400 },
     );
   }
@@ -272,8 +358,11 @@ export async function POST(request: NextRequest) {
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
       restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
-      requiresBusinessDayAdvance,
-      businessDaysAdvance,
+      weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
+        weekdayBusinessAdvance,
+      ),
+      requiresBusinessDayAdvance: legacyAdvanceFields.requiresBusinessDayAdvance,
+      businessDaysAdvance: legacyAdvanceFields.businessDaysAdvance,
       sortOrder: (existingCount + 1) * 10,
     },
   });
@@ -304,14 +393,18 @@ export async function PATCH(request: NextRequest) {
   }
 
   const restrictedWeekdays = parseRestrictedWeekdaysBody(body.restrictedWeekdays);
-  const requiresBusinessDayAdvance = getBoolean(body.requiresBusinessDayAdvance);
-  const businessDaysAdvance = parseBusinessDaysAdvance(body.businessDaysAdvance);
+  const weekdayBusinessAdvance = resolveWeekdayBusinessAdvanceFromBody(body);
+  const advanceValidationMessage =
+    validateWeekdayBusinessAdvance(weekdayBusinessAdvance);
+  const legacyAdvanceFields = deriveLegacyBusinessAdvanceFields(
+    weekdayBusinessAdvance,
+  );
   const durationFields = normalizeReasonDurationFields(body);
   const scheduleValidationMessage = validateReasonScheduleFields(durationFields);
 
-  if (requiresBusinessDayAdvance && businessDaysAdvance < 1) {
+  if (advanceValidationMessage) {
     return NextResponse.json(
-      { message: "Ingresa un número válido de días hábiles." },
+      { message: advanceValidationMessage },
       { status: 400 },
     );
   }
@@ -334,8 +427,11 @@ export async function PATCH(request: NextRequest) {
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         isActive: getBoolean(body.isActive),
         restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
-        requiresBusinessDayAdvance,
-        businessDaysAdvance,
+        weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
+          weekdayBusinessAdvance,
+        ),
+        requiresBusinessDayAdvance: legacyAdvanceFields.requiresBusinessDayAdvance,
+        businessDaysAdvance: legacyAdvanceFields.businessDaysAdvance,
       },
     });
 

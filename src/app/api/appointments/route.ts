@@ -6,6 +6,7 @@ import {
 import {
   getSantiagoToday,
   serializeRestrictedWeekdays,
+  serializeWeekdayBusinessAdvance,
   checkBusinessDayAdvance,
   checkReasonRestrictedDates,
 } from "@/lib/appointment-reason-weekdays";
@@ -86,6 +87,9 @@ async function ensureDefaultReasons() {
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
+      weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
+        reason.weekdayBusinessAdvance,
+      ),
       requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
       businessDaysAdvance: reason.businessDaysAdvance,
       sortOrder: reason.sortOrder,

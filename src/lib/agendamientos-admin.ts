@@ -6,6 +6,7 @@ import {
   defaultAppointmentReasons,
   defaultExecutives,
   formatRestrictedWeekdays,
+  formatBusinessDayAdvanceSummary,
 } from "@/lib/appointments";
 import { type DriverOwnerConfig } from "@/lib/driver-owners";
 import { type PropietarioConfig } from "@/lib/propietarios";
@@ -151,8 +152,7 @@ export function downloadAppointmentReasonsExcel(
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesPermitDetails))}</td>
           <td>${escapeExcelHtml(formatExcelActiveStatus(reason.isActive))}</td>
           <td>${escapeExcelHtml(formatRestrictedWeekdays(reason.restrictedWeekdays))}</td>
-          <td>${escapeExcelHtml(reason.requiresBusinessDayAdvance ? "Sí" : "No")}</td>
-          <td>${escapeExcelHtml(reason.requiresBusinessDayAdvance ? String(reason.businessDaysAdvance) : "0")}</td>
+          <td>${escapeExcelHtml(formatBusinessDayAdvanceSummary(reason.weekdayBusinessAdvance) || "—")}</td>
           <td>${escapeExcelHtml(String(reason.sortOrder))}</td>
         </tr>`,
     )
@@ -174,8 +174,7 @@ export function downloadAppointmentReasonsExcel(
               <th>Permiso horas/días</th>
               <th>Estado</th>
               <th>Días restringidos</th>
-              <th>Anticip. activa</th>
-              <th>Días háb. anticip.</th>
+              <th>Anticipación por día</th>
               <th>Orden</th>
             </tr>
           </thead>

@@ -71,15 +71,141 @@ export function getBusinessDayAdvanceMessage(
   return `Esta solicitud requiere ${requiredDays} días hábiles de anticipación. A partir del ${formattedDate} puedes ${actionPhrase} con esa fecha de inicio. Ajusta la fecha de inicio o contacta al departamento de flota.`;
 }
 
-export function formatBusinessDayAdvanceSummary(
-  requiresBusinessDayAdvance: boolean,
-  businessDaysAdvance: number,
-) {
-  if (!requiresBusinessDayAdvance || businessDaysAdvance < 1) {
-    return "";
+export type WeekdayBusinessAdvanceRule = {
+  enabled: boolean;
+  days: number;
+};
+
+export type WeekdayBusinessAdvanceConfig = Record<
+  WeekdayKey,
+  WeekdayBusinessAdvanceRule
+>;
+
+export function createDefaultWeekdayBusinessAdvance(): WeekdayBusinessAdvanceConfig {
+  return Object.fromEntries(
+    weekdayOptions.map((option) => [
+      option.value,
+      { enabled: false, days: 1 },
+    ]),
+  ) as WeekdayBusinessAdvanceConfig;
+}
+
+function normalizeBusinessAdvanceDays(value: unknown) {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
   }
 
-  return `Anticip: ${businessDaysAdvance} d. háb.`;
+  return Math.min(parsed, 365);
+}
+
+export function serializeWeekdayBusinessAdvance(
+  config: WeekdayBusinessAdvanceConfig,
+) {
+  return JSON.stringify(config);
+}
+
+export function parseWeekdayBusinessAdvance(
+  value: string | WeekdayBusinessAdvanceConfig | null | undefined,
+  legacy?: {
+    requiresBusinessDayAdvance: boolean;
+    businessDaysAdvance: number;
+  },
+): WeekdayBusinessAdvanceConfig {
+  const defaults = createDefaultWeekdayBusinessAdvance();
+  let hasAnyConfigured = false;
+
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    for (const option of weekdayOptions) {
+      const rule = value[option.value];
+
+      if (rule && typeof rule === "object") {
+        defaults[option.value] = {
+          enabled: Boolean(rule.enabled),
+          days: normalizeBusinessAdvanceDays(rule.days),
+        };
+
+        if (defaults[option.value].enabled) {
+          hasAnyConfigured = true;
+        }
+      }
+    }
+  } else if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value) as Partial<WeekdayBusinessAdvanceConfig>;
+
+      for (const option of weekdayOptions) {
+        const rule = parsed[option.value];
+
+        if (rule && typeof rule === "object") {
+          defaults[option.value] = {
+            enabled: Boolean(rule.enabled),
+            days: normalizeBusinessAdvanceDays(rule.days),
+          };
+
+          if (defaults[option.value].enabled) {
+            hasAnyConfigured = true;
+          }
+        }
+      }
+    } catch {
+      // ignore invalid JSON
+    }
+  }
+
+  if (
+    !hasAnyConfigured &&
+    legacy?.requiresBusinessDayAdvance &&
+    legacy.businessDaysAdvance >= 1
+  ) {
+    for (const option of weekdayOptions) {
+      defaults[option.value] = {
+        enabled: true,
+        days: legacy.businessDaysAdvance,
+      };
+    }
+  }
+
+  return defaults;
+}
+
+export function deriveLegacyBusinessAdvanceFields(
+  config: WeekdayBusinessAdvanceConfig,
+) {
+  const enabledRules = weekdayOptions
+    .map((option) => config[option.value])
+    .filter((rule) => rule.enabled && rule.days >= 1);
+
+  return {
+    requiresBusinessDayAdvance: enabledRules.length > 0,
+    businessDaysAdvance: enabledRules[0]?.days ?? 0,
+  };
+}
+
+export function hasEnabledWeekdayBusinessAdvance(
+  config: WeekdayBusinessAdvanceConfig,
+) {
+  return weekdayOptions.some(
+    (option) =>
+      config[option.value].enabled && config[option.value].days >= 1,
+  );
+}
+
+export function formatBusinessDayAdvanceSummary(
+  config: WeekdayBusinessAdvanceConfig,
+) {
+  const parts = weekdayOptions
+    .filter(
+      (option) =>
+        config[option.value].enabled && config[option.value].days >= 1,
+    )
+    .map((option) => `${option.shortLabel}:${config[option.value].days}`);
+
+  return parts.length ? `Anticip: ${parts.join(" ")}` : "";
 }
 
 type ReasonStartDateInput = {
@@ -166,8 +292,7 @@ export function getReasonStartDate(input: ReasonStartDateInput) {
 
 export function checkBusinessDayAdvance(
   reason: {
-    requiresBusinessDayAdvance: boolean;
-    businessDaysAdvance: number;
+    weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
     allowsExecutiveAssignment?: boolean;
@@ -175,7 +300,9 @@ export function checkBusinessDayAdvance(
   todayDate: string,
   startDateInput: ReasonStartDateInput,
 ) {
-  if (!reason.requiresBusinessDayAdvance || reason.businessDaysAdvance < 1) {
+  const config = reason.weekdayBusinessAdvance;
+
+  if (!hasEnabledWeekdayBusinessAdvance(config)) {
     return { blocked: false, message: "" };
   }
 
@@ -185,25 +312,24 @@ export function checkBusinessDayAdvance(
     return { blocked: false, message: "" };
   }
 
-  if (
-    !meetsBusinessDayAdvance(
-      todayDate,
-      startDate,
-      reason.businessDaysAdvance,
-    )
-  ) {
-    const minimumStartDate = addBusinessDays(
-      todayDate,
-      reason.businessDaysAdvance,
-    );
+  const weekday = getWeekdayFromDate(startDate);
+
+  if (!weekday) {
+    return { blocked: false, message: "" };
+  }
+
+  const rule = config[weekday];
+
+  if (!rule.enabled || rule.days < 1) {
+    return { blocked: false, message: "" };
+  }
+
+  if (!meetsBusinessDayAdvance(todayDate, startDate, rule.days)) {
+    const minimumStartDate = addBusinessDays(todayDate, rule.days);
 
     return {
       blocked: true,
-      message: getBusinessDayAdvanceMessage(
-        reason.businessDaysAdvance,
-        minimumStartDate,
-        reason,
-      ),
+      message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate, reason),
       minimumStartDate,
     };
   }

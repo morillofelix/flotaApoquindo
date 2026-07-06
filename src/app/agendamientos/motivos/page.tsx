@@ -4,9 +4,11 @@ import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeade
 import {
   type AppointmentReasonConfig,
   type WeekdayKey,
+  type WeekdayBusinessAdvanceConfig,
   weekdayOptions,
   formatRestrictedWeekdays,
   formatBusinessDayAdvanceSummary,
+  createDefaultWeekdayBusinessAdvance,
 } from "@/lib/appointments";
 import {
   downloadAppointmentReasonsExcel,
@@ -28,8 +30,7 @@ type ReasonForm = {
   usesPermitDetails: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
-  requiresBusinessDayAdvance: boolean;
-  businessDaysAdvance: number;
+  weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig;
 };
 
 type ReasonBooleanField =
@@ -56,8 +57,7 @@ const emptyReasonForm: ReasonForm = {
   usesPermitDetails: false,
   isActive: true,
   restrictedWeekdays: [],
-  requiresBusinessDayAdvance: false,
-  businessDaysAdvance: 5,
+  weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
 };
 
 export default function MotivosPage() {
@@ -136,8 +136,7 @@ export default function MotivosPage() {
       usesPermitDetails: reason.usesPermitDetails,
       isActive: reason.isActive,
       restrictedWeekdays: reason.restrictedWeekdays,
-      requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
-      businessDaysAdvance: reason.businessDaysAdvance || 5,
+      weekdayBusinessAdvance: reason.weekdayBusinessAdvance,
     });
     setReasonMessage("");
     setReasonError("");
@@ -158,6 +157,22 @@ export default function MotivosPage() {
     }));
   }
 
+  function updateWeekdayBusinessAdvance(
+    weekday: WeekdayKey,
+    patch: Partial<WeekdayBusinessAdvanceConfig[WeekdayKey]>,
+  ) {
+    setReasonForm((currentForm) => ({
+      ...currentForm,
+      weekdayBusinessAdvance: {
+        ...currentForm.weekdayBusinessAdvance,
+        [weekday]: {
+          ...currentForm.weekdayBusinessAdvance[weekday],
+          ...patch,
+        },
+      },
+    }));
+  }
+
   async function saveReason(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setReasonMessage("");
@@ -168,12 +183,13 @@ export default function MotivosPage() {
       return;
     }
 
-    if (
-      reasonForm.requiresBusinessDayAdvance &&
-      reasonForm.businessDaysAdvance < 1
-    ) {
-      setReasonError("Ingresa un número válido de días hábiles.");
-      return;
+    for (const option of weekdayOptions) {
+      const rule = reasonForm.weekdayBusinessAdvance[option.value];
+
+      if (rule.enabled && rule.days < 1) {
+        setReasonError("Ingresa días hábiles válidos para cada día activo.");
+        return;
+      }
     }
 
     if (
@@ -312,8 +328,7 @@ export default function MotivosPage() {
                             ? `Restringe: ${formatRestrictedWeekdays(reason.restrictedWeekdays)}`
                             : "",
                           formatBusinessDayAdvanceSummary(
-                            reason.requiresBusinessDayAdvance,
-                            reason.businessDaysAdvance,
+                            reason.weekdayBusinessAdvance,
                           ),
                         ]
                           .filter(Boolean)
@@ -535,41 +550,56 @@ export default function MotivosPage() {
                   ))}
                 </div>
 
-                <div className="mt-3 flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3">
-                  <span className="shrink-0 text-[11px] font-semibold text-[#173b68]">
-                    Anticip. días háb.
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
-                    value={reasonForm.businessDaysAdvance}
-                    disabled={!reasonForm.requiresBusinessDayAdvance}
-                    onChange={(event) =>
-                      setReasonForm((currentForm) => ({
-                        ...currentForm,
-                        businessDaysAdvance: Number.parseInt(
-                          event.target.value,
-                          10,
-                        ) || 0,
-                      }))
-                    }
-                    className="h-8 w-14 rounded-xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                  <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[#173b68]">
-                    Activo
-                    <input
-                      type="checkbox"
-                      checked={reasonForm.requiresBusinessDayAdvance}
-                      onChange={(event) =>
-                        setReasonForm((currentForm) => ({
-                          ...currentForm,
-                          requiresBusinessDayAdvance: event.target.checked,
-                        }))
-                      }
-                      className="h-3.5 w-3.5 accent-[#0b5cab]"
-                    />
-                  </label>
+                <p className="mt-4 text-xs font-semibold text-[#173b68]">
+                  Anticipación por día hábil
+                </p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                  Define cuántos días hábiles de anticipación exige cada día de
+                  la semana según la fecha solicitada. Si un día está inactivo,
+                  no aplica anticipación para solicitudes que caigan en ese día.
+                </p>
+                <div className="mt-2 grid gap-2">
+                  {weekdayOptions.map((option) => (
+                    <div
+                      key={option.value}
+                      className="flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3"
+                    >
+                      <span className="w-8 shrink-0 text-[11px] font-semibold lowercase text-[#173b68]">
+                        {option.shortLabel}
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={reasonForm.weekdayBusinessAdvance[option.value].days}
+                        disabled={
+                          !reasonForm.weekdayBusinessAdvance[option.value].enabled
+                        }
+                        onChange={(event) =>
+                          updateWeekdayBusinessAdvance(option.value, {
+                            days:
+                              Number.parseInt(event.target.value, 10) || 0,
+                          })
+                        }
+                        className="h-8 w-14 rounded-xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[#173b68]">
+                        Activo
+                        <input
+                          type="checkbox"
+                          checked={
+                            reasonForm.weekdayBusinessAdvance[option.value].enabled
+                          }
+                          onChange={(event) =>
+                            updateWeekdayBusinessAdvance(option.value, {
+                              enabled: event.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-[#0b5cab]"
+                        />
+                      </label>
+                    </div>
+                  ))}
                 </div>
               </div>
 

@@ -1,8 +1,12 @@
 export const APPOINTMENTS_STORAGE_KEY = "apoquindo-permission-appointments";
 
-import { type WeekdayKey } from "@/lib/appointment-reason-weekdays";
+import {
+  type WeekdayKey,
+  type WeekdayBusinessAdvanceConfig,
+  createDefaultWeekdayBusinessAdvance,
+} from "@/lib/appointment-reason-weekdays";
 
-export type { WeekdayKey };
+export type { WeekdayKey, WeekdayBusinessAdvanceConfig };
 export {
   weekdayOptions,
   RESTRICTED_DAY_MESSAGE,
@@ -15,6 +19,8 @@ export {
   checkBusinessDayAdvance,
   parseRestrictedWeekdays,
   serializeRestrictedWeekdays,
+  createDefaultWeekdayBusinessAdvance,
+  parseWeekdayBusinessAdvance,
 } from "@/lib/appointment-reason-weekdays";
 
 export type AppointmentReasonConfig = {
@@ -30,6 +36,7 @@ export type AppointmentReasonConfig = {
   usesPermitDetails: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
+  weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig;
   requiresBusinessDayAdvance: boolean;
   businessDaysAdvance: number;
   sortOrder: number;
@@ -48,6 +55,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: false,
     isActive: true,
     restrictedWeekdays: [],
+    weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
     requiresBusinessDayAdvance: false,
     businessDaysAdvance: 0,
     sortOrder: 10,
@@ -64,6 +72,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: false,
     isActive: true,
     restrictedWeekdays: [],
+    weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
     requiresBusinessDayAdvance: false,
     businessDaysAdvance: 0,
     sortOrder: 20,
@@ -80,6 +89,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: true,
     isActive: true,
     restrictedWeekdays: [],
+    weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
     requiresBusinessDayAdvance: false,
     businessDaysAdvance: 0,
     sortOrder: 30,
@@ -96,6 +106,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: false,
     isActive: true,
     restrictedWeekdays: [],
+    weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
     requiresBusinessDayAdvance: false,
     businessDaysAdvance: 0,
     sortOrder: 40,

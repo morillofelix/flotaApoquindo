@@ -5,7 +5,7 @@ import {
   type PermitType,
   getPermissionReasonLabel,
 } from "@/lib/appointments";
-import { parseRestrictedWeekdays } from "@/lib/appointment-reason-weekdays";
+import { parseRestrictedWeekdays, parseWeekdayBusinessAdvance } from "@/lib/appointment-reason-weekdays";
 
 const validStatuses: AppointmentStatus[] = [
   "pendiente",
@@ -36,6 +36,7 @@ export function toReasonConfig(
     usesPermitDetails: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
+    weekdayBusinessAdvance: string;
     requiresBusinessDayAdvance: boolean;
     businessDaysAdvance: number;
     sortOrder: number;
@@ -57,6 +58,13 @@ export function toReasonConfig(
     usesPermitDetails: reason.usesPermitDetails,
     isActive: reason.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
+    weekdayBusinessAdvance: parseWeekdayBusinessAdvance(
+      reason.weekdayBusinessAdvance,
+      {
+        requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
+        businessDaysAdvance: reason.businessDaysAdvance,
+      },
+    ),
     requiresBusinessDayAdvance: reason.requiresBusinessDayAdvance,
     businessDaysAdvance: reason.businessDaysAdvance,
     sortOrder: reason.sortOrder,
