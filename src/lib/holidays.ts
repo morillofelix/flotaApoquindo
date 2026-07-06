@@ -1,6 +1,6 @@
 import {
-  formatBusinessDaysLabel,
   getReasonDatesToCheck,
+  getRestrictedDateMessage,
   type ReasonStartDateInput,
 } from "@/lib/appointment-reason-weekdays";
 
@@ -16,7 +16,7 @@ export type HolidayConfig = {
 };
 
 export function getHolidayRestrictedMessage(requiredDays: number) {
-  return `Esta solicitud debe tramitarse con ${formatBusinessDaysLabel(requiredDays)} de anticipación por tratarse de un día feriado. Por favor, diríjase a la oficina administrativa o contacte al departamento de flota.`;
+  return getRestrictedDateMessage(requiredDays);
 }
 
 export function formatHolidayDateLabel(dateValue: string) {

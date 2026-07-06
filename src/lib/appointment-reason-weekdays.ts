@@ -32,8 +32,12 @@ export function formatBusinessDaysLabel(requiredDays: number) {
   return `${requiredDays} días hábiles`;
 }
 
+export function getRestrictedDateMessage(requiredDays: number) {
+  return `La fecha seleccionada requiere ser solicitada con al menos ${formatBusinessDaysLabel(requiredDays)} de anticipación. Para más información o asistencia, por favor diríjase a la Oficina Administrativa o contacte al Departamento de Flota.`;
+}
+
 export function getReasonRestrictedMessage(requiredDays: number) {
-  return `Existe una restricción para la fecha solicitada, la cual debe tramitarse con ${formatBusinessDaysLabel(requiredDays)} de anticipación según la configuración del motivo. Por favor, diríjase a la oficina administrativa o contacte al departamento de flota.`;
+  return getRestrictedDateMessage(requiredDays);
 }
 
 export type ReasonStartDateInput = {

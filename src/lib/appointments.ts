@@ -12,6 +12,7 @@ export {
   RESTRICTED_DAY_MESSAGE,
   formatBusinessDaysLabel,
   getReasonRestrictedMessage,
+  getRestrictedDateMessage,
   formatRestrictedWeekdays,
   formatBusinessDayAdvanceSummary,
   getBusinessDayAdvanceMessage,
