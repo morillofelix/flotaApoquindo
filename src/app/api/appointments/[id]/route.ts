@@ -3,6 +3,7 @@ import {
   appointmentDatesChanged,
   buildDateChangeMessage,
   canEditAppointmentDates,
+  isValidClockTime,
   isValidDateOnly,
   shouldRescheduleExecutiveCalendar,
   type AppointmentDatePatch,
@@ -29,6 +30,8 @@ type PatchBody = {
   permitStartDate?: unknown;
   permitEndDate?: unknown;
   permitDate?: unknown;
+  permitStartTime?: unknown;
+  permitEndTime?: unknown;
   acknowledgeDateChange?: unknown;
 };
 
@@ -58,6 +61,10 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
   const permitStartDate = parseDateField(body.permitStartDate);
   const permitEndDate = parseDateField(body.permitEndDate);
   const permitDate = parseDateField(body.permitDate);
+  const permitStartTime =
+    typeof body.permitStartTime === "string" ? body.permitStartTime.trim() : "";
+  const permitEndTime =
+    typeof body.permitEndTime === "string" ? body.permitEndTime.trim() : "";
 
   if (appointmentDate) {
     patch.appointmentDate = appointmentDate;
@@ -86,6 +93,16 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
 
   if (permitDate) {
     patch.permitDate = permitDate;
+    hasPatch = true;
+  }
+
+  if (permitStartTime) {
+    patch.permitStartTime = permitStartTime;
+    hasPatch = true;
+  }
+
+  if (permitEndTime) {
+    patch.permitEndTime = permitEndTime;
     hasPatch = true;
   }
 
@@ -202,13 +219,29 @@ function validateDatePatchForReason(
     }
   }
 
-  if (patch.permitDate !== undefined) {
+  if (
+    patch.permitDate !== undefined ||
+    patch.permitStartTime !== undefined ||
+    patch.permitEndTime !== undefined
+  ) {
     if (!reason.usesPermitDetails || current.permitType !== "horas") {
-      return "Este permiso no permite cambiar esa fecha.";
+      return "Este permiso no permite cambiar esa fecha u horario.";
     }
 
-    if (!isValidDateOnly(patch.permitDate)) {
-      return "Ingresa una fecha válida.";
+    const permitDate = patch.permitDate;
+    const permitStartTime = patch.permitStartTime;
+    const permitEndTime = patch.permitEndTime;
+
+    if (
+      !permitDate ||
+      !permitStartTime ||
+      !permitEndTime ||
+      !isValidDateOnly(permitDate) ||
+      !isValidClockTime(permitStartTime) ||
+      !isValidClockTime(permitEndTime) ||
+      permitEndTime <= permitStartTime
+    ) {
+      return "Ingresa una fecha y horario de permiso válidos.";
     }
   }
 
@@ -267,6 +300,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     permitStartDate?: Date | null;
     permitEndDate?: Date | null;
     permitDate?: Date | null;
+    permitStartTime?: string;
+    permitEndTime?: string;
     dateChangePending?: boolean;
     dateChangeMessage?: string;
   } = {};
@@ -362,7 +397,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
 
       const validationMessage = validateDatePatchForReason(
-        datePatch,
+        {
+          ...datePatch,
+          permitDate:
+            datePatch.permitDate ??
+            (datePatch.permitStartTime || datePatch.permitEndTime
+              ? previousAppointment.permitDate
+              : undefined),
+          permitStartTime:
+            datePatch.permitStartTime ??
+            (datePatch.permitDate || datePatch.permitEndTime
+              ? previousAppointment.permitStartTime
+              : undefined),
+          permitEndTime:
+            datePatch.permitEndTime ??
+            (datePatch.permitDate || datePatch.permitStartTime
+              ? previousAppointment.permitEndTime
+              : undefined),
+        },
         reason,
         currentAppointment,
       );
@@ -400,6 +452,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       if (datePatch.permitDate !== undefined) {
         data.permitDate = toDateOnly(datePatch.permitDate);
+      }
+
+      if (datePatch.permitStartTime !== undefined) {
+        data.permitStartTime = datePatch.permitStartTime;
+      }
+
+      if (datePatch.permitEndTime !== undefined) {
+        data.permitEndTime = datePatch.permitEndTime;
       }
 
       requiresCalendarCancel = shouldRescheduleExecutiveCalendar(previousAppointment);

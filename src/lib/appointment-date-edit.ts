@@ -18,6 +18,8 @@ export type AppointmentDatePatch = {
   permitStartDate?: string;
   permitEndDate?: string;
   permitDate?: string;
+  permitStartTime?: string;
+  permitEndTime?: string;
 };
 
 function parseDateOnly(dateValue: string) {
@@ -80,6 +82,83 @@ export function canEditAppointmentDates(status: AppointmentStatus) {
   return DATE_EDITABLE_STATUSES.includes(status);
 }
 
+export function isValidClockTime(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+export function formatPermitHorasSummary(
+  permitDate: string,
+  permitStartTime: string,
+  permitEndTime: string,
+) {
+  return `${formatDate(permitDate)}, ${permitStartTime} a ${permitEndTime}`;
+}
+
+function buildPermitHorasPatch(
+  appointment: Appointment,
+  changes: Partial<
+    Pick<
+      AppointmentDatePatch,
+      "permitDate" | "permitStartTime" | "permitEndTime"
+    >
+  >,
+): AppointmentDatePatch | null {
+  const permitDate = changes.permitDate ?? appointment.permitDate;
+  const permitStartTime = changes.permitStartTime ?? appointment.permitStartTime;
+  const permitEndTime = changes.permitEndTime ?? appointment.permitEndTime;
+
+  if (
+    !isValidDateOnly(permitDate) ||
+    !isValidClockTime(permitStartTime) ||
+    !isValidClockTime(permitEndTime) ||
+    permitEndTime <= permitStartTime
+  ) {
+    return null;
+  }
+
+  if (
+    permitDate === appointment.permitDate &&
+    permitStartTime === appointment.permitStartTime &&
+    permitEndTime === appointment.permitEndTime
+  ) {
+    return null;
+  }
+
+  return { permitDate, permitStartTime, permitEndTime };
+}
+
+export function buildDateChangePreviewLabel(patch: AppointmentDatePatch) {
+  if (patch.appointmentDate) {
+    return `Nueva fecha de atención: ${formatDate(patch.appointmentDate)}`;
+  }
+
+  if (patch.vacationStartDate && patch.vacationEndDate) {
+    return `Nuevo rango: ${formatDate(patch.vacationStartDate)} al ${formatDate(patch.vacationEndDate)}`;
+  }
+
+  if (patch.permitStartDate && patch.permitEndDate) {
+    return `Nuevo rango: ${formatDate(patch.permitStartDate)} al ${formatDate(patch.permitEndDate)}`;
+  }
+
+  if (
+    patch.permitDate &&
+    patch.permitStartTime &&
+    patch.permitEndTime
+  ) {
+    return `Nuevo horario: ${formatPermitHorasSummary(
+      patch.permitDate,
+      patch.permitStartTime,
+      patch.permitEndTime,
+    )}`;
+  }
+
+  if (patch.permitDate) {
+    return `Nueva fecha: ${formatDate(patch.permitDate)}`;
+  }
+
+  return "Se actualizarán las fechas de la solicitud.";
+}
+
 export function buildDatePatchFromFieldChange(
   appointment: Appointment,
   reason: AppointmentReasonConfig | undefined,
@@ -87,7 +166,9 @@ export function buildDatePatchFromFieldChange(
     | "appointmentDate"
     | "vacationStartDate"
     | "permitStartDate"
-    | "permitDate",
+    | "permitDate"
+    | "permitStartTime"
+    | "permitEndTime",
   value: string,
 ): AppointmentDatePatch | null {
   if (!isValidDateOnly(value)) {
@@ -146,11 +227,27 @@ export function buildDatePatchFromFieldChange(
   }
 
   if (field === "permitDate" && reason?.usesPermitDetails) {
-    if (appointment.permitType !== "horas" || value === appointment.permitDate) {
+    if (appointment.permitType !== "horas") {
       return null;
     }
 
-    return { permitDate: value };
+    return buildPermitHorasPatch(appointment, { permitDate: value });
+  }
+
+  if (field === "permitStartTime" && reason?.usesPermitDetails) {
+    if (appointment.permitType !== "horas") {
+      return null;
+    }
+
+    return buildPermitHorasPatch(appointment, { permitStartTime: value });
+  }
+
+  if (field === "permitEndTime" && reason?.usesPermitDetails) {
+    if (appointment.permitType !== "horas") {
+      return null;
+    }
+
+    return buildPermitHorasPatch(appointment, { permitEndTime: value });
   }
 
   return null;
@@ -183,8 +280,22 @@ export function appointmentDatesChanged(
     return true;
   }
 
-  if (patch.permitDate !== undefined && patch.permitDate !== appointment.permitDate) {
-    return true;
+  if (
+    patch.permitDate !== undefined ||
+    patch.permitStartTime !== undefined ||
+    patch.permitEndTime !== undefined
+  ) {
+    const permitDate = patch.permitDate ?? appointment.permitDate;
+    const permitStartTime = patch.permitStartTime ?? appointment.permitStartTime;
+    const permitEndTime = patch.permitEndTime ?? appointment.permitEndTime;
+
+    if (
+      permitDate !== appointment.permitDate ||
+      permitStartTime !== appointment.permitStartTime ||
+      permitEndTime !== appointment.permitEndTime
+    ) {
+      return true;
+    }
   }
 
   return false;
@@ -208,6 +319,10 @@ export function getAdminDateChangeWarning(appointment: Appointment) {
 
   if (appointment.reasonUsesDateRange) {
     return "Se actualizarán las fechas de vacaciones manteniendo la cantidad de días solicitada. El conductor será notificado.";
+  }
+
+  if (appointment.reasonUsesPermitDetails && appointment.permitType === "horas") {
+    return "Se actualizará la fecha u horario del permiso y se notificará al conductor.";
   }
 
   if (appointment.reasonUsesPermitDetails) {
@@ -252,11 +367,22 @@ export function buildDateChangeMessage(
   }
 
   if (next.reasonUsesPermitDetails && next.permitType === "horas") {
-    if (previous.permitDate === next.permitDate) {
+    const previousSummary = formatPermitHorasSummary(
+      previous.permitDate,
+      previous.permitStartTime,
+      previous.permitEndTime,
+    );
+    const nextSummary = formatPermitHorasSummary(
+      next.permitDate,
+      next.permitStartTime,
+      next.permitEndTime,
+    );
+
+    if (previousSummary === nextSummary) {
       return "";
     }
 
-    return `Tu permiso por horas fue actualizado. Fecha anterior: ${formatDate(previous.permitDate)}. Nueva fecha: ${formatDate(next.permitDate)}.`;
+    return `Tu permiso por horas fue actualizado. Antes: ${previousSummary}. Ahora: ${nextSummary}.`;
   }
 
   return "Tu solicitud fue actualizada con nuevas fechas.";

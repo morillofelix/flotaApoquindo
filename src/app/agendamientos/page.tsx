@@ -47,6 +47,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
   buildDatePatchFromFieldChange,
+  buildDateChangePreviewLabel,
   canEditAppointmentDates,
   getAdminDateChangeWarning,
   type AppointmentDatePatch,
@@ -523,7 +524,9 @@ function AppointmentsPageContent() {
       | "appointmentDate"
       | "vacationStartDate"
       | "permitStartDate"
-      | "permitDate",
+      | "permitDate"
+      | "permitStartTime"
+      | "permitEndTime",
     value: string,
   ) {
     const patch = buildDatePatchFromFieldChange(
@@ -537,22 +540,10 @@ function AppointmentsPageContent() {
       return;
     }
 
-    let previewLabel = "";
-
-    if (patch.appointmentDate) {
-      previewLabel = `Nueva fecha de atención: ${formatDate(patch.appointmentDate)}`;
-    } else if (patch.vacationStartDate && patch.vacationEndDate) {
-      previewLabel = `Nuevo rango: ${formatDate(patch.vacationStartDate)} al ${formatDate(patch.vacationEndDate)}`;
-    } else if (patch.permitStartDate && patch.permitEndDate) {
-      previewLabel = `Nuevo rango: ${formatDate(patch.permitStartDate)} al ${formatDate(patch.permitEndDate)}`;
-    } else if (patch.permitDate) {
-      previewLabel = `Nueva fecha: ${formatDate(patch.permitDate)}`;
-    }
-
     setDateEditPrompt({
       appointment,
       patch,
-      previewLabel,
+      previewLabel: buildDateChangePreviewLabel(patch),
     });
   }
 
@@ -1061,7 +1052,6 @@ function AppointmentsPageContent() {
                       <th className="min-w-40 px-2.5 py-2 font-semibold">Detalle fechas</th>
                       <th className="min-w-44 px-2.5 py-2 font-semibold">Correo</th>
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Teléfono</th>
-                      <th className="min-w-28 px-2.5 py-2 font-semibold">Registro</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Ejecutivo</th>
                       <th className="min-w-32 px-2.5 py-2 font-semibold">Estado</th>
                       <th className="min-w-20 px-2.5 py-2 font-semibold">Acción</th>
@@ -1083,30 +1073,33 @@ function AppointmentsPageContent() {
                           {appointment.vehicleNumber}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
-                          {canEditAppointmentDates(appointment.status) &&
-                          appointment.reasonAllowsExecutiveAssignment ? (
-                            <input
-                              key={`${appointment.id}-${appointment.appointmentDate}`}
-                              type="date"
-                              defaultValue={appointment.appointmentDate}
-                              onChange={(event) =>
-                                requestDateFieldChange(
-                                  appointment,
-                                  "appointmentDate",
-                                  event.target.value,
-                                )
-                              }
-                              className="h-8 w-full min-w-32 rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                            />
-                          ) : (
-                            formatDate(appointment.appointmentDate)
-                          )}
+                          {formatCreatedAt(appointment.createdAt)}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.appointmentReasonLabel}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
-                          {appointment.reasonUsesDateRange &&
+                          {appointment.reasonAllowsExecutiveAssignment &&
+                          canEditAppointmentDates(appointment.status) ? (
+                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                Fecha de atención
+                              </p>
+                              <input
+                                key={`${appointment.id}-${appointment.appointmentDate}`}
+                                type="date"
+                                defaultValue={appointment.appointmentDate}
+                                onChange={(event) =>
+                                  requestDateFieldChange(
+                                    appointment,
+                                    "appointmentDate",
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              />
+                            </div>
+                          ) : appointment.reasonUsesDateRange &&
                           canEditAppointmentDates(appointment.status) ? (
                             <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
@@ -1156,9 +1149,9 @@ function AppointmentsPageContent() {
                           ) : appointment.reasonUsesPermitDetails &&
                             appointment.permitType === "horas" &&
                             canEditAppointmentDates(appointment.status) ? (
-                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
+                            <div className="max-w-48 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Fecha permiso
+                                Permiso por horas
                               </p>
                               <input
                                 key={`${appointment.id}-${appointment.permitDate}`}
@@ -1173,6 +1166,53 @@ function AppointmentsPageContent() {
                                 }
                                 className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               />
+                              <div className="mt-2 grid grid-cols-2 gap-2">
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                    Desde
+                                  </span>
+                                  <input
+                                    key={`${appointment.id}-${appointment.permitStartTime}`}
+                                    type="time"
+                                    defaultValue={appointment.permitStartTime}
+                                    onChange={(event) =>
+                                      requestDateFieldChange(
+                                        appointment,
+                                        "permitStartTime",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                  />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                    Hasta
+                                  </span>
+                                  <input
+                                    key={`${appointment.id}-${appointment.permitEndTime}`}
+                                    type="time"
+                                    defaultValue={appointment.permitEndTime}
+                                    onChange={(event) =>
+                                      requestDateFieldChange(
+                                        appointment,
+                                        "permitEndTime",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          ) : appointment.reasonAllowsExecutiveAssignment ? (
+                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                Cita
+                              </p>
+                              <p className="text-[11px] font-semibold leading-3.5 text-[#173b68]">
+                                {formatDate(appointment.appointmentDate)}
+                              </p>
                             </div>
                           ) : getRequestDateDetail(appointment) ? (
                             <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
@@ -1192,9 +1232,6 @@ function AppointmentsPageContent() {
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.phone}
-                        </td>
-                        <td className="px-2.5 py-2 text-slate-700">
-                          {formatCreatedAt(appointment.createdAt)}
                         </td>
                         <td className="px-2.5 py-2 align-top">
                           {appointmentAllowsExecutive(appointment) ? (
