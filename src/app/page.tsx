@@ -453,7 +453,7 @@ function AppointmentRequestForm({
       appointmentDate: values.appointmentDate,
     };
 
-    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput);
+    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, today);
 
     if (holidayCheck.blocked) {
       return holidayCheck;
@@ -463,8 +463,10 @@ function AppointmentRequestForm({
       selectedReasonConfig.restrictedWeekdays,
       selectedReasonConfig.weekdayBusinessAdvance,
       dateInput,
+      today,
+      holidayDateSet,
     );
-  }, [selectedReasonConfig, values, holidays]);
+  }, [selectedReasonConfig, values, holidays, today, holidayDateSet]);
   const businessDayAdvanceMessage = useMemo(() => {
     if (!selectedReasonConfig) {
       return "";

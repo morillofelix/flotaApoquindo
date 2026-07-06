@@ -11,6 +11,7 @@ export {
   weekdayOptions,
   RESTRICTED_DAY_MESSAGE,
   formatBusinessDaysLabel,
+  formatSuggestedStartDate,
   getReasonRestrictedMessage,
   getRestrictedDateMessage,
   formatRestrictedWeekdays,

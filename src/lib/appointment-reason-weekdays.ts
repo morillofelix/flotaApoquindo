@@ -32,12 +32,31 @@ export function formatBusinessDaysLabel(requiredDays: number) {
   return `${requiredDays} días hábiles`;
 }
 
-export function getRestrictedDateMessage(requiredDays: number) {
-  return `La fecha seleccionada requiere ser solicitada con al menos ${formatBusinessDaysLabel(requiredDays)} de anticipación. Para más información o asistencia, por favor diríjase a la Oficina Administrativa o contacte al Departamento de Flota.`;
+export function formatSuggestedStartDate(dateValue: string) {
+  const formatted = new Intl.DateTimeFormat("es-CL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${dateValue}T12:00:00`));
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
-export function getReasonRestrictedMessage(requiredDays: number) {
-  return getRestrictedDateMessage(requiredDays);
+export function getRestrictedDateMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+) {
+  const formattedDate = formatSuggestedStartDate(minimumStartDate);
+
+  return `La fecha solicitada requiere un plazo mínimo de ${formatBusinessDaysLabel(requiredDays)} de anticipación. Podrá realizar esta solicitud a partir del ${formattedDate}. Para más información, contacte al Departamento de Flota o a la Oficina Administrativa.`;
+}
+
+export function getReasonRestrictedMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+) {
+  return getRestrictedDateMessage(requiredDays, minimumStartDate);
 }
 
 export type ReasonStartDateInput = {
@@ -51,8 +70,11 @@ export type ReasonStartDateInput = {
   appointmentDate?: string;
 };
 
-export function getBusinessDayAdvanceMessage(requiredDays: number) {
-  return getReasonRestrictedMessage(requiredDays);
+export function getBusinessDayAdvanceMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+) {
+  return getReasonRestrictedMessage(requiredDays, minimumStartDate);
 }
 
 export type WeekdayBusinessAdvanceRule = {
@@ -337,10 +359,12 @@ export function checkBusinessDayAdvance(
   }
 
   if (!meetsBusinessDayAdvance(todayDate, startDate, rule.days, holidayDates)) {
+    const minimumStartDate = addBusinessDays(todayDate, rule.days, holidayDates);
+
     return {
       blocked: true,
-      message: getBusinessDayAdvanceMessage(rule.days),
-      minimumStartDate: addBusinessDays(todayDate, rule.days, holidayDates),
+      message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+      minimumStartDate,
     };
   }
 
@@ -505,6 +529,8 @@ export function checkReasonRestrictedDates(
   restrictedWeekdays: WeekdayKey[],
   weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig,
   input: ReasonDateRangeInput,
+  todayDate: string,
+  holidayDates?: Set<string>,
 ) {
   if (restrictedWeekdays.length === 0) {
     return { blocked: false, message: "" };
@@ -519,16 +545,18 @@ export function checkReasonRestrictedDates(
   for (const date of dates) {
     if (isReasonRestrictedOnDate(restrictedWeekdays, date)) {
       const weekday = getWeekdayFromDate(date);
-
-      if (!weekday) {
-        return { blocked: true, message: getReasonRestrictedMessage(1) };
-      }
+      const requiredDays = weekday
+        ? getWeekdayAdvanceDays(weekdayBusinessAdvance, weekday)
+        : 1;
+      const minimumStartDate = addBusinessDays(
+        todayDate,
+        requiredDays,
+        holidayDates,
+      );
 
       return {
         blocked: true,
-        message: getReasonRestrictedMessage(
-          getWeekdayAdvanceDays(weekdayBusinessAdvance, weekday),
-        ),
+        message: getReasonRestrictedMessage(requiredDays, minimumStartDate),
       };
     }
   }

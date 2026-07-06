@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
       appointmentDate: appointment.appointmentDate,
     };
 
-    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput);
+    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, today.date);
 
     if (holidayCheck.blocked) {
       return NextResponse.json(
@@ -294,6 +294,8 @@ export async function POST(request: NextRequest) {
       reason.restrictedWeekdays,
       reason.weekdayBusinessAdvance,
       dateInput,
+      today.date,
+      holidayDateSet,
     );
 
     if (restrictedCheck.blocked) {
