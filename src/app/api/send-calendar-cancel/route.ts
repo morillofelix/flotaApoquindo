@@ -37,12 +37,16 @@ type CalendarCancelPayload = Pick<
   | "status"
 >;
 
-function isCalendarCancelPayload(value: unknown): value is CalendarCancelPayload {
+function isCalendarCancelPayload(value: unknown): value is CalendarCancelPayload & {
+  reschedule?: boolean;
+} {
   if (!value || typeof value !== "object") {
     return false;
   }
 
   const payload = value as Record<string, unknown>;
+  const reschedule = payload.reschedule === true;
+  const status = payload.status;
 
   return (
     typeof payload.id === "string" &&
@@ -58,7 +62,8 @@ function isCalendarCancelPayload(value: unknown): value is CalendarCancelPayload
     typeof payload.phone === "string" &&
     typeof payload.assignedExecutive === "string" &&
     payload.assignedExecutive.length > 0 &&
-    payload.status === "cancelado"
+    (status === "cancelado" ||
+      (reschedule && (status === "revisado" || status === "aprobado")))
   );
 }
 

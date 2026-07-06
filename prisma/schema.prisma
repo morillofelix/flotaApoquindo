@@ -29,6 +29,8 @@ model Appointment {
   scheduledStartTime String @default("")
   scheduledEndTime   String @default("")
   status            String   @default("pendiente")
+  dateChangePending Boolean  @default(false)
+  dateChangeMessage String   @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

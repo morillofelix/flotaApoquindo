@@ -363,6 +363,93 @@ export async function sendExecutiveAssignmentEmails(appointment: Appointment) {
   await sendScheduledEmailToRequester(appointment);
 }
 
+export async function sendCalendarRescheduleCancel(appointment: Appointment) {
+  const response = await fetch("/api/send-calendar-cancel", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ...appointment, reschedule: true }),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo cancelar la cita anterior del ejecutivo.");
+  }
+}
+
+export async function sendCalendarRescheduleInvite(appointment: Appointment) {
+  const response = await fetch("/api/send-calendar-invite", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ...appointment, reschedule: true }),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo enviar la nueva cita al ejecutivo.");
+  }
+}
+
+export async function sendDateChangeEmail(appointment: Appointment) {
+  if (!appointment.dateChangeMessage.trim()) {
+    return;
+  }
+
+  const response = await fetch("/api/send-date-change-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: appointment.id,
+      ticketNumber: appointment.ticketNumber,
+      driverName: appointment.driverName,
+      vehicleNumber: appointment.vehicleNumber,
+      appointmentDate: appointment.appointmentDate,
+      appointmentReasonLabel: appointment.appointmentReasonLabel,
+      reasonAllowsExecutiveAssignment:
+        appointment.reasonAllowsExecutiveAssignment,
+      reasonUsesDateRange: appointment.reasonUsesDateRange,
+      reasonUsesPermitDetails: appointment.reasonUsesPermitDetails,
+      email: appointment.email,
+      status: appointment.status,
+      dateChangeMessage: appointment.dateChangeMessage,
+      vacationStartDate: appointment.vacationStartDate,
+      vacationEndDate: appointment.vacationEndDate,
+      permitType: appointment.permitType,
+      permitStartDate: appointment.permitStartDate,
+      permitEndDate: appointment.permitEndDate,
+      permitDate: appointment.permitDate,
+      permitStartTime: appointment.permitStartTime,
+      permitEndTime: appointment.permitEndTime,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo enviar el correo de cambio de fecha.");
+  }
+}
+
+export async function sendAppointmentDateChangeEmails(
+  savedAppointment: Appointment,
+  previousAppointment: Appointment,
+  options: {
+    requiresCalendarCancel: boolean;
+    requiresCalendarInvite: boolean;
+  },
+) {
+  if (options.requiresCalendarCancel) {
+    await sendCalendarRescheduleCancel(previousAppointment);
+  }
+
+  if (options.requiresCalendarInvite) {
+    await sendCalendarRescheduleInvite(savedAppointment);
+  }
+
+  await sendDateChangeEmail(savedAppointment);
+}
+
 export async function sendDecisionEmail(appointment: Appointment) {
   const response = await fetch("/api/send-approval-email", {
     method: "POST",

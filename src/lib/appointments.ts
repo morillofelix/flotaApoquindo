@@ -238,6 +238,8 @@ export type Appointment = {
   assignedExecutive: Executive | "";
   scheduledStartTime: string;
   scheduledEndTime: string;
+  dateChangePending: boolean;
+  dateChangeMessage: string;
   createdAt: string;
   status: AppointmentStatus;
 };

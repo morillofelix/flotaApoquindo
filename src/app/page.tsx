@@ -152,6 +152,8 @@ type AppointmentSubmission = Omit<
   | "assignedExecutive"
   | "scheduledStartTime"
   | "scheduledEndTime"
+  | "dateChangePending"
+  | "dateChangeMessage"
   | "createdAt"
   | "status"
 >;
@@ -502,6 +504,36 @@ function AppointmentRequestForm({
     };
   }, [linkedVehicleNumber]);
 
+  async function dismissDateChangeNotice(appointmentId: string) {
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ acknowledgeDateChange: true }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setRecentAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment.id === appointmentId
+            ? {
+                ...appointment,
+                dateChangePending: false,
+                dateChangeMessage: "",
+              }
+            : appointment,
+        ),
+      );
+    } catch {
+      // ignore dismiss errors in the conductor view
+    }
+  }
+
   useEffect(() => {
     fetch("/api/appointment-reasons", { cache: "no-store" })
       .then((response) => {
@@ -818,6 +850,9 @@ function AppointmentRequestForm({
                 appointments={recentAppointments}
                 isLoading={isLoadingRecent}
                 vehicleNumber={linkedVehicleNumber}
+                onDismissDateChange={(appointmentId) =>
+                  void dismissDateChangeNotice(appointmentId)
+                }
               />
             </div>
 

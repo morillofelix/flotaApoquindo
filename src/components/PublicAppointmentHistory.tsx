@@ -9,12 +9,15 @@ import { UI_PANEL_BORDER } from "@/lib/ui-borders";
 import { useEffect, useId, useState } from "react";
 
 export type PublicAppointmentSummary = {
+  id: string;
   ticketLabel: string;
   appointmentReasonLabel: string;
   status: AppointmentStatus;
   assignedExecutive: string;
   allowsExecutiveAssignment: boolean;
   scheduledSummary: string;
+  dateChangePending: boolean;
+  dateChangeMessage: string;
   createdAt: string;
 };
 
@@ -50,11 +53,13 @@ const publicStatusDotStyles: Record<AppointmentStatus, string> = {
 type PublicAppointmentHistoryContentProps = {
   appointments: PublicAppointmentSummary[];
   vehicleNumber: string;
+  onDismissDateChange?: (appointmentId: string) => void;
 };
 
 function PublicAppointmentHistoryContent({
   appointments,
   vehicleNumber,
+  onDismissDateChange,
 }: PublicAppointmentHistoryContentProps) {
   return (
     <>
@@ -68,10 +73,29 @@ function PublicAppointmentHistoryContent({
       <ul className="grid max-h-[min(60vh,24rem)] gap-2 overflow-y-auto pr-0.5">
         {appointments.map((appointment) => (
           <li
-            key={`${appointment.ticketLabel}-${appointment.createdAt}`}
+            key={appointment.id}
             className={`rounded-xl border border-[#c5d8eb] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,39,71,0.04)] ${publicStatusCardAccent[appointment.status]}`}
           >
             <div className="flex flex-col gap-2.5">
+              {appointment.dateChangePending && appointment.dateChangeMessage ? (
+                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
+                    Fecha actualizada
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-amber-950">
+                    {appointment.dateChangeMessage}
+                  </p>
+                  {onDismissDateChange ? (
+                    <button
+                      type="button"
+                      onClick={() => onDismissDateChange(appointment.id)}
+                      className="mt-2 text-[11px] font-semibold text-amber-900 underline underline-offset-2"
+                    >
+                      Entendido
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] shadow-sm ${publicStatusBadgeStyles[appointment.status]}`}
@@ -137,17 +161,22 @@ type PublicAppointmentHistoryProps = {
   appointments: PublicAppointmentSummary[];
   isLoading: boolean;
   vehicleNumber: string;
+  onDismissDateChange?: (appointmentId: string) => void;
 };
 
 export default function PublicAppointmentHistory({
   appointments,
   isLoading,
   vehicleNumber,
+  onDismissDateChange,
 }: PublicAppointmentHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const titleId = useId();
   const showBell =
-    Boolean(vehicleNumber) && !isLoading && appointments.length > 0;
+    Boolean(vehicleNumber) &&
+    !isLoading &&
+    (appointments.length > 0 ||
+      appointments.some((appointment) => appointment.dateChangePending));
 
   useEffect(() => {
     if (!isOpen) {
@@ -203,7 +232,9 @@ export default function PublicAppointmentHistory({
           />
         </svg>
         <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-[#0b5cab] text-[10px] font-bold text-white ring-2 ring-white">
-          {appointments.length}
+          {appointments.some((appointment) => appointment.dateChangePending)
+            ? "!"
+            : appointments.length}
         </span>
       </button>
 
@@ -260,6 +291,7 @@ export default function PublicAppointmentHistory({
             <PublicAppointmentHistoryContent
               appointments={appointments}
               vehicleNumber={vehicleNumber}
+              onDismissDateChange={onDismissDateChange}
             />
           </div>
         </div>

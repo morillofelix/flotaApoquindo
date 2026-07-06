@@ -30,6 +30,7 @@ import {
   sendCalendarCancelToExecutive,
   sendCancellationToRequester,
   sendDecisionEmail,
+  sendAppointmentDateChangeEmails,
   shouldSendCalendarInvite,
   shouldSendCancellationEmails,
   shouldSendDecisionEmail,
@@ -44,6 +45,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
+import {
+  buildDatePatchFromFieldChange,
+  canEditAppointmentDates,
+  getAdminDateChangeWarning,
+  type AppointmentDatePatch,
+} from "@/lib/appointment-date-edit";
 
 function AppointmentsPageContent() {
   const { confirm, dialog } = useConfirmAction();
@@ -82,6 +89,12 @@ function AppointmentsPageContent() {
     currentCount: number;
     max: number;
   } | null>(null);
+  const [dateEditPrompt, setDateEditPrompt] = useState<{
+    appointment: Appointment;
+    patch: AppointmentDatePatch;
+    previewLabel: string;
+  } | null>(null);
+  const [isSavingDateChange, setIsSavingDateChange] = useState(false);
 
   const reloadAppointmentsData = useCallback(async () => {
     const [loadedAppointments, loadedReasons, loadedExecutives] =
@@ -100,7 +113,9 @@ function AppointmentsPageContent() {
   const shouldPauseAutoRefresh =
     isConfirmingExecutive ||
     executiveAssignmentPrompt !== null ||
-    isLoadingAppointments;
+    isLoadingAppointments ||
+    dateEditPrompt !== null ||
+    isSavingDateChange;
 
   const {
     refresh: refreshAppointmentsData,
@@ -498,6 +513,137 @@ function AppointmentsPageContent() {
     }
   }
 
+  function getReasonForAppointment(appointment: Appointment) {
+    return reasons.find((reason) => reason.value === appointment.appointmentReason);
+  }
+
+  function requestDateFieldChange(
+    appointment: Appointment,
+    field:
+      | "appointmentDate"
+      | "vacationStartDate"
+      | "permitStartDate"
+      | "permitDate",
+    value: string,
+  ) {
+    const patch = buildDatePatchFromFieldChange(
+      appointment,
+      getReasonForAppointment(appointment),
+      field,
+      value,
+    );
+
+    if (!patch) {
+      return;
+    }
+
+    let previewLabel = "";
+
+    if (patch.appointmentDate) {
+      previewLabel = `Nueva fecha de atención: ${formatDate(patch.appointmentDate)}`;
+    } else if (patch.vacationStartDate && patch.vacationEndDate) {
+      previewLabel = `Nuevo rango: ${formatDate(patch.vacationStartDate)} al ${formatDate(patch.vacationEndDate)}`;
+    } else if (patch.permitStartDate && patch.permitEndDate) {
+      previewLabel = `Nuevo rango: ${formatDate(patch.permitStartDate)} al ${formatDate(patch.permitEndDate)}`;
+    } else if (patch.permitDate) {
+      previewLabel = `Nueva fecha: ${formatDate(patch.permitDate)}`;
+    }
+
+    setDateEditPrompt({
+      appointment,
+      patch,
+      previewLabel,
+    });
+  }
+
+  function cancelDateChange() {
+    if (isSavingDateChange) {
+      return;
+    }
+
+    setDateEditPrompt(null);
+  }
+
+  async function confirmDateChange() {
+    if (!dateEditPrompt) {
+      return;
+    }
+
+    const { appointment, patch } = dateEditPrompt;
+    const previousAppointments = appointments;
+    setIsSavingDateChange(true);
+    setAppointmentsError("");
+    setEmailNotice(null);
+
+    try {
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patch),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo actualizar las fechas.");
+      }
+
+      const data = (await response.json()) as {
+        appointment?: Appointment;
+        dateChange?: {
+          occurred: boolean;
+          requiresCalendarCancel: boolean;
+          requiresCalendarInvite: boolean;
+          previousAppointment: Appointment;
+        } | null;
+      };
+
+      const savedAppointment = data.appointment;
+
+      if (!savedAppointment) {
+        throw new Error("No se pudo actualizar las fechas.");
+      }
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((item) =>
+          item.id === savedAppointment.id ? savedAppointment : item,
+        ),
+      );
+      setDateEditPrompt(null);
+
+      if (data.dateChange?.occurred) {
+        try {
+          setEmailNotice({
+            status: "sending",
+            message: "Actualizando fechas y notificando...",
+          });
+          await sendAppointmentDateChangeEmails(
+            savedAppointment,
+            data.dateChange.previousAppointment,
+            {
+              requiresCalendarCancel: data.dateChange.requiresCalendarCancel,
+              requiresCalendarInvite: data.dateChange.requiresCalendarInvite,
+            },
+          );
+          setEmailNotice({
+            status: "sent",
+            message: "Fechas actualizadas y notificaciones enviadas.",
+          });
+        } catch {
+          setEmailNotice(null);
+          setAppointmentsError(
+            "Las fechas se guardaron, pero no se pudieron enviar todas las notificaciones.",
+          );
+        }
+      }
+    } catch {
+      setAppointments(previousAppointments);
+      setAppointmentsError("No se pudo actualizar las fechas.");
+    } finally {
+      setIsSavingDateChange(false);
+    }
+  }
+
   async function removeAppointment(id: string) {
     const previousAppointments = appointments;
     const updatedAppointments = appointments.filter(
@@ -831,6 +977,42 @@ function AppointmentsPageContent() {
             </div>
           ) : null}
 
+          {dateEditPrompt ? (
+            <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-900">
+                Confirmar cambio de fecha
+              </p>
+              <p className="mt-2 text-sm leading-6 text-amber-950">
+                {getAdminDateChangeWarning(dateEditPrompt.appointment)}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-amber-950">
+                {dateEditPrompt.previewLabel}
+              </p>
+              <p className="mt-1 text-xs text-amber-900">
+                Ticket {getAppointmentTicketLabel(dateEditPrompt.appointment)} ·
+                Móvil {dateEditPrompt.appointment.vehicleNumber}
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cancelDateChange}
+                  disabled={isSavingDateChange}
+                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-300 bg-white px-4 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void confirmDateChange()}
+                  disabled={isSavingDateChange}
+                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-amber-600 px-4 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSavingDateChange ? "Guardando..." : "Confirmar cambio"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="mb-3 flex flex-col gap-2 border-b border-[#c5d8eb] pb-3 sm:flex-row">
             <button
               type="button"
@@ -901,13 +1083,98 @@ function AppointmentsPageContent() {
                           {appointment.vehicleNumber}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
-                          {formatDate(appointment.appointmentDate)}
+                          {canEditAppointmentDates(appointment.status) &&
+                          appointment.reasonAllowsExecutiveAssignment ? (
+                            <input
+                              key={`${appointment.id}-${appointment.appointmentDate}`}
+                              type="date"
+                              defaultValue={appointment.appointmentDate}
+                              onChange={(event) =>
+                                requestDateFieldChange(
+                                  appointment,
+                                  "appointmentDate",
+                                  event.target.value,
+                                )
+                              }
+                              className="h-8 w-full min-w-32 rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                            />
+                          ) : (
+                            formatDate(appointment.appointmentDate)
+                          )}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.appointmentReasonLabel}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
-                          {getRequestDateDetail(appointment) ? (
+                          {appointment.reasonUsesDateRange &&
+                          canEditAppointmentDates(appointment.status) ? (
+                            <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                Inicio (fin se ajusta)
+                              </p>
+                              <input
+                                key={`${appointment.id}-${appointment.vacationStartDate}`}
+                                type="date"
+                                defaultValue={appointment.vacationStartDate}
+                                onChange={(event) =>
+                                  requestDateFieldChange(
+                                    appointment,
+                                    "vacationStartDate",
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              />
+                              <p className="mt-1 text-[11px] font-semibold text-[#173b68]">
+                                Hasta {formatDate(appointment.vacationEndDate)}
+                              </p>
+                            </div>
+                          ) : appointment.reasonUsesPermitDetails &&
+                            appointment.permitType === "dias" &&
+                            canEditAppointmentDates(appointment.status) ? (
+                            <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                Inicio (fin se ajusta)
+                              </p>
+                              <input
+                                key={`${appointment.id}-${appointment.permitStartDate}`}
+                                type="date"
+                                defaultValue={appointment.permitStartDate}
+                                onChange={(event) =>
+                                  requestDateFieldChange(
+                                    appointment,
+                                    "permitStartDate",
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              />
+                              <p className="mt-1 text-[11px] font-semibold text-[#173b68]">
+                                Hasta {formatDate(appointment.permitEndDate)}
+                              </p>
+                            </div>
+                          ) : appointment.reasonUsesPermitDetails &&
+                            appointment.permitType === "horas" &&
+                            canEditAppointmentDates(appointment.status) ? (
+                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                Fecha permiso
+                              </p>
+                              <input
+                                key={`${appointment.id}-${appointment.permitDate}`}
+                                type="date"
+                                defaultValue={appointment.permitDate}
+                                onChange={(event) =>
+                                  requestDateFieldChange(
+                                    appointment,
+                                    "permitDate",
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              />
+                            </div>
+                          ) : getRequestDateDetail(appointment) ? (
                             <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                                 Detalle

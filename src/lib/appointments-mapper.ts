@@ -93,6 +93,8 @@ export function toAppointment(
     scheduledStartTime: string;
     scheduledEndTime: string;
     status: string;
+    dateChangePending: boolean;
+    dateChangeMessage: string;
     createdAt: Date;
   },
   reasonConfig?: AppointmentReasonConfig,
@@ -143,6 +145,8 @@ export function toAppointment(
     assignedExecutive: value.assignedExecutive,
     scheduledStartTime: value.scheduledStartTime,
     scheduledEndTime: value.scheduledEndTime,
+    dateChangePending: value.dateChangePending,
+    dateChangeMessage: value.dateChangeMessage,
     status,
     createdAt: value.createdAt.toISOString(),
   };

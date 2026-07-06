@@ -11,12 +11,15 @@ import { NextResponse, type NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 
 export type PublicAppointmentSummary = {
+  id: string;
   ticketLabel: string;
   appointmentReasonLabel: string;
   status: AppointmentStatus;
   assignedExecutive: string;
   allowsExecutiveAssignment: boolean;
   scheduledSummary: string;
+  dateChangePending: boolean;
+  dateChangeMessage: string;
   createdAt: string;
 };
 
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       take: 120,
       select: {
+        id: true,
         ticketNumber: true,
         vehicleNumber: true,
         appointmentDate: true,
@@ -82,6 +86,8 @@ export async function GET(request: NextRequest) {
         scheduledStartTime: true,
         scheduledEndTime: true,
         status: true,
+        dateChangePending: true,
+        dateChangeMessage: true,
         createdAt: true,
       },
     });
@@ -126,6 +132,7 @@ export async function GET(request: NextRequest) {
             : null;
 
         return {
+          id: appointment.id,
           ticketLabel: formatTicketLabel(appointment.ticketNumber),
           appointmentReasonLabel: getPermissionReasonLabel(
             appointment.appointmentReason,
@@ -137,6 +144,8 @@ export async function GET(request: NextRequest) {
             reason?.allowsExecutiveAssignment,
           ),
           scheduledSummary: schedule?.summaryLabel ?? "",
+          dateChangePending: appointment.dateChangePending,
+          dateChangeMessage: appointment.dateChangeMessage,
           createdAt: appointment.createdAt.toISOString(),
         } satisfies PublicAppointmentSummary;
       });

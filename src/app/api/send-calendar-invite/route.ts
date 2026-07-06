@@ -65,8 +65,8 @@ function isCalendarInvitePayload(value: unknown): value is CalendarInvitePayload
     typeof payload.phone === "string" &&
     typeof payload.assignedExecutive === "string" &&
     payload.assignedExecutive.length > 0 &&
-    payload.status === "revisado" &&
-    payload.reasonAllowsExecutiveAssignment
+    (payload.status === "revisado" ||
+      (payload.reschedule === true && payload.status === "aprobado"))
   );
 }
 
