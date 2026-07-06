@@ -22,7 +22,7 @@ export const weekdayOptions: Array<{
 ];
 
 export const RESTRICTED_DAY_MESSAGE =
-  "Este tipo de solicitud debe ser realizada de manera presencial en la oficina de Apoquindo.";
+  "Estimado usuario: las solicitudes para los días viernes, sábado, domingo y feriados deben ser tramitadas directamente en las oficinas de la empresa Transportes Apoquindo.";
 
 function formatBusinessDayMinimumDate(dateValue: string) {
   const parsed = parseDateOnlyValue(dateValue);
