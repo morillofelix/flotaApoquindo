@@ -90,19 +90,6 @@ export type WeekdayBusinessAdvanceConfig = Record<
   WeekdayBusinessAdvanceRule
 >;
 
-function getWeekdayAdvanceDays(
-  config: WeekdayBusinessAdvanceConfig,
-  weekday: WeekdayKey,
-) {
-  const rule = config[weekday];
-
-  if (rule && rule.days >= 1) {
-    return rule.days;
-  }
-
-  return 1;
-}
-
 export function createDefaultWeekdayBusinessAdvance(): WeekdayBusinessAdvanceConfig {
   return Object.fromEntries(
     weekdayOptions.map((option) => [
@@ -215,6 +202,48 @@ export function hasEnabledWeekdayBusinessAdvance(
     (option) =>
       config[option.value].enabled && config[option.value].days >= 1,
   );
+}
+
+export function isWeekdayAdvanceEnabled(
+  config: WeekdayBusinessAdvanceConfig,
+  weekday: WeekdayKey,
+) {
+  const rule = config[weekday];
+
+  return Boolean(rule?.enabled && rule.days >= 1);
+}
+
+export function findNextUnrestrictedDate(
+  fromDate: string,
+  restrictedWeekdays: WeekdayKey[],
+) {
+  if (restrictedWeekdays.length === 0) {
+    return fromDate;
+  }
+
+  const current = parseDateOnlyValue(fromDate);
+
+  for (let index = 0; index < 370; index += 1) {
+    const dateValue = formatDateOnlyValue(current);
+
+    if (!isReasonRestrictedOnDate(restrictedWeekdays, dateValue)) {
+      return dateValue;
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return fromDate;
+}
+
+export function getRestrictedWeekdayOnlyMessage(
+  restrictedWeekdays: WeekdayKey[],
+  nextAllowedDate: string,
+) {
+  const formattedRestricted = formatRestrictedWeekdays(restrictedWeekdays);
+  const formattedNext = formatSuggestedStartDate(nextAllowedDate);
+
+  return `El día seleccionado no está habilitado para dicho trámite. Los días no habilitados para este motivo son: ${formattedRestricted}. Podrá realizar esta solicitud a partir del ${formattedNext}. Para más información, diríjase a la Oficina de Flota o contacte al Departamento de Flota.`;
 }
 
 export function formatBusinessDayAdvanceSummary(
@@ -343,32 +372,34 @@ export function checkBusinessDayAdvance(
     return { blocked: false, message: "" };
   }
 
-  const startDate = getReasonStartDate(startDateInput);
+  const dates = getReasonDatesToCheck(startDateInput);
 
-  if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+  if (dates.length === 0) {
     return { blocked: false, message: "" };
   }
 
-  const weekday = getWeekdayFromDate(startDate);
+  for (const date of dates) {
+    const weekday = getWeekdayFromDate(date);
 
-  if (!weekday) {
-    return { blocked: false, message: "" };
-  }
+    if (!weekday || !isWeekdayAdvanceEnabled(config, weekday)) {
+      continue;
+    }
 
-  const rule = config[weekday];
+    const rule = config[weekday];
 
-  if (!rule.enabled || rule.days < 1) {
-    return { blocked: false, message: "" };
-  }
+    if (!meetsBusinessDayAdvance(todayDate, date, rule.days, holidayDates)) {
+      const minimumStartDate = addBusinessDays(
+        todayDate,
+        rule.days,
+        holidayDates,
+      );
 
-  if (!meetsBusinessDayAdvance(todayDate, startDate, rule.days, holidayDates)) {
-    const minimumStartDate = addBusinessDays(todayDate, rule.days, holidayDates);
-
-    return {
-      blocked: true,
-      message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
-      minimumStartDate,
-    };
+      return {
+        blocked: true,
+        message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+        minimumStartDate,
+      };
+    }
   }
 
   return { blocked: false, message: "" };
@@ -535,10 +566,22 @@ export function checkReasonRestrictedDates(
   todayDate: string,
   holidayDates?: Set<string>,
 ) {
-  if (restrictedWeekdays.length === 0) {
-    return { blocked: false, message: "" };
-  }
+  return checkReasonDateRules(
+    restrictedWeekdays,
+    weekdayBusinessAdvance,
+    input,
+    todayDate,
+    holidayDates,
+  );
+}
 
+export function checkReasonDateRules(
+  restrictedWeekdays: WeekdayKey[],
+  weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig,
+  input: ReasonDateRangeInput,
+  todayDate: string,
+  holidayDates?: Set<string>,
+) {
   const dates = getReasonDatesToCheck(input);
 
   if (dates.length === 0) {
@@ -546,20 +589,44 @@ export function checkReasonRestrictedDates(
   }
 
   for (const date of dates) {
+    const weekday = getWeekdayFromDate(date);
+
+    if (!weekday) {
+      continue;
+    }
+
+    if (isWeekdayAdvanceEnabled(weekdayBusinessAdvance, weekday)) {
+      const rule = weekdayBusinessAdvance[weekday];
+
+      if (
+        !meetsBusinessDayAdvance(todayDate, date, rule.days, holidayDates)
+      ) {
+        const minimumStartDate = addBusinessDays(
+          todayDate,
+          rule.days,
+          holidayDates,
+        );
+
+        return {
+          blocked: true,
+          message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+          minimumStartDate,
+        };
+      }
+
+      continue;
+    }
+
     if (isReasonRestrictedOnDate(restrictedWeekdays, date)) {
-      const weekday = getWeekdayFromDate(date);
-      const requiredDays = weekday
-        ? getWeekdayAdvanceDays(weekdayBusinessAdvance, weekday)
-        : 1;
-      const minimumStartDate = addBusinessDays(
-        todayDate,
-        requiredDays,
-        holidayDates,
-      );
+      const nextAllowedDate = findNextUnrestrictedDate(date, restrictedWeekdays);
 
       return {
         blocked: true,
-        message: getReasonRestrictedMessage(requiredDays, minimumStartDate),
+        message: getRestrictedWeekdayOnlyMessage(
+          restrictedWeekdays,
+          nextAllowedDate,
+        ),
+        minimumStartDate: nextAllowedDate,
       };
     }
   }

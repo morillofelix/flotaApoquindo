@@ -8,8 +8,7 @@ import {
   getSantiagoToday,
   serializeRestrictedWeekdays,
   serializeWeekdayBusinessAdvance,
-  checkBusinessDayAdvance,
-  checkReasonRestrictedDates,
+  checkReasonDateRules,
 } from "@/lib/appointment-reason-weekdays";
 import {
   checkHolidayRestrictedDates,
@@ -297,7 +296,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const restrictedCheck = checkReasonRestrictedDates(
+    const reasonDateCheck = checkReasonDateRules(
       reason.restrictedWeekdays,
       reason.weekdayBusinessAdvance,
       dateInput,
@@ -305,9 +304,9 @@ export async function POST(request: NextRequest) {
       holidayDateSet,
     );
 
-    if (restrictedCheck.blocked) {
+    if (reasonDateCheck.blocked) {
       return NextResponse.json(
-        { message: restrictedCheck.message },
+        { message: reasonDateCheck.message },
         { status: 403 },
       );
     }
@@ -321,31 +320,6 @@ export async function POST(request: NextRequest) {
       { message: "Solo puedes solicitar citas para tu móvil." },
       { status: 403 },
     );
-  }
-
-  if (reason) {
-    const advanceCheck = checkBusinessDayAdvance(
-      reason,
-      today.date,
-      {
-        usesDateRange: reason.usesDateRange,
-        usesPermitDetails: reason.usesPermitDetails,
-        allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
-        vacationStartDate: appointment.vacationStartDate,
-        permitType: appointment.permitType,
-        permitStartDate: appointment.permitStartDate,
-        permitDate: appointment.permitDate,
-        appointmentDate: appointment.appointmentDate,
-      },
-      holidayDateSet,
-    );
-
-    if (advanceCheck.blocked) {
-      return NextResponse.json(
-        { message: advanceCheck.message },
-        { status: 403 },
-      );
-    }
   }
 
   try {
