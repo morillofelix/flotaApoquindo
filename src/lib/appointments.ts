@@ -9,6 +9,7 @@ import {
 export type { WeekdayKey, WeekdayBusinessAdvanceConfig };
 export {
   weekdayOptions,
+  weekdayBusinessAdvanceOptions,
   RESTRICTED_DAY_MESSAGE,
   formatBusinessDaysLabel,
   formatSuggestedStartDate,

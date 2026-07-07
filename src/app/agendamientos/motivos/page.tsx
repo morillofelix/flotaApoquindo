@@ -6,6 +6,7 @@ import {
   type WeekdayKey,
   type WeekdayBusinessAdvanceConfig,
   weekdayOptions,
+  weekdayBusinessAdvanceOptions,
   formatRestrictedWeekdays,
   formatBusinessDayAdvanceSummary,
   createDefaultWeekdayBusinessAdvance,
@@ -174,6 +175,32 @@ export default function MotivosPage() {
     }));
   }
 
+  function setWeekdayAdvanceFromInput(weekday: WeekdayKey, rawValue: string) {
+    const trimmed = rawValue.trim();
+
+    if (!trimmed) {
+      updateWeekdayBusinessAdvance(weekday, { enabled: false, days: 1 });
+      return;
+    }
+
+    const parsed = Number.parseInt(trimmed, 10);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return;
+    }
+
+    updateWeekdayBusinessAdvance(weekday, {
+      enabled: true,
+      days: Math.min(parsed, 365),
+    });
+  }
+
+  function getWeekdayAdvanceInputValue(weekday: WeekdayKey) {
+    const rule = reasonForm.weekdayBusinessAdvance[weekday];
+
+    return rule.enabled && rule.days >= 1 ? String(rule.days) : "";
+  }
+
   async function saveReason(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setReasonMessage("");
@@ -184,11 +211,11 @@ export default function MotivosPage() {
       return;
     }
 
-    for (const option of weekdayOptions) {
+    for (const option of weekdayBusinessAdvanceOptions) {
       const rule = reasonForm.weekdayBusinessAdvance[option.value];
 
       if (rule.enabled && rule.days < 1) {
-        setReasonError("Ingresa días hábiles válidos para cada día activo.");
+        setReasonError("Ingresa días hábiles válidos para cada día con anticipación.");
         return;
       }
     }
@@ -529,7 +556,7 @@ export default function MotivosPage() {
                 <p className="mt-1 text-[11px] leading-5 text-slate-500">
                   Marca los días en que este motivo no puede solicitarse en
                   línea. Si la fecha elegida cae en uno de ellos, el conductor
-                  verá que debe tramitarlo presencialmente en la oficina.
+                  no podrá enviar la solicitud.
                 </p>
                 <div className="mt-2 flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5">
                   {weekdayOptions.map((option) => (
@@ -551,57 +578,54 @@ export default function MotivosPage() {
                     </label>
                   ))}
                 </div>
+              </div>
 
-                <p className="mt-4 text-xs font-semibold text-[#173b68]">
-                  Anticipación por día hábil
+              <div className="mt-3 rounded-2xl border border-[#b7cce4] bg-white p-3">
+                <p className="text-xs font-semibold text-[#173b68]">
+                  Anticipación por día
                 </p>
                 <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                  Define cuántos días hábiles de anticipación exige cada día de
-                  la semana según la fecha solicitada. Si un día está inactivo,
-                  no aplica anticipación para solicitudes que caigan en ese día.
+                  Indica cuántos días hábiles de anticipación exige cada día de
+                  la semana según la fecha solicitada. Deja el cuadro vacío si
+                  ese día no aplica anticipación.
                 </p>
-                <div className="mt-2 grid gap-2">
-                  {weekdayOptions.map((option) => (
-                    <div
-                      key={option.value}
-                      className="flex h-10 items-center gap-2 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3"
-                    >
-                      <span className="w-8 shrink-0 text-[11px] font-semibold lowercase text-[#173b68]">
-                        {option.shortLabel}
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={reasonForm.weekdayBusinessAdvance[option.value].days}
-                        disabled={
-                          !reasonForm.weekdayBusinessAdvance[option.value].enabled
-                        }
-                        onChange={(event) =>
-                          updateWeekdayBusinessAdvance(option.value, {
-                            days:
-                              Number.parseInt(event.target.value, 10) || 0,
-                          })
-                        }
-                        className="h-8 w-14 rounded-xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100 disabled:text-slate-400"
-                      />
-                      <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[#173b68]">
-                        Activo
+                <div className="mt-2 flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5">
+                  {weekdayBusinessAdvanceOptions.map((option) => {
+                    const isActive = Boolean(
+                      getWeekdayAdvanceInputValue(option.value),
+                    );
+
+                    return (
+                      <label
+                        key={option.value}
+                        className={`inline-flex min-w-[2.75rem] shrink-0 flex-col items-center gap-1 rounded-2xl border px-2 py-2 text-[#173b68] ${
+                          isActive
+                            ? "border-[#0b5cab] bg-[#eef5ff]"
+                            : "border-[#b7cce4] bg-[#f8fbff]"
+                        }`}
+                      >
                         <input
-                          type="checkbox"
-                          checked={
-                            reasonForm.weekdayBusinessAdvance[option.value].enabled
-                          }
+                          type="number"
+                          min={1}
+                          max={365}
+                          inputMode="numeric"
+                          placeholder="—"
+                          aria-label={`Anticipación ${option.label}`}
+                          value={getWeekdayAdvanceInputValue(option.value)}
                           onChange={(event) =>
-                            updateWeekdayBusinessAdvance(option.value, {
-                              enabled: event.target.checked,
-                            })
+                            setWeekdayAdvanceFromInput(
+                              option.value,
+                              event.target.value,
+                            )
                           }
-                          className="h-3.5 w-3.5 accent-[#0b5cab]"
+                          className="h-7 w-11 rounded-xl border border-[#9fb8d9] bg-white text-center text-sm font-semibold text-[#0f2747] outline-none transition placeholder:font-normal placeholder:text-slate-300 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
+                        <span className="text-[11px] font-semibold lowercase leading-none">
+                          {option.shortLabel}
+                        </span>
                       </label>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
