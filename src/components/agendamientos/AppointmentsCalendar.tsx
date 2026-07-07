@@ -180,24 +180,55 @@ function getCalendarEventStatusClass(event: AppointmentCalendarEvent) {
   return eventStatusClass(event.status);
 }
 
+function formatCalendarEventTooltip(event: AppointmentCalendarEvent) {
+  const parts = [
+    event.reasonLabel,
+    `Móvil ${event.vehicleNumber}`,
+    event.driverName,
+    event.ticketLabel,
+    event.calendarStatusLabel,
+  ];
+
+  if (event.timeLabel) {
+    parts.push(event.timeLabel);
+  }
+
+  if (event.kind === "executive" && event.executive) {
+    parts.push(`Ejecutivo: ${event.executive}`);
+  }
+
+  return parts.filter(Boolean).join(" · ");
+}
+
 function getEventPresentation(event: AppointmentCalendarEvent) {
+  const mobileLabel = `Móv. ${event.vehicleNumber}`;
+  const statusLabel = event.calendarStatusLabel;
+
   if (event.kind === "approval") {
     const timePrefix = event.timeLabel ? `${event.timeLabel} · ` : "";
     const isPendingApproval = event.status === "pendiente";
 
     return {
-      primary: `${event.reasonLabel} · Móv. ${event.vehicleNumber}`,
-      secondary: `${timePrefix}${event.calendarStatusLabel}`,
+      primary: `${event.reasonLabel} · ${mobileLabel}`,
+      secondary: `${timePrefix}${statusLabel}`,
       secondaryClassName: isPendingApproval
         ? "font-bold text-amber-950"
         : "font-semibold",
+      tooltip: formatCalendarEventTooltip(event),
     };
   }
 
+  const timePart = event.timeLabel ? `${event.timeLabel} · ` : "";
+  const executiveLabel =
+    event.executive && event.executive !== "Sin asignar"
+      ? event.executive
+      : "Ejecutivo sin asignar";
+
   return {
-    primary: `${event.timeLabel} · ${event.executive}`,
-    secondary: `Móv. ${event.vehicleNumber}`,
-    secondaryClassName: "",
+    primary: `${event.reasonLabel} · ${mobileLabel}`,
+    secondary: `${timePart}${executiveLabel} · ${statusLabel}`,
+    secondaryClassName: "font-semibold",
+    tooltip: formatCalendarEventTooltip(event),
   };
 }
 
@@ -340,8 +371,8 @@ export default function AppointmentsCalendar({
               Calendario de citas
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Revisa por fecha las citas agendadas, el ejecutivo asignado y el
-              móvil a atender.
+              Revisa por fecha el motivo, móvil, conductor, ejecutivo asignado y
+              estado de cada solicitud.
             </p>
           </div>
 
@@ -530,6 +561,7 @@ export default function AppointmentsCalendar({
                         return (
                           <div
                             key={event.id}
+                            title={presentation.tooltip}
                             className={`rounded-md border px-1.5 py-1 text-[10px] leading-[1.25] shadow-sm ${getCalendarEventStatusClass(event)}`}
                           >
                             <p className="truncate font-semibold">
@@ -580,28 +612,46 @@ export default function AppointmentsCalendar({
                   {group.events.map((event) => (
                     <article
                       key={event.id}
-                      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm"
+                      title={formatCalendarEventTooltip(event)}
+                      className="flex flex-col gap-2 px-3 py-3 text-sm sm:flex-row sm:items-start sm:gap-3"
                     >
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${getCalendarEventStatusClass(event)}`}
-                        >
-                          {event.calendarStatusLabel}
-                        </span>
-                        <p className="min-w-0 flex-1 font-semibold text-[#0f2747]">
+                      <span
+                        className={`inline-flex w-fit shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${getCalendarEventStatusClass(event)}`}
+                      >
+                        {event.calendarStatusLabel}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading text-base font-semibold text-[#0f2747]">
+                          {event.reasonLabel}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#173b68]">
                           Móvil {event.vehicleNumber}
                           <span className="font-normal text-slate-600">
                             {" "}
                             · {event.driverName}
-                            {group.kind === "executive" && event.timeLabel
-                              ? ` · ${event.timeLabel}`
-                              : ""}
                           </span>
                         </p>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#0b5cab]">
-                          {event.ticketLabel}
+                        <p className="mt-1 text-sm text-slate-700">
+                          {event.timeLabel ? (
+                            <span>{event.timeLabel} · </span>
+                          ) : null}
+                          {event.kind === "executive" ? (
+                            <span>
+                              Ejecutivo:{" "}
+                              <span className="font-semibold text-[#0f2747]">
+                                {event.executive || "Sin asignar"}
+                              </span>
+                              {" · "}
+                            </span>
+                          ) : null}
+                          <span className="font-medium text-slate-600">
+                            {event.ticketLabel}
+                          </span>
                         </p>
-                      </article>
-                    ))}
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
             ))
