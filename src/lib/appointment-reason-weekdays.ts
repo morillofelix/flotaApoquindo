@@ -95,8 +95,10 @@ export function getBusinessDayAdvanceMessage(
       context.selectedDate,
       context.holidayDates,
     );
+    const remaining = Math.max(requiredDays - currentCount, 0);
+    const ingressLabel = formatCompactAdvanceDate(context.ingressDate);
 
-    return `Su fecha tiene ${currentCount} de ${requiredDays} días hábiles desde el ingreso. Puede solicitar desde el ${formattedDate}.`;
+    return `${currentCount}/${requiredDays} días hábiles desde el ingreso (${ingressLabel}). Faltan ${remaining}. Primera fecha válida: ${formattedDate}.`;
   }
 
   return `Se requieren ${formatBusinessDaysLabel(requiredDays)} desde el ingreso. Puede solicitar desde el ${formattedDate}.`;
