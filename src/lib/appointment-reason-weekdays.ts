@@ -62,6 +62,60 @@ export function getReasonRestrictedMessage(
   return getRestrictedDateMessage(requiredDays, minimumStartDate);
 }
 
+type BusinessDayAdvanceMessageContext = {
+  ingressDate?: string;
+  usesDateRange?: boolean;
+  usesPermitDetails?: boolean;
+  allowsExecutiveAssignment?: boolean;
+};
+
+function getBusinessDayAdvanceActionPhrase(context?: BusinessDayAdvanceMessageContext) {
+  if (context?.usesDateRange) {
+    return "registrar vacaciones o licencias";
+  }
+
+  if (context?.usesPermitDetails) {
+    return "solicitar su permiso";
+  }
+
+  if (context?.allowsExecutiveAssignment) {
+    return "agendar su atención";
+  }
+
+  return "realizar esta solicitud";
+}
+
+function getBusinessDayAdvanceDateLabel(context?: BusinessDayAdvanceMessageContext) {
+  if (context?.usesDateRange) {
+    return "fecha de inicio";
+  }
+
+  if (context?.usesPermitDetails) {
+    return "fecha del permiso";
+  }
+
+  if (context?.allowsExecutiveAssignment) {
+    return "fecha de atención";
+  }
+
+  return "fecha requerida";
+}
+
+export function getBusinessDayAdvanceMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+  context?: BusinessDayAdvanceMessageContext,
+) {
+  const formattedMinimumDate = formatSuggestedStartDate(minimumStartDate);
+  const actionPhrase = getBusinessDayAdvanceActionPhrase(context);
+  const dateLabel = getBusinessDayAdvanceDateLabel(context);
+  const ingressSegment = context?.ingressDate
+    ? `Su solicitud se registra con fecha de ingreso ${formatSuggestedStartDate(context.ingressDate)}. `
+    : "";
+
+  return `Estimado usuario: ${ingressSegment}Para este trámite deben mediar al menos ${formatBusinessDaysLabel(requiredDays)} entre la fecha de ingreso y la ${dateLabel} que usted indique. La ${dateLabel} seleccionada no cumple este requisito. La ${dateLabel} más próxima habilitada para ${actionPhrase} es el ${formattedMinimumDate}. Por favor, seleccione esa fecha o una posterior. Para más información, contacte al Departamento de Flota o a la Oficina Administrativa.`;
+}
+
 export type ReasonStartDateInput = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
@@ -72,13 +126,6 @@ export type ReasonStartDateInput = {
   permitDate?: string;
   appointmentDate?: string;
 };
-
-export function getBusinessDayAdvanceMessage(
-  requiredDays: number,
-  minimumStartDate: string,
-) {
-  return getReasonRestrictedMessage(requiredDays, minimumStartDate);
-}
 
 export type WeekdayBusinessAdvanceRule = {
   enabled: boolean;
@@ -431,7 +478,12 @@ export function checkBusinessDayAdvance(
 
       return {
         blocked: true,
-        message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+        message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate, {
+          ingressDate,
+          usesDateRange: reason.usesDateRange,
+          usesPermitDetails: reason.usesPermitDetails,
+          allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
+        }),
         minimumStartDate,
       };
     }
@@ -644,7 +696,12 @@ export function checkReasonDateRules(
 
         return {
           blocked: true,
-          message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+          message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate, {
+            ingressDate,
+            usesDateRange: input.usesDateRange,
+            usesPermitDetails: input.usesPermitDetails,
+            allowsExecutiveAssignment: input.allowsExecutiveAssignment,
+          }),
           minimumStartDate,
         };
       }

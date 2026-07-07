@@ -1,4 +1,6 @@
 import {
+  formatBusinessDaysLabel,
+  formatSuggestedStartDate,
   getBusinessDayAdvanceMessage,
   getEarliestRequiredDate,
   getReasonDatesToCheck,
@@ -19,8 +21,24 @@ export type HolidayConfig = {
 export function getHolidayRestrictedMessage(
   requiredDays: number,
   minimumStartDate: string,
+  context?: {
+    ingressDate?: string;
+    holidayName?: string;
+    usesDateRange?: boolean;
+    usesPermitDetails?: boolean;
+    allowsExecutiveAssignment?: boolean;
+  },
 ) {
-  return getBusinessDayAdvanceMessage(requiredDays, minimumStartDate);
+  if (context?.holidayName) {
+    const formattedMinimumDate = formatSuggestedStartDate(minimumStartDate);
+    const ingressSegment = context.ingressDate
+      ? `Su solicitud se registra con fecha de ingreso ${formatSuggestedStartDate(context.ingressDate)}. `
+      : "";
+
+    return `Estimado usuario: ${ingressSegment}La fecha seleccionada corresponde al feriado "${context.holidayName}". Para este trámite deben mediar al menos ${formatBusinessDaysLabel(requiredDays)} entre la fecha de ingreso y la fecha requerida. La fecha requerida más próxima habilitada es el ${formattedMinimumDate}. Por favor, seleccione esa fecha o una posterior. Para más información, contacte al Departamento de Flota o a la Oficina Administrativa.`;
+  }
+
+  return getBusinessDayAdvanceMessage(requiredDays, minimumStartDate, context);
 }
 
 export function formatHolidayDateLabel(dateValue: string) {
@@ -107,7 +125,13 @@ export function checkHolidayRestrictedDates(
 
       return {
         blocked: true,
-        message: getHolidayRestrictedMessage(requiredDays, minimumStartDate),
+        message: getHolidayRestrictedMessage(requiredDays, minimumStartDate, {
+          ingressDate,
+          holidayName: holiday.name,
+          usesDateRange: input.usesDateRange,
+          usesPermitDetails: input.usesPermitDetails,
+          allowsExecutiveAssignment: input.allowsExecutiveAssignment,
+        }),
         minimumStartDate,
       };
     }
