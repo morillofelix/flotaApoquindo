@@ -4,6 +4,7 @@ import {
   toDriverOwnerCreateData,
   type ParsedDriverOwnerRow,
 } from "@/lib/driver-owners";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -31,6 +32,12 @@ function isParsedRow(value: unknown): value is ParsedDriverOwnerRow {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "conductores");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: BulkBody;
 
   try {

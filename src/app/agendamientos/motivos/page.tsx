@@ -14,6 +14,7 @@ import {
   downloadAppointmentReasonsExcel,
   loadAppointmentReasons,
 } from "@/lib/agendamientos-admin";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -214,6 +215,7 @@ export default function MotivosPage() {
 
     try {
       const response = await fetch("/api/appointment-reasons", {
+        ...adminFetchInit,
         method: reasonForm.id ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",

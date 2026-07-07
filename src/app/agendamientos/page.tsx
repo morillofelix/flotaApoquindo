@@ -16,6 +16,7 @@ import {
   loadAppointments,
   loadExecutives,
 } from "@/lib/agendamientos-admin";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import { matchesVehicleNumberSearch } from "@/lib/maintainer-search";
 import {
   type DateFilter,
@@ -255,6 +256,7 @@ function AppointmentsPageContent() {
 
     try {
       const response = await fetch(`/api/appointments/${id}`, {
+        ...adminFetchInit,
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -467,6 +469,7 @@ function AppointmentsPageContent() {
       };
 
       const response = await fetch(`/api/appointments/${id}`, {
+        ...adminFetchInit,
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -568,6 +571,7 @@ function AppointmentsPageContent() {
 
     try {
       const response = await fetch(`/api/appointments/${appointment.id}`, {
+        ...adminFetchInit,
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -645,6 +649,7 @@ function AppointmentsPageContent() {
 
     try {
       const response = await fetch(`/api/appointments/${id}`, {
+        ...adminFetchInit,
         method: "DELETE",
       });
 

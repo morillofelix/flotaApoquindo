@@ -8,11 +8,17 @@ type SignedEnvelope<T> = {
 import { LEGACY_ADMIN_PASSWORD } from "@/lib/password-utils";
 
 export function getSessionSecret() {
-  return (
-    process.env.SESSION_SECRET?.trim() ||
-    process.env.ADMIN_PASSWORD?.trim() ||
-    LEGACY_ADMIN_PASSWORD
-  );
+  const secret = process.env.SESSION_SECRET?.trim();
+
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  return process.env.ADMIN_PASSWORD?.trim() || LEGACY_ADMIN_PASSWORD;
 }
 
 export function signCookieValue<T extends object>(

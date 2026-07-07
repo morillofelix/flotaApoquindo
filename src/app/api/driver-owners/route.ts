@@ -8,6 +8,7 @@ import {
   normalizeVehicleNumber,
   parseDateValue,
 } from "@/lib/driver-owners";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -118,7 +119,13 @@ function validateDriverOwnerInput(
   return null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "conductores");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const driverOwners = await prisma.driverOwner.findMany({
     orderBy: [{ vehicleNumber: "asc" }],
   });
@@ -129,6 +136,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "conductores");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: DriverOwnerBody;
 
   try {
@@ -179,6 +192,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "conductores");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: DriverOwnerBody;
 
   try {

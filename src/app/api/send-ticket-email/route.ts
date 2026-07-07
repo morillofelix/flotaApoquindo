@@ -2,10 +2,14 @@ import {
   type AppointmentEmailPayload,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
+import { requireDriverSession } from "@/lib/admin-api-server";
+import { readDriverSession } from "@/lib/driver-auth";
+import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
 } from "@/lib/notifica-smtp";
+import { normalizeEmail } from "@/lib/password-utils";
 import { NextResponse, type NextRequest } from "next/server";
 
 function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPayload {
@@ -173,6 +177,12 @@ function createEmailText(appointment: AppointmentEmailPayload) {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireDriverSession(request);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {
@@ -198,6 +208,17 @@ export async function POST(request: NextRequest) {
       { message: "Datos de solicitud incompletos." },
       { status: 400 },
     );
+  }
+
+  const session = readDriverSession(request);
+
+  if (
+    !session ||
+    normalizeVehicleNumber(body.vehicleNumber) !==
+      normalizeVehicleNumber(session.vehicleNumber) ||
+    normalizeEmail(body.email) !== normalizeEmail(session.email)
+  ) {
+    return NextResponse.json({ message: "No autorizado." }, { status: 403 });
   }
 
   const transporter = createNotificaTransporter();

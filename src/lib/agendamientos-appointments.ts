@@ -3,6 +3,7 @@ import {
   type AppointmentStatus,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
+import { adminFetchInit } from "@/lib/admin-fetch";
 
 export const statusLabels: Record<AppointmentStatus, string> = {
   pendiente: "Pendiente",
@@ -304,6 +305,7 @@ export function shouldSendCancellationEmails(appointment: Appointment) {
 
 export async function sendCancellationToRequester(appointment: Appointment) {
   const response = await fetch("/api/send-cancellation-email", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -318,6 +320,7 @@ export async function sendCancellationToRequester(appointment: Appointment) {
 
 export async function sendCalendarCancelToExecutive(appointment: Appointment) {
   const response = await fetch("/api/send-calendar-cancel", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -332,6 +335,7 @@ export async function sendCalendarCancelToExecutive(appointment: Appointment) {
 
 export async function sendCalendarInvite(appointment: Appointment) {
   const response = await fetch("/api/send-calendar-invite", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -346,6 +350,7 @@ export async function sendCalendarInvite(appointment: Appointment) {
 
 export async function sendScheduledEmailToRequester(appointment: Appointment) {
   const response = await fetch("/api/send-scheduled-email", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -365,6 +370,7 @@ export async function sendExecutiveAssignmentEmails(appointment: Appointment) {
 
 export async function sendCalendarRescheduleCancel(appointment: Appointment) {
   const response = await fetch("/api/send-calendar-cancel", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -379,6 +385,7 @@ export async function sendCalendarRescheduleCancel(appointment: Appointment) {
 
 export async function sendCalendarRescheduleInvite(appointment: Appointment) {
   const response = await fetch("/api/send-calendar-invite", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -397,6 +404,7 @@ export async function sendDateChangeEmail(appointment: Appointment) {
   }
 
   const response = await fetch("/api/send-date-change-email", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -452,6 +460,7 @@ export async function sendAppointmentDateChangeEmails(
 
 export async function sendDecisionEmail(appointment: Appointment) {
   const response = await fetch("/api/send-approval-email", {
+    ...adminFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",

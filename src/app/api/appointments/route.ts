@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import {
   type AppointmentReasonConfig,
   type PermitType,
@@ -199,7 +200,13 @@ function validateCreateBody(
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "solicitudes");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   await ensureDefaultReasons();
   const reasons = await prisma.appointmentReason.findMany();
   const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));

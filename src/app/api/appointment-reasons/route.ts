@@ -14,6 +14,7 @@ import {
   type WeekdayKey,
   type WeekdayBusinessAdvanceConfig,
 } from "@/lib/appointment-reason-weekdays";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -285,6 +286,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "motivos");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: ReasonBody;
 
   try {
@@ -371,6 +378,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "motivos");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: ReasonBody;
 
   try {

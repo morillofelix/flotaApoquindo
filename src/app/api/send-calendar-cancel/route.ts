@@ -14,6 +14,7 @@ import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
 } from "@/lib/notifica-smtp";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { NextResponse, type NextRequest } from "next/server";
 
 const calendarTimezone = "America/Santiago";
@@ -213,6 +214,12 @@ function createEmailText(appointment: CalendarCancelPayload) {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "solicitudes");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {

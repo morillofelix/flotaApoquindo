@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { type ExecutiveConfig, defaultExecutives } from "@/lib/appointments";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -114,7 +115,13 @@ async function loadExecutives() {
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "ejecutivos");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const executives = await loadExecutives();
 
   return NextResponse.json({
@@ -123,6 +130,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "ejecutivos");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: ExecutiveBody;
 
   try {
@@ -195,6 +208,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "ejecutivos");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let body: ExecutiveBody;
 
   try {

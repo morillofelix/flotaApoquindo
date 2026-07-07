@@ -17,6 +17,7 @@ import {
   RecoverPasswordSmtpError,
   recoverPasswordByEmail,
 } from "@/lib/recover-password";
+import { checkRateLimit, getClientRateLimitKey } from "@/lib/rate-limit";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -254,7 +255,33 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "recover-password") {
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    const rate = checkRateLimit(
+      getClientRateLimitKey(request, "recover-password", email),
+      { limit: 5, windowMs: 60 * 60 * 1000 },
+    );
+
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { message: "Demasiados intentos. Intenta más tarde." },
+        { status: 429 },
+      );
+    }
+
     return handleRecoverPassword(body);
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const loginRate = checkRateLimit(
+    getClientRateLimitKey(request, "driver-login", email),
+    { limit: 10, windowMs: 15 * 60 * 1000 },
+  );
+
+  if (!loginRate.allowed) {
+    return NextResponse.json(
+      { message: "Demasiados intentos. Intenta más tarde." },
+      { status: 429 },
+    );
   }
 
   return handleLogin(body);

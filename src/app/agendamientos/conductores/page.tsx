@@ -3,6 +3,7 @@
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { loadDriverOwners } from "@/lib/agendamientos-admin";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import {
   countImportCategories,
   downloadDriverOwnersExcel,
@@ -438,6 +439,7 @@ export default function ConductoresPage() {
 
     try {
       const response = await fetch("/api/driver-owners/bulk", {
+        ...adminFetchInit,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -585,6 +587,7 @@ export default function ConductoresPage() {
 
     try {
       const response = await fetch("/api/driver-owners", {
+        ...adminFetchInit,
         method: driverOwnerForm.id ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -656,6 +659,7 @@ export default function ConductoresPage() {
 
     try {
       const response = await fetch("/api/driver-owners/temporary-password", {
+        ...adminFetchInit,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ driverOwnerId: driverOwnerForm.id }),
@@ -821,6 +825,7 @@ export default function ConductoresPage() {
 
     try {
       const response = await fetch(`/api/driver-owners/${driverOwnerForm.id}`, {
+        ...adminFetchInit,
         method: "DELETE",
       });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { adminFetchInit } from "@/lib/admin-fetch";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import {
   useCallback,
@@ -57,6 +58,7 @@ export default function VehicleNumberLookupField({
         ...(exact ? { exact: "true" } : {}),
       });
       const response = await fetch(`/api/driver-owners/lookup?${params.toString()}`, {
+        ...adminFetchInit,
         cache: "no-store",
       });
 

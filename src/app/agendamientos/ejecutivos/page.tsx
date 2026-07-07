@@ -6,6 +6,7 @@ import {
   downloadExecutivesExcel,
   loadExecutives,
 } from "@/lib/agendamientos-admin";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -175,6 +176,7 @@ export default function EjecutivosPage() {
 
     try {
       const response = await fetch("/api/executives", {
+        ...adminFetchInit,
         method: selectedExecutiveId ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",

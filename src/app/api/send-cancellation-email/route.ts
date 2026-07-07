@@ -2,6 +2,7 @@ import {
   type Appointment,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -103,6 +104,12 @@ function createEmailText(appointment: CancellationEmailPayload) {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "solicitudes");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {

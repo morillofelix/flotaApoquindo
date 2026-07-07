@@ -6,8 +6,32 @@ import {
 import {
   hasAdminPermission,
   readAdminSession,
+  readDriverSession,
+  type DriverSession,
 } from "@/lib/driver-auth";
 import { NextResponse, type NextRequest } from "next/server";
+
+export function requireDriverSession(request: NextRequest) {
+  const session = readDriverSession(request);
+
+  if (!session) {
+    return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  }
+
+  return null;
+}
+
+export function readAuthorizedDriverSession(
+  request: NextRequest,
+): DriverSession | null {
+  const unauthorized = requireDriverSession(request);
+
+  if (unauthorized) {
+    return null;
+  }
+
+  return readDriverSession(request);
+}
 
 export function requireAdminSession(request: NextRequest) {
   const session = readAdminSession(request);

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -24,6 +25,12 @@ function toLookupResult(driverOwner: {
 }
 
 export async function GET(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "conductores");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const exact = request.nextUrl.searchParams.get("exact") === "true";
   const digits = query.replace(/\D/g, "");

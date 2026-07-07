@@ -14,6 +14,7 @@ import {
   verifyAdminCredentials,
   verifyPassword,
 } from "@/lib/password-utils";
+import { checkRateLimit, getClientRateLimitKey } from "@/lib/rate-limit";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +83,18 @@ export async function POST(request: NextRequest) {
   const userInput = typeof body.user === "string" ? body.user.trim() : "";
   const password =
     typeof body.password === "string" ? body.password.trim() : "";
+
+  const loginRate = checkRateLimit(
+    getClientRateLimitKey(request, "admin-login", userInput),
+    { limit: 10, windowMs: 15 * 60 * 1000 },
+  );
+
+  if (!loginRate.allowed) {
+    return NextResponse.json(
+      { message: "Demasiados intentos. Intenta más tarde." },
+      { status: 429 },
+    );
+  }
 
   if (!userInput || !password) {
     return NextResponse.json(

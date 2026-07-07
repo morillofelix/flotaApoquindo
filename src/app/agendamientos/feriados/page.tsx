@@ -6,6 +6,7 @@ import {
   type HolidayConfig,
   formatHolidayDateLabel,
 } from "@/lib/holidays";
+import { adminFetchInit } from "@/lib/admin-fetch";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -32,7 +33,10 @@ const emptyHolidayForm: HolidayForm = {
 
 async function loadHolidays(year?: number) {
   const query = year ? `?year=${year}` : "";
-  const response = await fetch(`/api/holidays${query}`, { cache: "no-store" });
+  const response = await fetch(`/api/holidays${query}`, {
+    ...adminFetchInit,
+    cache: "no-store",
+  });
 
   if (!response.ok) {
     throw new Error("No se pudieron cargar los feriados.");
@@ -138,8 +142,8 @@ export default function FeriadosPage() {
 
     try {
       const response = await fetch("/api/holidays/seed", {
+        ...adminFetchInit,
         method: "POST",
-        credentials: "include",
       });
 
       const data = (await response.json()) as { message?: string };
@@ -188,8 +192,8 @@ export default function FeriadosPage() {
 
     try {
       const response = await fetch("/api/holidays", {
+        ...adminFetchInit,
         method: holidayForm.id ? "PATCH" : "POST",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },

@@ -10,6 +10,10 @@ import {
 } from "@/lib/appointment-date-edit";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { computeExecutiveAppointmentSlot } from "@/lib/executive-appointment-slot";
+import { requireAdminPermission, requireDriverSession } from "@/lib/admin-api-server";
+import { readDriverSession } from "@/lib/driver-auth";
+import { normalizeVehicleNumber } from "@/lib/driver-owners";
+import { normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -262,7 +266,41 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   if (body.acknowledgeDateChange === true) {
+    const driverUnauthorized = requireDriverSession(request);
+
+    if (driverUnauthorized) {
+      return driverUnauthorized;
+    }
+
+    const session = readDriverSession(request);
+
+    if (!session) {
+      return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+    }
+
     try {
+      const existingAppointment = await prisma.appointment.findUnique({
+        where: { id },
+      });
+
+      if (!existingAppointment) {
+        return NextResponse.json(
+          { message: "Solicitud no encontrada." },
+          { status: 404 },
+        );
+      }
+
+      if (
+        normalizeVehicleNumber(existingAppointment.vehicleNumber) !==
+          session.vehicleNumber ||
+        normalizeEmail(existingAppointment.email) !== normalizeEmail(session.email)
+      ) {
+        return NextResponse.json(
+          { message: "No autorizado para esta solicitud." },
+          { status: 403 },
+        );
+      }
+
       const updatedAppointment = await prisma.appointment.update({
         where: { id },
         data: {
@@ -287,6 +325,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         { status: 500 },
       );
     }
+  }
+
+  const unauthorized = requireAdminPermission(request, "solicitudes");
+
+  if (unauthorized) {
+    return unauthorized;
   }
 
   const data: {
@@ -568,7 +612,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const unauthorized = requireAdminPermission(request, "solicitudes");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const { id } = await context.params;
 
   try {

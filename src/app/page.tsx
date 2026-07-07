@@ -26,6 +26,7 @@ import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen"
 import PwaInstallLanding from "@/components/PwaInstallLanding";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
+import { sessionFetchInit } from "@/lib/admin-fetch";
 import {
   clearInstallQueryParam,
   shouldShowPwaInstallLanding,
@@ -219,6 +220,7 @@ function createAppointment(
 
 async function saveAppointment(newAppointment: AppointmentSubmission) {
   const response = await fetch("/api/appointments", {
+    ...sessionFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -249,6 +251,7 @@ async function saveAppointment(newAppointment: AppointmentSubmission) {
 
 async function sendTicketEmail(newAppointment: Appointment) {
   const response = await fetch("/api/send-ticket-email", {
+    ...sessionFetchInit,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -499,7 +502,10 @@ function AppointmentRequestForm({
     let cancelled = false;
     setIsLoadingRecent(true);
 
-    fetch("/api/appointments/by-vehicle", { cache: "no-store" })
+    fetch("/api/appointments/by-vehicle", {
+      ...sessionFetchInit,
+      cache: "no-store",
+    })
       .then((response) => {
         if (!response.ok) {
           throw new Error("No se pudieron cargar las solicitudes.");
@@ -533,6 +539,7 @@ function AppointmentRequestForm({
   async function dismissDateChangeNotice(appointmentId: string) {
     try {
       const response = await fetch(`/api/appointments/${appointmentId}`, {
+        ...sessionFetchInit,
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -814,10 +821,10 @@ function AppointmentRequestForm({
         setSuccessTicketId(getAppointmentTicketLabel(savedAppointment));
 
         if (linkedVehicleNumber) {
-          fetch(
-            `/api/appointments/by-vehicle?vehicleNumber=${encodeURIComponent(linkedVehicleNumber)}`,
-            { cache: "no-store" },
-          )
+          fetch("/api/appointments/by-vehicle", {
+            ...sessionFetchInit,
+            cache: "no-store",
+          })
             .then((response) =>
               response.ok ? response.json() : Promise.reject(),
             )

@@ -14,6 +14,7 @@ import { type PropietarioBankConfig } from "@/lib/propietarios-banks";
 
 export async function loadAppointments() {
   const response = await fetch("/api/appointments", {
+    ...adminFetchInit,
     cache: "no-store",
   });
 
@@ -27,6 +28,7 @@ export async function loadAppointments() {
 
 export async function loadAppointmentReasons() {
   const response = await fetch("/api/appointment-reasons", {
+    ...adminFetchInit,
     cache: "no-store",
   });
 
@@ -43,6 +45,7 @@ export async function loadAppointmentReasons() {
 
 export async function loadExecutives() {
   const response = await fetch("/api/executives", {
+    ...adminFetchInit,
     cache: "no-store",
   });
 
@@ -59,6 +62,7 @@ export async function loadExecutives() {
 
 export async function loadDriverOwners() {
   const response = await fetch("/api/driver-owners", {
+    ...adminFetchInit,
     cache: "no-store",
   });
 
@@ -75,8 +79,8 @@ export async function loadDriverOwners() {
 
 export async function loadPropietarios() {
   const response = await fetch("/api/propietarios", {
+    ...adminFetchInit,
     cache: "no-store",
-    credentials: adminFetchInit.credentials,
   });
 
   if (!response.ok) {
@@ -92,8 +96,8 @@ export async function loadPropietarios() {
 
 export async function loadPropietarioBanks() {
   const response = await fetch("/api/propietarios/banks", {
+    ...adminFetchInit,
     cache: "no-store",
-    credentials: adminFetchInit.credentials,
   });
 
   if (!response.ok) {

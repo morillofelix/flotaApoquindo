@@ -8,6 +8,7 @@ import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
 } from "@/lib/notifica-smtp";
+import { requireAdminPermission } from "@/lib/admin-api-server";
 import { NextResponse, type NextRequest } from "next/server";
 
 type ScheduledEmailPayload = Pick<
@@ -103,6 +104,12 @@ function createEmailText(
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "solicitudes");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {
