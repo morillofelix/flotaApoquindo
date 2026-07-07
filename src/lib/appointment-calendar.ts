@@ -151,6 +151,108 @@ function pushApprovalDateRangeEvents(
   }
 }
 
+function isValidIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function resolvePrimaryCalendarDate(appointment: Appointment) {
+  if (isValidIsoDate(appointment.appointmentDate)) {
+    return appointment.appointmentDate;
+  }
+
+  if (isValidIsoDate(appointment.permitDate)) {
+    return appointment.permitDate;
+  }
+
+  if (isValidIsoDate(appointment.vacationStartDate)) {
+    return appointment.vacationStartDate;
+  }
+
+  if (isValidIsoDate(appointment.permitStartDate)) {
+    return appointment.permitStartDate;
+  }
+
+  const createdDate = appointment.createdAt.slice(0, 10);
+
+  if (isValidIsoDate(createdDate)) {
+    return createdDate;
+  }
+
+  return null;
+}
+
+function pushSingleDayEvent(
+  appointment: Appointment,
+  events: AppointmentCalendarEvent[],
+  date: string,
+  kind: CalendarEventKind,
+  {
+    timeLabel = "",
+    startHour = 0,
+    startMinute = 0,
+    endHour = 23,
+    endMinute = 59,
+    sortKey = 0,
+  }: {
+    timeLabel?: string;
+    startHour?: number;
+    startMinute?: number;
+    endHour?: number;
+    endMinute?: number;
+    sortKey?: number;
+  } = {},
+) {
+  events.push(
+    buildEvent(appointment, kind, {
+      date,
+      startHour,
+      startMinute,
+      endHour,
+      endMinute,
+      timeLabel,
+      executive:
+        kind === "executive"
+          ? appointment.assignedExecutive || "Sin asignar"
+          : "",
+      vehicleNumber: appointment.vehicleNumber,
+      driverName: appointment.driverName,
+      reasonValue: appointment.appointmentReason,
+      reasonLabel: appointment.appointmentReasonLabel,
+      status: appointment.status,
+      sortKey,
+    }),
+  );
+}
+
+function pushDateRangeEvents(
+  appointment: Appointment,
+  events: AppointmentCalendarEvent[],
+  startDate: string,
+  endDate: string,
+  timeLabel = "",
+  sortKey = 0,
+) {
+  if (!isValidIsoDate(startDate)) {
+    return;
+  }
+
+  const normalizedEnd =
+    isValidIsoDate(endDate) && endDate >= startDate ? endDate : startDate;
+
+  pushApprovalDateRangeEvents(
+    appointment,
+    events,
+    startDate,
+    normalizedEnd,
+    timeLabel,
+    sortKey,
+  );
+}
+
+function resolveCalendarEventKind(appointment: Appointment): CalendarEventKind {
+  return appointment.reasonAllowsExecutiveAssignment ? "executive" : "approval";
+}
+
 export function getAppointmentCalendarEvents(
   appointment: Appointment,
   executivesByName?: Map<string, ExecutiveConfig>,
@@ -160,14 +262,14 @@ export function getAppointmentCalendarEvents(
   }
 
   const events: AppointmentCalendarEvent[] = [];
-  const isApprovalOnly = !appointment.reasonAllowsExecutiveAssignment;
 
   if (
-    !isApprovalOnly &&
     appointment.reasonAllowsExecutiveAssignment &&
-    appointment.assignedExecutive
+    isValidIsoDate(appointment.appointmentDate)
   ) {
-    const executive = executivesByName?.get(appointment.assignedExecutive);
+    const executive = appointment.assignedExecutive
+      ? executivesByName?.get(appointment.assignedExecutive)
+      : undefined;
     const schedule = resolveAppointmentSchedule({
       appointmentDate: appointment.appointmentDate,
       reasonAllowsExecutiveAssignment:
@@ -187,90 +289,89 @@ export function getAppointmentCalendarEvents(
     });
 
     if (schedule) {
-      events.push(
-        buildEvent(appointment, "executive", {
-          date: appointment.appointmentDate,
+      pushSingleDayEvent(
+        appointment,
+        events,
+        appointment.appointmentDate,
+        "executive",
+        {
+          timeLabel: schedule.timeRangeLabel,
           startHour: schedule.startHour,
           startMinute: schedule.startMinute,
           endHour: schedule.endHour,
           endMinute: schedule.endMinute,
-          timeLabel: schedule.timeRangeLabel,
-          executive: appointment.assignedExecutive,
-          vehicleNumber: appointment.vehicleNumber,
-          driverName: appointment.driverName,
-          reasonValue: appointment.appointmentReason,
-        reasonLabel: appointment.appointmentReasonLabel,
-          status: appointment.status,
           sortKey: toSortKey(schedule.startHour, schedule.startMinute),
-        }),
+        },
+      );
+    } else {
+      pushSingleDayEvent(
+        appointment,
+        events,
+        appointment.appointmentDate,
+        "executive",
       );
     }
-
-    return events;
   }
 
-  if (!isApprovalOnly) {
-    return events;
-  }
-
-  if (
-    appointment.reasonUsesDateRange &&
-    appointment.vacationStartDate &&
-    appointment.vacationEndDate
-  ) {
-    pushApprovalDateRangeEvents(
+  if (isValidIsoDate(appointment.vacationStartDate)) {
+    pushDateRangeEvents(
       appointment,
       events,
       appointment.vacationStartDate,
       appointment.vacationEndDate,
-      "",
-      0,
     );
   }
 
   if (
-    appointment.reasonUsesPermitDetails &&
+    appointment.permitType === "dias" &&
+    isValidIsoDate(appointment.permitStartDate)
+  ) {
+    pushDateRangeEvents(
+      appointment,
+      events,
+      appointment.permitStartDate,
+      appointment.permitEndDate,
+    );
+  }
+
+  if (
     appointment.permitType === "horas" &&
-    appointment.permitDate
+    isValidIsoDate(appointment.permitDate)
   ) {
     const start = parseClock(appointment.permitStartTime);
     const end = parseClock(appointment.permitEndTime);
 
     if (start && end) {
-      events.push(
-        buildEvent(appointment, "approval", {
-          date: appointment.permitDate,
+      pushSingleDayEvent(
+        appointment,
+        events,
+        appointment.permitDate,
+        "approval",
+        {
+          timeLabel: `${formatClockTime(start.hour, start.minute)}-${formatClockTime(end.hour, end.minute)}`,
           startHour: start.hour,
           startMinute: start.minute,
           endHour: end.hour,
           endMinute: end.minute,
-          timeLabel: `${formatClockTime(start.hour, start.minute)}-${formatClockTime(end.hour, end.minute)}`,
-          executive: "",
-          vehicleNumber: appointment.vehicleNumber,
-          driverName: appointment.driverName,
-          reasonValue: appointment.appointmentReason,
-        reasonLabel: appointment.appointmentReasonLabel,
-          status: appointment.status,
           sortKey: toSortKey(start.hour, start.minute),
-        }),
+        },
       );
+    } else {
+      pushSingleDayEvent(appointment, events, appointment.permitDate, "approval");
     }
   }
 
-  if (
-    appointment.reasonUsesPermitDetails &&
-    appointment.permitType === "dias" &&
-    appointment.permitStartDate &&
-    appointment.permitEndDate
-  ) {
-    pushApprovalDateRangeEvents(
-      appointment,
-      events,
-      appointment.permitStartDate,
-      appointment.permitEndDate,
-      "",
-      0,
-    );
+  if (events.length === 0) {
+    const fallbackDate = resolvePrimaryCalendarDate(appointment);
+
+    if (fallbackDate) {
+      pushSingleDayEvent(
+        appointment,
+        events,
+        fallbackDate,
+        resolveCalendarEventKind(appointment),
+      );
+    }
   }
 
   return events;
