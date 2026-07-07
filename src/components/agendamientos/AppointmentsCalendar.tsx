@@ -3,6 +3,7 @@
 import {
   type Appointment,
   type AppointmentReasonConfig,
+  type AppointmentStatus,
   type ExecutiveConfig,
 } from "@/lib/appointments";
 import {
@@ -18,7 +19,7 @@ import {
   shiftDate,
   shiftMonth,
 } from "@/lib/appointment-calendar";
-import { statusStyles } from "@/lib/agendamientos-appointments";
+import { statusLabels, statusStyles } from "@/lib/agendamientos-appointments";
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import { UI_CARD_SHELL } from "@/lib/ui-borders";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -143,13 +144,23 @@ function CalendarReasonMultiSelect({
   );
 }
 
-const weekdayHeaders = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+type CalendarStatusFilter = "todos" | AppointmentStatus;
+
+const statusFilterOptions: CalendarStatusFilter[] = [
+  "todos",
+  "pendiente",
+  "revisado",
+  "aprobado",
+  "rechazado",
+  "cancelado",
+];
 const CALENDAR_DAY_BG = "bg-[#f5ead8]";
 const CALENDAR_DAY_BG_EMPTY = "bg-[#ebe3d4]";
 const CALENDAR_DAY_BG_SELECTED = "bg-[#e8dcc8]";
 const CALENDAR_DAY_BG_HOVER = "hover:bg-[#ebe0cf]";
 const CALENDAR_HEADER_BG = "bg-[#e8dcc8]";
 const CALENDAR_GRID_BORDER = "border-[#7a9fc4]";
+const weekdayHeaders = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 function parseIsoDate(dateValue: string) {
   const [year = "0", month = "0", day = "0"] = dateValue.split("-");
@@ -234,10 +245,10 @@ function getEventPresentation(event: AppointmentCalendarEvent) {
 
 function getGroupSubtitle(kind: CalendarEventKind, count: number) {
   if (kind === "approval") {
-    return `${count} ${count === 1 ? "solicitud" : "solicitudes"} por aprobar o aprobadas`;
+    return `${count} ${count === 1 ? "solicitud" : "solicitudes"} en el día`;
   }
 
-  return `${count} ${count === 1 ? "cita" : "citas"} en el día`;
+  return `${count} ${count === 1 ? "cita con ejecutivo" : "citas con ejecutivo"} en el día`;
 }
 
 export default function AppointmentsCalendar({
@@ -253,6 +264,7 @@ export default function AppointmentsCalendar({
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [selectedDate, setSelectedDate] = useState(today);
   const [executiveFilter, setExecutiveFilter] = useState("todos");
+  const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("todos");
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const selectedParts = parseIsoDate(selectedDate);
   const [visibleMonth, setVisibleMonth] = useState({
@@ -272,6 +284,8 @@ export default function AppointmentsCalendar({
 
   const filteredEvents = useMemo(() => {
     return allEvents.filter((event) => {
+      const matchesStatus =
+        statusFilter === "todos" || event.status === statusFilter;
       const matchesReason =
         selectedReasons.length === 0 ||
         selectedReasons.includes(event.reasonValue);
@@ -279,9 +293,9 @@ export default function AppointmentsCalendar({
         executiveFilter === "todos" ||
         (event.kind === "executive" && event.executive === executiveFilter);
 
-      return matchesReason && matchesExecutive;
+      return matchesStatus && matchesReason && matchesExecutive;
     });
-  }, [allEvents, executiveFilter, selectedReasons]);
+  }, [allEvents, executiveFilter, selectedReasons, statusFilter]);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, AppointmentCalendarEvent[]>();
@@ -368,15 +382,32 @@ export default function AppointmentsCalendar({
               Visualización
             </p>
             <h2 className="mt-1 font-heading text-2xl font-semibold text-[#0f2747]">
-              Calendario de citas
+              Calendario histórico
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Revisa por fecha el motivo, móvil, conductor, ejecutivo asignado y
-              estado de cada solicitud.
+              Registro por fecha de cada solicitud: pasado, presente y futuro.
+              Usa los filtros para ver todo, por ejecutivo, motivo o estado.
             </p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-semibold text-[#173b68]">Estado</span>
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as CalendarStatusFilter)
+                }
+                className={filterFieldClass}
+              >
+                {statusFilterOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "todos" ? "Todos" : statusLabels[option]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-semibold text-[#173b68]">Ejecutivo</span>
               <select
@@ -591,7 +622,7 @@ export default function AppointmentsCalendar({
         <div className="space-y-4 px-4 py-4 sm:px-6">
           {selectedDayGroups.length === 0 ? (
             <div className={`rounded-2xl border-2 ${CALENDAR_GRID_BORDER} ${CALENDAR_DAY_BG} px-4 py-8 text-center text-sm text-[#5c4a32]`}>
-              No hay citas para este día con el filtro seleccionado.
+              No hay solicitudes para este día con el filtro seleccionado.
             </div>
           ) : (
             selectedDayGroups.map((group) => (

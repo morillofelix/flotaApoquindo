@@ -2,6 +2,7 @@ import {
   type Appointment,
   type AppointmentStatus,
   type ExecutiveConfig,
+  type PermitType,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import {
@@ -41,8 +42,6 @@ export type CalendarDayGroup = {
   kind: CalendarEventKind;
   events: AppointmentCalendarEvent[];
 };
-
-const HIDDEN_STATUSES = new Set<AppointmentStatus>(["cancelado", "rechazado"]);
 
 const weekdayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -155,17 +154,65 @@ function isValidIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function resolvePermitType(appointment: Appointment): PermitType | "" {
+  if (appointment.permitType === "dias" || appointment.permitType === "horas") {
+    return appointment.permitType;
+  }
+
+  if (
+    isValidIsoDate(appointment.permitStartDate) ||
+    isValidIsoDate(appointment.permitEndDate)
+  ) {
+    return "dias";
+  }
+
+  if (isValidIsoDate(appointment.permitDate)) {
+    return "horas";
+  }
+
+  return "";
+}
+
+function hasPermitCalendarData(appointment: Appointment) {
+  return (
+    appointment.reasonUsesPermitDetails ||
+    resolvePermitType(appointment) !== "" ||
+    isValidIsoDate(appointment.permitDate) ||
+    isValidIsoDate(appointment.permitStartDate)
+  );
+}
+
+function hasVacationCalendarData(appointment: Appointment) {
+  return (
+    appointment.reasonUsesDateRange ||
+    isValidIsoDate(appointment.vacationStartDate)
+  );
+}
+
 function resolvePrimaryCalendarDate(appointment: Appointment) {
-  if (isValidIsoDate(appointment.appointmentDate)) {
+  const permitType = resolvePermitType(appointment);
+
+  if (permitType === "horas" && isValidIsoDate(appointment.permitDate)) {
+    return appointment.permitDate;
+  }
+
+  if (permitType === "dias" && isValidIsoDate(appointment.permitStartDate)) {
+    return appointment.permitStartDate;
+  }
+
+  if (isValidIsoDate(appointment.vacationStartDate)) {
+    return appointment.vacationStartDate;
+  }
+
+  if (
+    appointment.reasonAllowsExecutiveAssignment &&
+    isValidIsoDate(appointment.appointmentDate)
+  ) {
     return appointment.appointmentDate;
   }
 
   if (isValidIsoDate(appointment.permitDate)) {
     return appointment.permitDate;
-  }
-
-  if (isValidIsoDate(appointment.vacationStartDate)) {
-    return appointment.vacationStartDate;
   }
 
   if (isValidIsoDate(appointment.permitStartDate)) {
@@ -257,11 +304,8 @@ export function getAppointmentCalendarEvents(
   appointment: Appointment,
   executivesByName?: Map<string, ExecutiveConfig>,
 ): AppointmentCalendarEvent[] {
-  if (HIDDEN_STATUSES.has(appointment.status)) {
-    return [];
-  }
-
   const events: AppointmentCalendarEvent[] = [];
+  const permitType = resolvePermitType(appointment);
 
   if (
     appointment.reasonAllowsExecutiveAssignment &&
@@ -313,7 +357,10 @@ export function getAppointmentCalendarEvents(
     }
   }
 
-  if (isValidIsoDate(appointment.vacationStartDate)) {
+  if (
+    hasVacationCalendarData(appointment) &&
+    isValidIsoDate(appointment.vacationStartDate)
+  ) {
     pushDateRangeEvents(
       appointment,
       events,
@@ -323,7 +370,8 @@ export function getAppointmentCalendarEvents(
   }
 
   if (
-    appointment.permitType === "dias" &&
+    hasPermitCalendarData(appointment) &&
+    permitType === "dias" &&
     isValidIsoDate(appointment.permitStartDate)
   ) {
     pushDateRangeEvents(
@@ -335,7 +383,8 @@ export function getAppointmentCalendarEvents(
   }
 
   if (
-    appointment.permitType === "horas" &&
+    hasPermitCalendarData(appointment) &&
+    permitType === "horas" &&
     isValidIsoDate(appointment.permitDate)
   ) {
     const start = parseClock(appointment.permitStartTime);
