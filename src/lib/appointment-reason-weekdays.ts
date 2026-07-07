@@ -21,10 +21,8 @@ export const weekdayOptions: Array<{
   { value: "domingo", label: "Domingo", shortLabel: "do" },
 ];
 
-/** Lunes a viernes: anticipación por día hábil en el mantenedor de motivos. */
-export const weekdayBusinessAdvanceOptions = weekdayOptions.filter(
-  (option) => option.value !== "sabado" && option.value !== "domingo",
-);
+/** Todos los días de la semana: anticipación por día en el mantenedor de motivos. */
+export const weekdayBusinessAdvanceOptions = weekdayOptions;
 
 export const RESTRICTED_DAY_MESSAGE =
   "Estimado usuario: las solicitudes para los días viernes, sábado, domingo y feriados deben ser tramitadas directamente en las oficinas de la empresa Transportes Apoquindo.";
