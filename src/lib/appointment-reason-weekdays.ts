@@ -73,8 +73,11 @@ export type ReasonStartDateInput = {
   appointmentDate?: string;
 };
 
-export function getBusinessDayAdvanceMessage(requiredDays: number) {
-  return `La fecha solicitada no cumple con la anticipación mínima requerida de ${formatBusinessDaysLabel(requiredDays)} definida para este tipo de solicitud. Por favor, seleccione una fecha posterior.`;
+export function getBusinessDayAdvanceMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+) {
+  return getReasonRestrictedMessage(requiredDays, minimumStartDate);
 }
 
 export type WeekdayBusinessAdvanceRule = {
@@ -428,7 +431,7 @@ export function checkBusinessDayAdvance(
 
       return {
         blocked: true,
-        message: getBusinessDayAdvanceMessage(rule.days),
+        message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
         minimumStartDate,
       };
     }
@@ -641,7 +644,7 @@ export function checkReasonDateRules(
 
         return {
           blocked: true,
-          message: getBusinessDayAdvanceMessage(rule.days),
+          message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
           minimumStartDate,
         };
       }

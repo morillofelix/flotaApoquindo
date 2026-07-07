@@ -16,8 +16,11 @@ export type HolidayConfig = {
   source: string;
 };
 
-export function getHolidayRestrictedMessage(requiredDays: number) {
-  return getBusinessDayAdvanceMessage(requiredDays);
+export function getHolidayRestrictedMessage(
+  requiredDays: number,
+  minimumStartDate: string,
+) {
+  return getBusinessDayAdvanceMessage(requiredDays, minimumStartDate);
 }
 
 export function formatHolidayDateLabel(dateValue: string) {
@@ -104,7 +107,7 @@ export function checkHolidayRestrictedDates(
 
       return {
         blocked: true,
-        message: getHolidayRestrictedMessage(requiredDays),
+        message: getHolidayRestrictedMessage(requiredDays, minimumStartDate),
         minimumStartDate,
       };
     }
