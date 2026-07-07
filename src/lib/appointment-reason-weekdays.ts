@@ -75,36 +75,31 @@ export function getReasonRestrictedMessage(
 
 type BusinessDayAdvanceMessageContext = {
   ingressDate?: string;
+  selectedDate?: string;
+  holidayDates?: Set<string>;
   usesDateRange?: boolean;
   usesPermitDetails?: boolean;
   allowsExecutiveAssignment?: boolean;
 };
-
-function getBusinessDayAdvanceDateLabel(context?: BusinessDayAdvanceMessageContext) {
-  if (context?.usesDateRange) {
-    return "fecha de inicio";
-  }
-
-  if (context?.usesPermitDetails) {
-    return "fecha del permiso";
-  }
-
-  if (context?.allowsExecutiveAssignment) {
-    return "fecha de atención";
-  }
-
-  return "fecha requerida";
-}
 
 export function getBusinessDayAdvanceMessage(
   requiredDays: number,
   minimumStartDate: string,
   context?: BusinessDayAdvanceMessageContext,
 ) {
-  const dateLabel = getBusinessDayAdvanceDateLabel(context);
   const formattedDate = formatCompactAdvanceDate(minimumStartDate);
 
-  return `Se requieren ${formatBusinessDaysLabel(requiredDays)} entre el ingreso y la ${dateLabel}. Puede solicitar desde el ${formattedDate}.`;
+  if (context?.ingressDate && context?.selectedDate) {
+    const currentCount = countBusinessDaysBetween(
+      context.ingressDate,
+      context.selectedDate,
+      context.holidayDates,
+    );
+
+    return `Su fecha tiene ${currentCount} de ${requiredDays} días hábiles desde el ingreso. Puede solicitar desde el ${formattedDate}.`;
+  }
+
+  return `Se requieren ${formatBusinessDaysLabel(requiredDays)} desde el ingreso. Puede solicitar desde el ${formattedDate}.`;
 }
 
 export type ReasonStartDateInput = {
@@ -390,49 +385,6 @@ export function getEarliestRequiredDate(
   return addBusinessDays(ingressDate, requiredBusinessDays, holidayDates);
 }
 
-/** Primera fecha del mismo día de la semana que cumple la anticipación. */
-export function findEarliestRequiredDate(
-  ingressDate: string,
-  requiredBusinessDays: number,
-  holidayDates?: Set<string>,
-  matchingWeekday?: WeekdayKey | null,
-) {
-  const thresholdDate = getEarliestRequiredDate(
-    ingressDate,
-    requiredBusinessDays,
-    holidayDates,
-  );
-
-  if (!matchingWeekday) {
-    return thresholdDate;
-  }
-
-  if (getWeekdayFromDate(thresholdDate) === matchingWeekday) {
-    return thresholdDate;
-  }
-
-  const current = parseDateOnlyValue(thresholdDate);
-
-  for (let index = 0; index < 370; index += 1) {
-    current.setDate(current.getDate() + 1);
-    const dateValue = formatDateOnlyValue(current);
-
-    if (
-      getWeekdayFromDate(dateValue) === matchingWeekday &&
-      meetsBusinessDayAdvance(
-        ingressDate,
-        dateValue,
-        requiredBusinessDays,
-        holidayDates,
-      )
-    ) {
-      return dateValue;
-    }
-  }
-
-  return thresholdDate;
-}
-
 export function meetsBusinessDayAdvance(
   ingressDate: string,
   requiredDate: string,
@@ -504,17 +456,18 @@ export function checkBusinessDayAdvance(
     const rule = config[weekday];
 
     if (!meetsBusinessDayAdvance(ingressDate, date, rule.days, holidayDates)) {
-      const minimumStartDate = findEarliestRequiredDate(
+      const minimumStartDate = getEarliestRequiredDate(
         ingressDate,
         rule.days,
         holidayDates,
-        weekday,
       );
 
       return {
         blocked: true,
         message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate, {
           ingressDate,
+          selectedDate: date,
+          holidayDates,
           usesDateRange: reason.usesDateRange,
           usesPermitDetails: reason.usesPermitDetails,
           allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
@@ -723,17 +676,18 @@ export function checkReasonDateRules(
       if (
         !meetsBusinessDayAdvance(ingressDate, date, rule.days, holidayDates)
       ) {
-        const minimumStartDate = findEarliestRequiredDate(
+        const minimumStartDate = getEarliestRequiredDate(
           ingressDate,
           rule.days,
           holidayDates,
-          weekday,
         );
 
         return {
           blocked: true,
           message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate, {
             ingressDate,
+            selectedDate: date,
+            holidayDates,
             usesDateRange: input.usesDateRange,
             usesPermitDetails: input.usesPermitDetails,
             allowsExecutiveAssignment: input.allowsExecutiveAssignment,

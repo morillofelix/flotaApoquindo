@@ -1,10 +1,8 @@
 import {
-  formatBusinessDaysLabel,
   formatCompactAdvanceDate,
-  findEarliestRequiredDate,
   getBusinessDayAdvanceMessage,
+  getEarliestRequiredDate,
   getReasonDatesToCheck,
-  getWeekdayFromDate,
   type ReasonStartDateInput,
 } from "@/lib/appointment-reason-weekdays";
 
@@ -24,6 +22,8 @@ export function getHolidayRestrictedMessage(
   minimumStartDate: string,
   context?: {
     ingressDate?: string;
+    selectedDate?: string;
+    holidayDates?: Set<string>;
     holidayName?: string;
     usesDateRange?: boolean;
     usesPermitDetails?: boolean;
@@ -33,7 +33,7 @@ export function getHolidayRestrictedMessage(
   if (context?.holidayName) {
     const formattedDate = formatCompactAdvanceDate(minimumStartDate);
 
-    return `La fecha incluye el feriado "${context.holidayName}". Solicite desde el ${formattedDate} (${formatBusinessDaysLabel(requiredDays)} de anticipación).`;
+    return `Incluye el feriado "${context.holidayName}". Solicite desde el ${formattedDate}.`;
   }
 
   return getBusinessDayAdvanceMessage(requiredDays, minimumStartDate, context);
@@ -115,12 +115,10 @@ export function checkHolidayRestrictedDates(
     if (holiday) {
       const requiredDays =
         holiday.businessDaysAdvance >= 1 ? holiday.businessDaysAdvance : 1;
-      const holidayWeekday = getWeekdayFromDate(date);
-      const minimumStartDate = findEarliestRequiredDate(
+      const minimumStartDate = getEarliestRequiredDate(
         ingressDate,
         requiredDays,
         holidayDateSet,
-        holidayWeekday,
       );
 
       return {
@@ -128,6 +126,8 @@ export function checkHolidayRestrictedDates(
         message: getHolidayRestrictedMessage(requiredDays, minimumStartDate, {
           ingressDate,
           holidayName: holiday.name,
+          selectedDate: date,
+          holidayDates: holidayDateSet,
           usesDateRange: input.usesDateRange,
           usesPermitDetails: input.usesPermitDetails,
           allowsExecutiveAssignment: input.allowsExecutiveAssignment,
