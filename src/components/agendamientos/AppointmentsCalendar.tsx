@@ -10,6 +10,7 @@ import {
   type AppointmentCalendarEvent,
   type CalendarEventKind,
   type CalendarViewMode,
+  CALENDAR_SUBMISSION_TIME_LABEL,
   collectCalendarEvents,
   formatLongDate,
   formatMonthYear,
@@ -216,12 +217,17 @@ function getEventPresentation(event: AppointmentCalendarEvent) {
   const statusLabel = event.calendarStatusLabel;
 
   if (event.kind === "approval") {
-    const timePrefix = event.timeLabel ? `${event.timeLabel} · ` : "";
+    const isSubmissionRecord =
+      event.timeLabel === CALENDAR_SUBMISSION_TIME_LABEL;
+    const timePrefix =
+      event.timeLabel && !isSubmissionRecord ? `${event.timeLabel} · ` : "";
     const isPendingApproval = event.status === "pendiente";
 
     return {
       primary: `${event.reasonLabel} · ${mobileLabel}`,
-      secondary: `${timePrefix}${statusLabel}`,
+      secondary: isSubmissionRecord
+        ? `${CALENDAR_SUBMISSION_TIME_LABEL} · ${statusLabel}`
+        : `${timePrefix}${statusLabel}`,
       secondaryClassName: isPendingApproval
         ? "font-bold text-amber-950"
         : "font-semibold",
@@ -229,7 +235,9 @@ function getEventPresentation(event: AppointmentCalendarEvent) {
     };
   }
 
-  const timePart = event.timeLabel ? `${event.timeLabel} · ` : "";
+  const isSubmissionRecord = event.timeLabel === CALENDAR_SUBMISSION_TIME_LABEL;
+  const timePart =
+    event.timeLabel && !isSubmissionRecord ? `${event.timeLabel} · ` : "";
   const executiveLabel =
     event.executive && event.executive !== "Sin asignar"
       ? event.executive
@@ -237,7 +245,9 @@ function getEventPresentation(event: AppointmentCalendarEvent) {
 
   return {
     primary: `${event.reasonLabel} · ${mobileLabel}`,
-    secondary: `${timePart}${executiveLabel} · ${statusLabel}`,
+    secondary: isSubmissionRecord
+      ? `${CALENDAR_SUBMISSION_TIME_LABEL} · ${statusLabel}`
+      : `${timePart}${executiveLabel} · ${statusLabel}`,
     secondaryClassName: "font-semibold",
     tooltip: formatCalendarEventTooltip(event),
   };

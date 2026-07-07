@@ -44,6 +44,8 @@ export type CalendarDayGroup = {
 };
 
 const weekdayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const SANTIAGO_TIME_ZONE = "America/Santiago";
+export const CALENDAR_SUBMISSION_TIME_LABEL = "Ingresada";
 
 function parseClock(time: string) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
@@ -296,6 +298,45 @@ function pushDateRangeEvents(
   );
 }
 
+function getSubmissionIsoDate(appointment: Appointment) {
+  const formatted = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SANTIAGO_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(appointment.createdAt));
+
+  return isValidIsoDate(formatted) ? formatted : "";
+}
+
+function pushSubmissionDateEventIfNeeded(
+  appointment: Appointment,
+  events: AppointmentCalendarEvent[],
+) {
+  const submissionDate = getSubmissionIsoDate(appointment);
+
+  if (!submissionDate) {
+    return;
+  }
+
+  const hasEventOnDate = events.some((event) => event.date === submissionDate);
+
+  if (hasEventOnDate) {
+    return;
+  }
+
+  pushSingleDayEvent(
+    appointment,
+    events,
+    submissionDate,
+    resolveCalendarEventKind(appointment),
+    {
+      timeLabel: CALENDAR_SUBMISSION_TIME_LABEL,
+      sortKey: -1,
+    },
+  );
+}
+
 function resolveCalendarEventKind(appointment: Appointment): CalendarEventKind {
   return appointment.reasonAllowsExecutiveAssignment ? "executive" : "approval";
 }
@@ -422,6 +463,8 @@ export function getAppointmentCalendarEvents(
       );
     }
   }
+
+  pushSubmissionDateEventIfNeeded(appointment, events);
 
   return events;
 }
