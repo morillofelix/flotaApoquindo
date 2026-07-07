@@ -73,11 +73,8 @@ export type ReasonStartDateInput = {
   appointmentDate?: string;
 };
 
-export function getBusinessDayAdvanceMessage(
-  requiredDays: number,
-  minimumStartDate: string,
-) {
-  return getReasonRestrictedMessage(requiredDays, minimumStartDate);
+export function getBusinessDayAdvanceMessage(requiredDays: number) {
+  return `La fecha solicitada no cumple con la anticipación mínima requerida de ${formatBusinessDaysLabel(requiredDays)} definida para este tipo de solicitud. Por favor, seleccione una fecha posterior.`;
 }
 
 export type WeekdayBusinessAdvanceRule = {
@@ -315,9 +312,46 @@ export function addBusinessDays(
   return formatDateOnlyValue(currentDate);
 }
 
+/** Días hábiles en el intervalo (fecha ingreso, fecha requerida]. */
+export function countBusinessDaysBetween(
+  ingressDate: string,
+  requiredDate: string,
+  holidayDates?: Set<string>,
+) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(ingressDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(requiredDate) ||
+    requiredDate <= ingressDate
+  ) {
+    return 0;
+  }
+
+  const current = parseDateOnlyValue(ingressDate);
+  const end = parseDateOnlyValue(requiredDate);
+  let count = 0;
+
+  while (current < end) {
+    current.setDate(current.getDate() + 1);
+
+    if (isBusinessDay(current, holidayDates)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+export function getEarliestRequiredDate(
+  ingressDate: string,
+  requiredBusinessDays: number,
+  holidayDates?: Set<string>,
+) {
+  return addBusinessDays(ingressDate, requiredBusinessDays, holidayDates);
+}
+
 export function meetsBusinessDayAdvance(
-  todayDate: string,
-  startDate: string,
+  ingressDate: string,
+  requiredDate: string,
   requiredBusinessDays: number,
   holidayDates?: Set<string>,
 ) {
@@ -325,12 +359,10 @@ export function meetsBusinessDayAdvance(
     return true;
   }
 
-  const minimumStartDate = addBusinessDays(
-    todayDate,
-    requiredBusinessDays,
-    holidayDates,
+  return (
+    countBusinessDaysBetween(ingressDate, requiredDate, holidayDates) >=
+    requiredBusinessDays
   );
-  return startDate >= minimumStartDate;
 }
 
 export function getReasonStartDate(input: ReasonStartDateInput) {
@@ -362,7 +394,7 @@ export function checkBusinessDayAdvance(
     usesPermitDetails: boolean;
     allowsExecutiveAssignment?: boolean;
   },
-  todayDate: string,
+  ingressDate: string,
   startDateInput: ReasonStartDateInput,
   holidayDates?: Set<string>,
 ) {
@@ -387,16 +419,16 @@ export function checkBusinessDayAdvance(
 
     const rule = config[weekday];
 
-    if (!meetsBusinessDayAdvance(todayDate, date, rule.days, holidayDates)) {
-      const minimumStartDate = addBusinessDays(
-        todayDate,
+    if (!meetsBusinessDayAdvance(ingressDate, date, rule.days, holidayDates)) {
+      const minimumStartDate = getEarliestRequiredDate(
+        ingressDate,
         rule.days,
         holidayDates,
       );
 
       return {
         blocked: true,
-        message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+        message: getBusinessDayAdvanceMessage(rule.days),
         minimumStartDate,
       };
     }
@@ -563,14 +595,14 @@ export function checkReasonRestrictedDates(
   restrictedWeekdays: WeekdayKey[],
   weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig,
   input: ReasonDateRangeInput,
-  todayDate: string,
+  ingressDate: string,
   holidayDates?: Set<string>,
 ) {
   return checkReasonDateRules(
     restrictedWeekdays,
     weekdayBusinessAdvance,
     input,
-    todayDate,
+    ingressDate,
     holidayDates,
   );
 }
@@ -579,7 +611,7 @@ export function checkReasonDateRules(
   restrictedWeekdays: WeekdayKey[],
   weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig,
   input: ReasonDateRangeInput,
-  todayDate: string,
+  ingressDate: string,
   holidayDates?: Set<string>,
 ) {
   const dates = getReasonDatesToCheck(input);
@@ -599,17 +631,17 @@ export function checkReasonDateRules(
       const rule = weekdayBusinessAdvance[weekday];
 
       if (
-        !meetsBusinessDayAdvance(todayDate, date, rule.days, holidayDates)
+        !meetsBusinessDayAdvance(ingressDate, date, rule.days, holidayDates)
       ) {
-        const minimumStartDate = addBusinessDays(
-          todayDate,
+        const minimumStartDate = getEarliestRequiredDate(
+          ingressDate,
           rule.days,
           holidayDates,
         );
 
         return {
           blocked: true,
-          message: getBusinessDayAdvanceMessage(rule.days, minimumStartDate),
+          message: getBusinessDayAdvanceMessage(rule.days),
           minimumStartDate,
         };
       }

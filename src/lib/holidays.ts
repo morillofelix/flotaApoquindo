@@ -1,7 +1,7 @@
 import {
-  addBusinessDays,
+  getBusinessDayAdvanceMessage,
+  getEarliestRequiredDate,
   getReasonDatesToCheck,
-  getRestrictedDateMessage,
   type ReasonStartDateInput,
 } from "@/lib/appointment-reason-weekdays";
 
@@ -16,11 +16,8 @@ export type HolidayConfig = {
   source: string;
 };
 
-export function getHolidayRestrictedMessage(
-  requiredDays: number,
-  minimumStartDate: string,
-) {
-  return getRestrictedDateMessage(requiredDays, minimumStartDate);
+export function getHolidayRestrictedMessage(requiredDays: number) {
+  return getBusinessDayAdvanceMessage(requiredDays);
 }
 
 export function formatHolidayDateLabel(dateValue: string) {
@@ -83,7 +80,7 @@ export function checkHolidayRestrictedDates(
     vacationEndDate?: string;
     permitEndDate?: string;
   },
-  todayDate: string,
+  ingressDate: string,
 ) {
   const holidayMap = getActiveHolidayMap(holidays);
   const holidayDateSet = getActiveHolidayDateSet(holidays);
@@ -99,15 +96,16 @@ export function checkHolidayRestrictedDates(
     if (holiday) {
       const requiredDays =
         holiday.businessDaysAdvance >= 1 ? holiday.businessDaysAdvance : 1;
-      const minimumStartDate = addBusinessDays(
-        todayDate,
+      const minimumStartDate = getEarliestRequiredDate(
+        ingressDate,
         requiredDays,
         holidayDateSet,
       );
 
       return {
         blocked: true,
-        message: getHolidayRestrictedMessage(requiredDays, minimumStartDate),
+        message: getHolidayRestrictedMessage(requiredDays),
+        minimumStartDate,
       };
     }
   }

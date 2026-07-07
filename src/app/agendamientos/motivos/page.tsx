@@ -585,9 +585,10 @@ export default function MotivosPage() {
                   Anticipación por día
                 </p>
                 <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                  Indica cuántos días hábiles de anticipación exige cada día de
-                  la semana según la fecha solicitada. Deja el cuadro vacío si
-                  ese día no aplica anticipación.
+                  Indica cuántos días hábiles de anticipación deben existir entre la
+                  fecha de ingreso de la solicitud y la fecha requerida por el
+                  conductor. Deja el cuadro vacío si ese día no aplica
+                  anticipación.
                 </p>
                 <div className="mt-2 flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5">
                   {weekdayBusinessAdvanceOptions.map((option) => {

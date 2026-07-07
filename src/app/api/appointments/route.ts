@@ -249,12 +249,12 @@ export async function POST(request: NextRequest) {
     where: { value: appointmentReason },
   });
   const reason = toReasonConfig(reasonConfig);
-  const today = getSantiagoToday();
+  const ingressDate = getSantiagoToday().date;
 
   const appointment = validateCreateBody(
     body,
     reason,
-    resolveAppointmentDate(body, reason, today.date) ?? "",
+    resolveAppointmentDate(body, reason, ingressDate) ?? "",
   );
 
   if (!appointment) {
@@ -287,7 +287,7 @@ export async function POST(request: NextRequest) {
       appointmentDate: appointment.appointmentDate,
     };
 
-    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, today.date);
+    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, ingressDate);
 
     if (holidayCheck.blocked) {
       return NextResponse.json(
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
       reason.restrictedWeekdays,
       reason.weekdayBusinessAdvance,
       dateInput,
-      today.date,
+      ingressDate,
       holidayDateSet,
     );
 

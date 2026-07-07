@@ -455,7 +455,12 @@ function AppointmentRequestForm({
       appointmentDate: values.appointmentDate,
     };
 
-    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, today);
+    const ingressDate = getTodayValue();
+    const holidayCheck = checkHolidayRestrictedDates(
+      holidays,
+      dateInput,
+      ingressDate,
+    );
 
     if (holidayCheck.blocked) {
       return holidayCheck;
@@ -465,10 +470,10 @@ function AppointmentRequestForm({
       selectedReasonConfig.restrictedWeekdays,
       selectedReasonConfig.weekdayBusinessAdvance,
       dateInput,
-      today,
+      ingressDate,
       holidayDateSet,
     );
-  }, [selectedReasonConfig, values, holidays, today, holidayDateSet]);
+  }, [selectedReasonConfig, values, holidays, holidayDateSet]);
 
   useEffect(() => {
     if (!linkedVehicleNumber) {
