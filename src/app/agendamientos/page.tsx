@@ -25,7 +25,7 @@ import {
   downloadExcel,
   formatCreatedAt,
   formatDate,
-  getRequestDateDetail,
+  getRequiredDateSummary,
   isWithinDateFilter,
   sendExecutiveAssignmentEmails,
   sendCalendarCancelToExecutive,
@@ -1051,10 +1051,10 @@ function AppointmentsPageContent() {
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Conductor</th>
                       <th className="min-w-14 px-2.5 py-2 font-semibold">Móvil</th>
                       <th className="min-w-24 px-2.5 py-2 font-semibold">
-                        Fecha requerida
+                        Fecha de registro
                       </th>
                       <th className="min-w-24 px-2.5 py-2 font-semibold">Motivo</th>
-                      <th className="min-w-40 px-2.5 py-2 font-semibold">Detalle fechas</th>
+                      <th className="min-w-40 px-2.5 py-2 font-semibold">Fecha requerida</th>
                       <th className="min-w-44 px-2.5 py-2 font-semibold">Correo</th>
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Teléfono</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Ejecutivo</th>
@@ -1088,7 +1088,7 @@ function AppointmentsPageContent() {
                           canEditAppointmentDates(appointment.status) ? (
                             <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Fecha de atención
+                                Fecha requerida
                               </p>
                               <input
                                 key={`${appointment.id}-${appointment.appointmentDate}`}
@@ -1108,7 +1108,7 @@ function AppointmentsPageContent() {
                           canEditAppointmentDates(appointment.status) ? (
                             <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Inicio (fin se ajusta)
+                                Fecha requerida
                               </p>
                               <input
                                 key={`${appointment.id}-${appointment.vacationStartDate}`}
@@ -1132,7 +1132,7 @@ function AppointmentsPageContent() {
                             canEditAppointmentDates(appointment.status) ? (
                             <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Inicio (fin se ajusta)
+                                Fecha requerida
                               </p>
                               <input
                                 key={`${appointment.id}-${appointment.permitStartDate}`}
@@ -1156,7 +1156,7 @@ function AppointmentsPageContent() {
                             canEditAppointmentDates(appointment.status) ? (
                             <div className="max-w-48 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
                               <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Permiso por horas
+                                Fecha requerida
                               </p>
                               <input
                                 key={`${appointment.id}-${appointment.permitDate}`}
@@ -1212,20 +1212,14 @@ function AppointmentsPageContent() {
                             </div>
                           ) : appointment.reasonAllowsExecutiveAssignment ? (
                             <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Cita
-                              </p>
                               <p className="text-[11px] font-semibold leading-3.5 text-[#173b68]">
-                                {formatDate(appointment.appointmentDate)}
+                                {getRequiredDateSummary(appointment)}
                               </p>
                             </div>
-                          ) : getRequestDateDetail(appointment) ? (
+                          ) : getRequiredDateSummary(appointment) ? (
                             <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Detalle
-                              </p>
                               <p className="text-[11px] font-semibold leading-3.5 text-[#173b68]">
-                                {getRequestDateDetail(appointment)}
+                                {getRequiredDateSummary(appointment)}
                               </p>
                             </div>
                           ) : (

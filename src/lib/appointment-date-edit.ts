@@ -129,7 +129,7 @@ function buildPermitHorasPatch(
 
 export function buildDateChangePreviewLabel(patch: AppointmentDatePatch) {
   if (patch.appointmentDate) {
-    return `Nueva fecha de atención: ${formatDate(patch.appointmentDate)}`;
+    return `Nueva fecha requerida: ${formatDate(patch.appointmentDate)}`;
   }
 
   if (patch.vacationStartDate && patch.vacationEndDate) {

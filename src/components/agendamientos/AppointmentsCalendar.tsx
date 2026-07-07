@@ -385,8 +385,8 @@ export default function AppointmentsCalendar({
               Calendario de atención
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Muestra cada solicitud en su fecha de atención vigente. Si cambias
-              la fecha en la tabla, el calendario se actualiza al mismo día.
+              Muestra cada solicitud en su fecha requerida vigente. Si la cambias
+              en la tabla, el calendario se actualiza al mismo día.
             </p>
           </div>
 

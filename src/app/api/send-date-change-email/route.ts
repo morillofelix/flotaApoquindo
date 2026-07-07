@@ -78,7 +78,7 @@ function createEmailHtml(appointment: DateChangeEmailPayload) {
       <p><strong>Motivo:</strong> ${escapeHtml(appointment.appointmentReasonLabel)}</p>
       <p><strong>Detalle del cambio:</strong> ${escapeHtml(appointment.dateChangeMessage)}</p>
       ${detail ? `<p><strong>Fechas actuales:</strong> ${escapeHtml(detail)}</p>` : ""}
-      ${appointment.reasonAllowsExecutiveAssignment ? `<p><strong>Fecha de atención:</strong> ${escapeHtml(appointment.appointmentDate)}</p>` : ""}
+      ${appointment.reasonAllowsExecutiveAssignment ? `<p><strong>Fecha requerida:</strong> ${escapeHtml(appointment.appointmentDate)}</p>` : ""}
       <p style="margin-top: 20px;">Si tienes dudas, contacta al departamento de flota.</p>
     </div>
   `;
@@ -100,7 +100,7 @@ function createEmailText(appointment: DateChangeEmailPayload) {
   }
 
   if (appointment.reasonAllowsExecutiveAssignment) {
-    lines.push(`Fecha de atención: ${appointment.appointmentDate}`);
+    lines.push(`Fecha requerida: ${appointment.appointmentDate}`);
   }
 
   lines.push("", "Si tienes dudas, contacta al departamento de flota.");

@@ -86,6 +86,36 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+function getRequiredDateLabel(appointment: AppointmentEmailPayload) {
+  const permitDetail = getPermitDetail(appointment);
+
+  if (permitDetail) {
+    return permitDetail;
+  }
+
+  if (
+    appointment.reasonUsesDateRange &&
+    appointment.vacationStartDate &&
+    appointment.vacationEndDate
+  ) {
+    return `${formatDate(appointment.vacationStartDate)} al ${formatDate(
+      appointment.vacationEndDate,
+    )}`;
+  }
+
+  return formatDate(appointment.appointmentDate);
+}
+
+function formatCreatedAt(value: string) {
+  return new Intl.DateTimeFormat("es-CL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -99,21 +129,9 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
   const driverName = escapeHtml(appointment.driverName);
   const ticketId = escapeHtml(getAppointmentTicketLabel(appointment));
   const vehicleNumber = escapeHtml(appointment.vehicleNumber);
-  const appointmentDate = escapeHtml(formatDate(appointment.appointmentDate));
+  const requiredDate = escapeHtml(getRequiredDateLabel(appointment));
+  const registrationDate = escapeHtml(formatCreatedAt(appointment.createdAt));
   const appointmentReason = escapeHtml(appointment.appointmentReasonLabel);
-  const appointmentDateRange =
-    appointment.reasonUsesDateRange &&
-    appointment.vacationStartDate &&
-    appointment.vacationEndDate
-      ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(
-          formatDate(appointment.vacationStartDate),
-        )} al ${escapeHtml(formatDate(appointment.vacationEndDate))}</p>`
-      : "";
-  const permitDetail = getPermitDetail(appointment)
-    ? `<p><strong>Detalle permiso:</strong> ${escapeHtml(
-        getPermitDetail(appointment),
-      )}</p>`
-    : "";
 
   return `
     <div style="font-family: Arial, sans-serif; color: #0f2747; line-height: 1.6;">
@@ -126,10 +144,9 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
       <hr style="border: 0; border-top: 1px solid #d8e2ef; margin: 20px 0;" />
       <p><strong>Conductor:</strong> ${driverName}</p>
       <p><strong>Móvil:</strong> ${vehicleNumber}</p>
-      <p><strong>Fecha requerida:</strong> ${appointmentDate}</p>
+      <p><strong>Fecha de registro:</strong> ${registrationDate}</p>
+      <p><strong>Fecha requerida:</strong> ${requiredDate}</p>
       <p><strong>Motivo:</strong> ${appointmentReason}</p>
-      ${appointmentDateRange}
-      ${permitDetail}
       <p style="margin-top: 20px;">Guarda este número de ticket para cualquier consulta o seguimiento.</p>
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
     </div>
@@ -145,33 +162,13 @@ function createEmailText(appointment: AppointmentEmailPayload) {
     "",
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
-    `Fecha requerida: ${formatDate(appointment.appointmentDate)}`,
+    `Fecha de registro: ${formatCreatedAt(appointment.createdAt)}`,
+    `Fecha requerida: ${getRequiredDateLabel(appointment)}`,
     `Motivo: ${appointment.appointmentReasonLabel}`,
-  ];
-
-  if (
-    appointment.reasonUsesDateRange &&
-    appointment.vacationStartDate &&
-    appointment.vacationEndDate
-  ) {
-    lines.push(
-      `Rango de fechas: ${formatDate(appointment.vacationStartDate)} al ${formatDate(
-        appointment.vacationEndDate,
-      )}`,
-    );
-  }
-
-  const permitDetail = getPermitDetail(appointment);
-
-  if (permitDetail) {
-    lines.push(`Detalle permiso: ${permitDetail}`);
-  }
-
-  lines.push(
     "",
     "Guarda este número de ticket para cualquier consulta o seguimiento.",
     "Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.",
-  );
+  ];
 
   return lines.join("\n");
 }

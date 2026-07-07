@@ -105,6 +105,17 @@ export function getRequestDateDetail(appointment: Appointment) {
   return getPermitDetail(appointment) || getAppointmentDateRange(appointment);
 }
 
+/** Fecha que rige en calendario y operación (permiso, vacaciones o cita). */
+export function getRequiredDateSummary(appointment: Appointment) {
+  if (appointment.reasonAllowsExecutiveAssignment) {
+    return appointment.appointmentDate
+      ? formatDate(appointment.appointmentDate)
+      : "";
+  }
+
+  return getRequestDateDetail(appointment);
+}
+
 function parseDateOnly(value: string) {
   if (!value) {
     return null;
@@ -213,7 +224,7 @@ function createExcelTable(appointments: Appointment[]) {
           <td>${escapeHtml(getAppointmentTicketLabel(appointment))}</td>
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
-          <td>${escapeHtml(formatDate(appointment.appointmentDate))}</td>
+          <td>${escapeHtml(getRequiredDateSummary(appointment) || "No aplica")}</td>
           <td>${escapeHtml(appointment.appointmentReasonLabel)}</td>
           <td>${escapeHtml(appointment.permitDate || "No aplica")}</td>
           <td>${escapeHtml(permitTypeLabel || "No aplica")}</td>
