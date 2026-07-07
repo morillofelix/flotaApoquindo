@@ -1,9 +1,10 @@
 import {
   formatBusinessDaysLabel,
-  formatSuggestedStartDate,
+  formatCompactAdvanceDate,
+  findEarliestRequiredDate,
   getBusinessDayAdvanceMessage,
-  getEarliestRequiredDate,
   getReasonDatesToCheck,
+  getWeekdayFromDate,
   type ReasonStartDateInput,
 } from "@/lib/appointment-reason-weekdays";
 
@@ -30,12 +31,9 @@ export function getHolidayRestrictedMessage(
   },
 ) {
   if (context?.holidayName) {
-    const formattedMinimumDate = formatSuggestedStartDate(minimumStartDate);
-    const ingressSegment = context.ingressDate
-      ? `Su solicitud se registra con fecha de ingreso ${formatSuggestedStartDate(context.ingressDate)}. `
-      : "";
+    const formattedDate = formatCompactAdvanceDate(minimumStartDate);
 
-    return `Estimado usuario: ${ingressSegment}La fecha seleccionada corresponde al feriado "${context.holidayName}". Para este trámite deben mediar al menos ${formatBusinessDaysLabel(requiredDays)} entre la fecha de ingreso y la fecha requerida. La fecha requerida más próxima habilitada es el ${formattedMinimumDate}. Por favor, seleccione esa fecha o una posterior. Para más información, contacte al Departamento de Flota o a la Oficina Administrativa.`;
+    return `La fecha incluye el feriado "${context.holidayName}". Solicite desde el ${formattedDate} (${formatBusinessDaysLabel(requiredDays)} de anticipación).`;
   }
 
   return getBusinessDayAdvanceMessage(requiredDays, minimumStartDate, context);
@@ -117,10 +115,12 @@ export function checkHolidayRestrictedDates(
     if (holiday) {
       const requiredDays =
         holiday.businessDaysAdvance >= 1 ? holiday.businessDaysAdvance : 1;
-      const minimumStartDate = getEarliestRequiredDate(
+      const holidayWeekday = getWeekdayFromDate(date);
+      const minimumStartDate = findEarliestRequiredDate(
         ingressDate,
         requiredDays,
         holidayDateSet,
+        holidayWeekday,
       );
 
       return {
