@@ -1,8 +1,14 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
+import { listPropietariosWithAutoStatus } from "@/lib/propietarios-auto-status";
 import { diffPropietarioChanges } from "@/lib/propietarios-changes";
 import { notifyPropietarioCreateSafely, notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
 import { getPropietarioNotifyActor } from "@/lib/propietarios-notify";
+import {
+  getSantiagoDateString,
+  resolvePropietarioStatusFields,
+  validatePropietarioStatusFields,
+} from "@/lib/propietario-status";
 import {
   displayVehicleNumber,
   normalizeVehicleNumber,
@@ -57,8 +63,11 @@ type PropietarioBody = {
   emergencyContactEmail?: unknown;
   emergencyContactPhone?: unknown;
   isActive?: unknown;
+  status?: unknown;
   inactiveReason?: unknown;
   activationReason?: unknown;
+  desvinculacionReason?: unknown;
+  desvinculacionDays?: unknown;
 };
 
 function asString(value: unknown) {
@@ -110,41 +119,37 @@ function parsePropietarioBody(body: PropietarioBody) {
     emergencyContactEmail: asString(body.emergencyContactEmail),
     emergencyContactPhone: asPhone(body.emergencyContactPhone),
     isActive: body.isActive === undefined ? true : body.isActive === true,
+    status: asString(body.status),
     inactiveReason: asString(body.inactiveReason),
     activationReason: asString(body.activationReason),
+    desvinculacionReason: asString(body.desvinculacionReason),
+    desvinculacionDays: body.desvinculacionDays,
     importKey: "",
   };
 }
 
-function resolveInactiveReason(
+function buildStatusPayload(
   input: ReturnType<typeof parsePropietarioBody>,
-  existing: { isActive: boolean; inactiveReason: string } | null,
-  bodyReason: string,
+  existing?: {
+    status?: string | null;
+    isActive?: boolean;
+    inactiveReason?: string | null;
+    desvinculacionReason?: string | null;
+    desvinculacionDays?: number | null;
+    desvinculadoUntil?: Date | null;
+  } | null,
 ) {
-  if (input.isActive) {
-    return "";
-  }
-
-  if (existing?.isActive === false) {
-    return bodyReason || existing.inactiveReason;
-  }
-
-  return bodyReason;
-}
-
-function validateInactiveReason(
-  input: ReturnType<typeof parsePropietarioBody>,
-  existing: { isActive: boolean } | null,
-  inactiveReason: string,
-) {
-  const isDeactivating = existing?.isActive === true && !input.isActive;
-  const isCreatingInactive = !existing && !input.isActive;
-
-  if ((isDeactivating || isCreatingInactive) && inactiveReason.length < 5) {
-    return "Debes indicar el motivo de inactivación (mínimo 5 caracteres).";
-  }
-
-  return null;
+  return resolvePropietarioStatusFields(
+    {
+      status: input.status || undefined,
+      isActive: input.isActive,
+      inactiveReason: input.inactiveReason,
+      desvinculacionReason: input.desvinculacionReason,
+      desvinculacionDays: input.desvinculacionDays,
+    },
+    existing,
+    getSantiagoDateString(),
+  );
 }
 
 function validatePropietarioInput(input: ReturnType<typeof parsePropietarioBody>) {
@@ -186,12 +191,10 @@ export async function GET(request: NextRequest) {
     return unauthorized;
   }
 
-  const propietarios = await prisma.propietario.findMany({
-    orderBy: [{ fullName: "asc" }],
-  });
+  const propietarios = await listPropietariosWithAutoStatus();
 
   return NextResponse.json({
-    propietarios: propietarios.map(toPropietario),
+    propietarios,
   });
 }
 
@@ -220,16 +223,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
   }
 
-  const inactiveReason = resolveInactiveReason(input, null, input.inactiveReason);
-  const inactiveReasonMessage = validateInactiveReason(input, null, inactiveReason);
+  const statusFields = buildStatusPayload(input);
+  const statusValidationMessage = validatePropietarioStatusFields(statusFields);
 
-  if (inactiveReasonMessage) {
-    return NextResponse.json({ message: inactiveReasonMessage }, { status: 400 });
+  if (statusValidationMessage) {
+    return NextResponse.json({ message: statusValidationMessage }, { status: 400 });
   }
 
   const createData = toPropietarioCreateData({
     ...input,
-    inactiveReason,
+    ...statusFields,
     activationReason: "",
   });
 
@@ -253,8 +256,12 @@ export async function POST(request: NextRequest) {
     });
 
     const inactiveReasonForEmail =
-      !createData.isActive && inactiveReason.trim()
-        ? inactiveReason.trim()
+      createData.status === "inactivo" && statusFields.inactiveReason
+        ? statusFields.inactiveReason
+        : undefined;
+    const desvinculacionReasonForEmail =
+      createData.status === "desvinculado" && statusFields.desvinculacionReason
+        ? statusFields.desvinculacionReason
         : undefined;
 
     const notificationSent = await notifyPropietarioCreateSafely({
@@ -265,6 +272,15 @@ export async function POST(request: NextRequest) {
       email: propietario.email,
       record: createData,
       inactiveReason: inactiveReasonForEmail,
+      desvinculacionReason: desvinculacionReasonForEmail,
+      desvinculacionDays:
+        createData.status === "desvinculado"
+          ? statusFields.desvinculacionDays
+          : undefined,
+      desvinculadoUntil:
+        createData.status === "desvinculado"
+          ? statusFields.desvinculadoUntil
+          : undefined,
     });
 
     return NextResponse.json(
@@ -317,36 +333,45 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
   }
 
-  const inactiveReason = resolveInactiveReason(
-    input,
-    existingPropietario,
-    input.inactiveReason,
-  );
-  const inactiveReasonMessage = validateInactiveReason(
-    input,
-    existingPropietario,
-    inactiveReason,
-  );
+  const statusFields = buildStatusPayload(input, existingPropietario);
+  const statusValidationMessage = validatePropietarioStatusFields(statusFields);
 
-  if (inactiveReasonMessage) {
-    return NextResponse.json({ message: inactiveReasonMessage }, { status: 400 });
+  if (statusValidationMessage) {
+    return NextResponse.json({ message: statusValidationMessage }, { status: 400 });
   }
 
+  const previousStatus = existingPropietario.status || (existingPropietario.isActive ? "activo" : "inactivo");
   const createData = toPropietarioCreateData({
     ...input,
     importKey: existingPropietario.importKey,
-    inactiveReason,
-    activationReason: "",
+    ...statusFields,
+    activationReason:
+      statusFields.status === "activo" && previousStatus !== "activo"
+        ? input.activationReason
+        : "",
   });
   const changes = diffPropietarioChanges(existingPropietario, createData);
-  const wasDeactivated =
-    existingPropietario.isActive && createData.isActive === false;
-  const inactiveReasonChanged =
-    (existingPropietario.inactiveReason ?? "").trim() !== inactiveReason.trim();
   const inactiveReasonForEmail =
-    inactiveReason.trim() &&
-    (wasDeactivated || (createData.isActive === false && inactiveReasonChanged))
-      ? inactiveReason.trim()
+    statusFields.status === "inactivo" &&
+    statusFields.inactiveReason &&
+    (previousStatus !== "inactivo" ||
+      (existingPropietario.inactiveReason ?? "").trim() !==
+        statusFields.inactiveReason)
+      ? statusFields.inactiveReason
+      : undefined;
+  const desvinculacionReasonForEmail =
+    statusFields.status === "desvinculado" &&
+    statusFields.desvinculacionReason &&
+    (previousStatus !== "desvinculado" ||
+      (existingPropietario.desvinculacionReason ?? "").trim() !==
+        statusFields.desvinculacionReason ||
+      existingPropietario.desvinculacionDays !== statusFields.desvinculacionDays)
+      ? statusFields.desvinculacionReason
+      : undefined;
+  const activationReasonForEmail =
+    statusFields.status === "activo" && previousStatus !== "activo"
+      ? input.activationReason.trim() ||
+        "Reactivación manual del registro de propietario."
       : undefined;
 
   try {
@@ -362,6 +387,16 @@ export async function PATCH(request: NextRequest) {
       vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
       changes,
       inactiveReason: inactiveReasonForEmail,
+      activationReason: activationReasonForEmail,
+      desvinculacionReason: desvinculacionReasonForEmail,
+      desvinculacionDays:
+        statusFields.status === "desvinculado"
+          ? statusFields.desvinculacionDays
+          : undefined,
+      desvinculadoUntil:
+        statusFields.status === "desvinculado"
+          ? statusFields.desvinculadoUntil
+          : undefined,
     });
 
     return NextResponse.json({

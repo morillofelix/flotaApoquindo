@@ -1,3 +1,9 @@
+import {
+  formatDateLabel,
+  formatPropietarioStatusLabel,
+  resolvePropietarioStatusFromRecord,
+} from "@/lib/propietario-status";
+
 export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   rut: "RUT.-",
   vehicleNumber: "Móvil",
@@ -9,12 +15,19 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   bankBic: "CODIGO BANCO",
   bankName: "Nombre Banco",
   bankAccount: "Nro. Cta. Banco",
-  isActive: "Estado",
+  status: "Estado",
   inactiveReason: "Motivo de inactivación",
+  desvinculacionReason: "Motivo de desvinculación",
+  desvinculacionDays: "Días de desvinculación",
+  desvinculadoUntil: "Desvinculado hasta",
 };
 
 const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS).filter(
-  (field) => field !== "inactiveReason",
+  (field) =>
+    field !== "inactiveReason" &&
+    field !== "desvinculacionReason" &&
+    field !== "desvinculacionDays" &&
+    field !== "desvinculadoUntil",
 );
 
 const PHONE_FIELDS = new Set(["vehicleNumber"]);
@@ -34,6 +47,40 @@ function formatDateValue(value: Date | null | undefined) {
   return value.toISOString().split("T")[0] ?? "";
 }
 
+function formatStatusDisplay(record: Record<string, unknown>) {
+  const status = resolvePropietarioStatusFromRecord({
+    status: typeof record.status === "string" ? record.status : null,
+    isActive: record.isActive === true,
+  });
+
+  if (status === "inactivo" && record.inactiveReason) {
+    return `Inactivo — Motivo: ${String(record.inactiveReason).trim()}`;
+  }
+
+  if (status === "desvinculado") {
+    const reason = String(record.desvinculacionReason ?? "").trim();
+    const days = Number(record.desvinculacionDays ?? 0);
+    const until = formatDateValue(record.desvinculadoUntil as Date | null | undefined);
+    const parts = [formatPropietarioStatusLabel(status)];
+
+    if (reason) {
+      parts.push(`Motivo: ${reason}`);
+    }
+
+    if (days > 0) {
+      parts.push(`${days} días`);
+    }
+
+    if (until) {
+      parts.push(`Hasta: ${formatDateLabel(until)}`);
+    }
+
+    return parts.join(" — ");
+  }
+
+  return formatPropietarioStatusLabel(status);
+}
+
 function normalizeComparableValue(value: unknown, field?: string) {
   if (value === null || value === undefined) {
     return "";
@@ -43,12 +90,8 @@ function normalizeComparableValue(value: unknown, field?: string) {
     return formatDateValue(value);
   }
 
-  if (typeof value === "boolean") {
-    if (field === "isActive") {
-      return value ? "activo" : "inactivo";
-    }
-
-    return value ? "si" : "no";
+  if (field === "status") {
+    return String(value).trim().toLowerCase();
   }
 
   const normalized = String(value).trim();
@@ -69,30 +112,26 @@ function displayComparableValue(
   field?: string,
   record?: Record<string, unknown>,
 ) {
+  if (field === "status" && record) {
+    return formatStatusDisplay(record);
+  }
+
   if (value === null || value === undefined) {
     return "";
   }
 
   if (value instanceof Date) {
-    return formatDateValue(value);
-  }
-
-  if (typeof value === "boolean") {
-    if (field === "isActive") {
-      if (!value && record?.inactiveReason) {
-        return `Inactivo — Motivo: ${String(record.inactiveReason).trim()}`;
-      }
-
-      return value ? "Activo" : "Inactivo";
-    }
-
-    return value ? "Sí" : "No";
+    return formatDateLabel(formatDateValue(value));
   }
 
   const normalized = String(value).trim();
 
   if (field === "titularRut") {
     return normalized.replace(/\D/g, "");
+  }
+
+  if (field === "desvinculadoUntil" && normalized) {
+    return formatDateLabel(normalized);
   }
 
   return normalized;
@@ -124,23 +163,27 @@ export function diffPropietarioChanges(
     });
   }
 
-  const beforeReason = String(before.inactiveReason ?? "").trim();
-  const afterReason = String(after.inactiveReason ?? "").trim();
+  const detailFields: Array<keyof typeof PROPIETARIO_FIELD_LABELS> = [
+    "inactiveReason",
+    "desvinculacionReason",
+    "desvinculacionDays",
+    "desvinculadoUntil",
+  ];
 
-  if (beforeReason !== afterReason && afterReason) {
-    const alreadyInStatusChange = changes.some(
-      (change) =>
-        change.field === "isActive" && change.after.includes(afterReason),
-    );
+  for (const field of detailFields) {
+    const beforeValue = normalizeComparableValue(before[field], field);
+    const afterValue = normalizeComparableValue(after[field], field);
 
-    if (!alreadyInStatusChange) {
-      changes.push({
-        field: "inactiveReason",
-        label: PROPIETARIO_FIELD_LABELS.inactiveReason ?? "Motivo de inactivación",
-        before: displayValue(beforeReason),
-        after: displayValue(afterReason),
-      });
+    if (beforeValue === afterValue || !afterValue) {
+      continue;
     }
+
+    changes.push({
+      field,
+      label: PROPIETARIO_FIELD_LABELS[field] ?? field,
+      before: displayValue(displayComparableValue(before[field], field, before)),
+      after: displayValue(displayComparableValue(after[field], field, after)),
+    });
   }
 
   return changes;

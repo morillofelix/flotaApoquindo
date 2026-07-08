@@ -17,6 +17,11 @@ import {
 } from "@/lib/propietarios";
 import { isValidEmail } from "@/lib/pago-propietario";
 import {
+  formatDateLabel,
+  formatPropietarioStatusLabel,
+  type PropietarioStatus,
+} from "@/lib/propietario-status";
+import {
   findPropietarioBankForSelection,
   getActivePropietarioBanks,
   type PropietarioBankConfig,
@@ -110,9 +115,47 @@ const emptyPropietarioForm: PropietarioForm = {
   emergencyContactEmail: "",
   emergencyContactPhone: "",
   isActive: true,
+  status: "activo",
   inactiveReason: "",
   activationReason: "",
+  desvinculacionReason: "",
+  desvinculacionDays: 0,
+  desvinculadoUntil: "",
 };
+
+function getPropietarioRecordStatus(
+  propietario: Pick<PropietarioConfig, "status" | "isActive">,
+): PropietarioStatus {
+  if (propietario.status) {
+    return propietario.status;
+  }
+
+  return propietario.isActive ? "activo" : "inactivo";
+}
+
+function statusBadgeClassName(status: PropietarioStatus) {
+  if (status === "activo") {
+    return "font-semibold text-green-700";
+  }
+
+  if (status === "desvinculado") {
+    return "font-semibold text-amber-700";
+  }
+
+  return "font-semibold text-slate-400";
+}
+
+function statusSelectClassName(status: PropietarioStatus) {
+  if (status === "inactivo") {
+    return "border-amber-400 bg-amber-50 font-semibold text-amber-950";
+  }
+
+  if (status === "desvinculado") {
+    return "border-orange-400 bg-orange-50 font-semibold text-orange-950";
+  }
+
+  return "";
+}
 
 const inputClassName =
   "h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
@@ -154,7 +197,7 @@ export default function PropietariosPage() {
   >("create");
   const [propietarioSearch, setPropietarioSearch] = useState("");
   const [activeStatusFilter, setActiveStatusFilter] = useState<
-    "todos" | "activo" | "inactivo"
+    "todos" | PropietarioStatus
   >("todos");
   const [depositAccountFilter, setDepositAccountFilter] = useState<
     "todos" | (typeof PROPIETARIO_DEPOSIT_ACCOUNT_TYPES)[number]
@@ -168,7 +211,10 @@ export default function PropietariosPage() {
   const [propietarioError, setPropietarioError] = useState("");
   const [isSavingPropietario, setIsSavingPropietario] = useState(false);
   const [highlightInactiveReason, setHighlightInactiveReason] = useState(false);
+  const [highlightDesvinculacionReason, setHighlightDesvinculacionReason] =
+    useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
+  const desvinculacionReasonRef = useRef<HTMLDivElement>(null);
   const accountHolderManuallyEditedRef = useRef(false);
   const titularRutManuallyEditedRef = useRef(false);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
@@ -257,10 +303,9 @@ export default function PropietariosPage() {
             matchesTextSearch(propietario.accountHolder, normalizedSearchLower) ||
             matchesTextSearch(propietario.bankAccount, normalizedSearchLower));
 
+      const recordStatus = getPropietarioRecordStatus(propietario);
       const matchesActiveStatus =
-        activeStatusFilter === "todos" ||
-        (activeStatusFilter === "activo" && propietario.isActive) ||
-        (activeStatusFilter === "inactivo" && !propietario.isActive);
+        activeStatusFilter === "todos" || recordStatus === activeStatusFilter;
 
       const matchesDepositAccount =
         depositAccountFilter === "todos" ||
@@ -329,7 +374,9 @@ export default function PropietariosPage() {
       titularRut: formatBankRutForDisplay(propietario.titularRut),
     });
     resetPropietarioFormSyncFlags(propietario);
-    setHighlightInactiveReason(!propietario.isActive);
+    const recordStatus = getPropietarioRecordStatus(propietario);
+    setHighlightInactiveReason(recordStatus === "inactivo");
+    setHighlightDesvinculacionReason(recordStatus === "desvinculado");
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -339,6 +386,7 @@ export default function PropietariosPage() {
     setPropietarioForm(emptyPropietarioForm);
     resetPropietarioFormSyncFlags();
     setHighlightInactiveReason(false);
+    setHighlightDesvinculacionReason(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -583,7 +631,9 @@ export default function PropietariosPage() {
       }
     }
 
-    if (!propietarioForm.isActive) {
+    const formStatus = getPropietarioRecordStatus(propietarioForm);
+
+    if (formStatus === "inactivo") {
       const inactiveReason = (propietarioForm.inactiveReason ?? "").trim();
 
       if (inactiveReason.length < 5) {
@@ -599,12 +649,31 @@ export default function PropietariosPage() {
       }
     }
 
+    if (formStatus === "desvinculado") {
+      const desvinculacionReason = (propietarioForm.desvinculacionReason ?? "").trim();
+      const desvinculacionDays = Number(propietarioForm.desvinculacionDays ?? 0);
+
+      if (desvinculacionReason.length < 5 || desvinculacionDays < 1) {
+        setHighlightDesvinculacionReason(true);
+        setPropietarioError(
+          "Completa el motivo y la duración en días de la desvinculación antes de guardar.",
+        );
+        desvinculacionReasonRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        return;
+      }
+    }
+
     setIsSavingPropietario(true);
     const wasEditingPropietario = propietarioFormMode === "edit";
 
     try {
       const payload = {
         ...propietarioForm,
+        status: formStatus,
+        isActive: formStatus === "activo",
         rut: formatCompanyRutForDisplay(propietarioForm.rut),
         titularRut: formatBankRutForDisplay(propietarioForm.titularRut),
       };
@@ -655,66 +724,6 @@ export default function PropietariosPage() {
       );
     } finally {
       setIsSavingPropietario(false);
-    }
-  }
-
-  async function removePropietario() {
-    if (!propietarioForm.id) {
-      return;
-    }
-
-    const reason = await promptObservation({
-      title: "Eliminar propietario",
-      message:
-        "Indica el motivo por el cual se elimina este registro. Esta acción no se puede deshacer.",
-      detail: propietarioForm.fullName,
-      confirmLabel: "Sí, eliminar",
-      placeholder: "Ej.: duplicado, error de carga, baja definitiva, etc.",
-      tone: "danger",
-    });
-
-    if (!reason) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/propietarios/${propietarioForm.id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: adminFetchInit.credentials,
-        body: JSON.stringify({ reason }),
-      });
-
-      const data = (await response.json()) as {
-        message?: string;
-        notificationSent?: boolean;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.message ?? "No se pudo eliminar el registro.");
-      }
-
-      const loadedPropietarios = await loadPropietarios();
-      setPropietarios(loadedPropietarios);
-      resetPropietarioForm();
-
-      if (data.notificationSent) {
-        setPropietarioMessage(
-          "Registro eliminado correctamente. Se envió la notificación por correo.",
-        );
-      } else {
-        setPropietarioMessage(
-          "Registro eliminado. No se pudo confirmar el envío del correo de notificación.",
-        );
-      }
-    } catch (error) {
-      setPropietarioError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo eliminar el registro.",
-      );
     }
   }
 
@@ -814,39 +823,127 @@ export default function PropietariosPage() {
     }));
   }
 
-  function handleActiveStatusChange(nextActive: boolean) {
-    if (nextActive) {
+  async function handleStatusChange(nextStatus: PropietarioStatus) {
+    const currentStatus = getPropietarioRecordStatus(propietarioForm);
+
+    if (nextStatus === currentStatus) {
+      return;
+    }
+
+    if (nextStatus === "activo") {
+      if (propietarioFormMode === "edit") {
+        const activationReason = await promptObservation({
+          title: "Activar propietario",
+          message:
+            "Indica el motivo de la activación o reactivación. Se notificará por correo.",
+          detail: propietarioForm.fullName,
+          confirmLabel: "Activar",
+          placeholder: "Ej.: fin de suspensión, regularización documental, etc.",
+        });
+
+        if (!activationReason) {
+          return;
+        }
+
+        setHighlightInactiveReason(false);
+        setHighlightDesvinculacionReason(false);
+        setPropietarioForm((currentForm) => ({
+          ...currentForm,
+          status: "activo",
+          isActive: true,
+          inactiveReason: "",
+          desvinculacionReason: "",
+          desvinculacionDays: 0,
+          desvinculadoUntil: "",
+          activationReason,
+        }));
+        return;
+      }
+
       setHighlightInactiveReason(false);
+      setHighlightDesvinculacionReason(false);
       setPropietarioForm((currentForm) => ({
         ...currentForm,
+        status: "activo",
         isActive: true,
         inactiveReason: "",
+        desvinculacionReason: "",
+        desvinculacionDays: 0,
+        desvinculadoUntil: "",
+        activationReason: "",
       }));
+      return;
+    }
+
+    if (nextStatus === "inactivo") {
+      setPropietarioForm((currentForm) => ({
+        ...currentForm,
+        status: "inactivo",
+        isActive: false,
+        activationReason: "",
+        desvinculacionReason: "",
+        desvinculacionDays: 0,
+        desvinculadoUntil: "",
+      }));
+      setHighlightInactiveReason(true);
+      setHighlightDesvinculacionReason(false);
+
+      requestAnimationFrame(() => {
+        inactiveReasonRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
       return;
     }
 
     setPropietarioForm((currentForm) => ({
       ...currentForm,
+      status: "desvinculado",
       isActive: false,
       activationReason: "",
+      inactiveReason: "",
+      desvinculacionDays:
+        currentForm.desvinculacionDays && currentForm.desvinculacionDays > 0
+          ? currentForm.desvinculacionDays
+          : 1,
     }));
-    setHighlightInactiveReason(true);
+    setHighlightInactiveReason(false);
+    setHighlightDesvinculacionReason(true);
 
     requestAnimationFrame(() => {
-      inactiveReasonRef.current?.scrollIntoView({
+      desvinculacionReasonRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     });
   }
 
+  const formStatus = getPropietarioRecordStatus(propietarioForm);
+
   const inactiveReasonIsInvalid = useMemo(() => {
-    if (propietarioForm.isActive) {
+    if (formStatus !== "inactivo") {
       return false;
     }
 
     return (propietarioForm.inactiveReason ?? "").trim().length < 5;
-  }, [propietarioForm.inactiveReason, propietarioForm.isActive]);
+  }, [formStatus, propietarioForm.inactiveReason]);
+
+  const desvinculacionReasonIsInvalid = useMemo(() => {
+    if (formStatus !== "desvinculado") {
+      return false;
+    }
+
+    return (propietarioForm.desvinculacionReason ?? "").trim().length < 5;
+  }, [formStatus, propietarioForm.desvinculacionReason]);
+
+  const desvinculacionDaysIsInvalid = useMemo(() => {
+    if (formStatus !== "desvinculado") {
+      return false;
+    }
+
+    return Number(propietarioForm.desvinculacionDays ?? 0) < 1;
+  }, [formStatus, propietarioForm.desvinculacionDays]);
 
   return (
     <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
@@ -1049,7 +1146,7 @@ export default function PropietariosPage() {
                         value={activeStatusFilter}
                         onChange={(event) =>
                           setActiveStatusFilter(
-                            event.target.value as "todos" | "activo" | "inactivo",
+                            event.target.value as "todos" | PropietarioStatus,
                           )
                         }
                         className={inputClassName}
@@ -1057,6 +1154,7 @@ export default function PropietariosPage() {
                         <option value="todos">Todos</option>
                         <option value="activo">Activo</option>
                         <option value="inactivo">Inactivo</option>
+                        <option value="desvinculado">Desvinculado</option>
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -1128,13 +1226,13 @@ export default function PropietariosPage() {
                         </span>
                         <span className="text-slate-600">{propietario.rut}</span>
                         <span
-                          className={
-                            propietario.isActive
-                              ? "font-semibold text-green-700"
-                              : "font-semibold text-slate-400"
-                          }
+                          className={statusBadgeClassName(
+                            getPropietarioRecordStatus(propietario),
+                          )}
                         >
-                          {propietario.isActive ? "Activo" : "Inactivo"}
+                          {formatPropietarioStatusLabel(
+                            getPropietarioRecordStatus(propietario),
+                          )}
                         </span>
                       </button>
                     ))}
@@ -1176,6 +1274,21 @@ export default function PropietariosPage() {
                     className={inputClassName}
                     placeholder="12.345.678-9"
                   />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <FieldLabel>Estado</FieldLabel>
+                  <select
+                    value={formStatus}
+                    onChange={(event) =>
+                      void handleStatusChange(event.target.value as PropietarioStatus)
+                    }
+                    className={`${inputClassName} ${statusSelectClassName(formStatus)}`}
+                  >
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                    <option value="desvinculado">Desvinculado</option>
+                  </select>
                 </label>
 
                 <label className="flex flex-col gap-1.5">
@@ -1221,25 +1334,7 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5">
-                  <FieldLabel>Estado</FieldLabel>
-                  <select
-                    value={propietarioForm.isActive ? "activo" : "inactivo"}
-                    onChange={(event) =>
-                      handleActiveStatusChange(event.target.value === "activo")
-                    }
-                    className={`${inputClassName} ${
-                      !propietarioForm.isActive
-                        ? "border-amber-400 bg-amber-50 font-semibold text-amber-950"
-                        : ""
-                    }`}
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
-                  </select>
-                </label>
-
-                {!propietarioForm.isActive ? (
+                {formStatus === "inactivo" ? (
                   <div
                     ref={inactiveReasonRef}
                     className={`sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
@@ -1296,6 +1391,114 @@ export default function PropietariosPage() {
                           {highlightInactiveReason && inactiveReasonIsInvalid
                             ? "Ingresa al menos 5 caracteres para poder guardar."
                             : "Mínimo 5 caracteres · obligatorio"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {formStatus === "desvinculado" ? (
+                  <div
+                    ref={desvinculacionReasonRef}
+                    className={`sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
+                      highlightDesvinculacionReason &&
+                      (desvinculacionReasonIsInvalid || desvinculacionDaysIsInvalid)
+                        ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-orange-50 shadow-lg shadow-red-100 ring-2 ring-red-200/70"
+                        : "border-orange-400 bg-gradient-to-br from-orange-50 via-white to-amber-50/80 shadow-md shadow-orange-100/80"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
+                          highlightDesvinculacionReason &&
+                          (desvinculacionReasonIsInvalid || desvinculacionDaysIsInvalid)
+                            ? "bg-red-500"
+                            : "bg-orange-500"
+                        }`}
+                      >
+                        !
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading text-sm font-bold tracking-tight text-orange-950">
+                          Desvinculación temporal
+                          <span className="ml-1 text-red-600">*</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-orange-900/85">
+                          Indica el motivo y cuántos días durará la desvinculación.
+                          Al vencer el plazo, el registro volverá automáticamente a
+                          activo y se notificará por correo.
+                        </p>
+                        {propietarioForm.desvinculadoUntil ? (
+                          <p className="mt-2 text-xs font-semibold text-orange-800">
+                            Vigente hasta:{" "}
+                            {formatDateLabel(propietarioForm.desvinculadoUntil)}
+                          </p>
+                        ) : null}
+                        <textarea
+                          value={propietarioForm.desvinculacionReason}
+                          onChange={(event) => {
+                            updateFormField("desvinculacionReason", event.target.value);
+
+                            if (event.target.value.trim().length >= 5) {
+                              setHighlightDesvinculacionReason(false);
+                              setPropietarioError("");
+                            }
+                          }}
+                          rows={4}
+                          placeholder="Ej.: incumplimiento temporal, revisión contractual, suspensión operativa..."
+                          className={`mt-3 w-full rounded-2xl border-2 bg-white px-3 py-2.5 text-sm text-[#0f2747] shadow-inner outline-none transition focus:ring-2 ${
+                            highlightDesvinculacionReason && desvinculacionReasonIsInvalid
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-orange-300 focus:border-[#0b5cab] focus:ring-[#0b5cab]/20"
+                          }`}
+                        />
+                        <label className="mt-3 flex flex-col gap-1.5">
+                          <span className="text-xs font-semibold text-orange-950">
+                            Duración en días
+                            <span className="ml-1 text-red-600">*</span>
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={
+                              propietarioForm.desvinculacionDays > 0
+                                ? propietarioForm.desvinculacionDays
+                                : ""
+                            }
+                            onChange={(event) => {
+                              const parsed = Number.parseInt(event.target.value, 10);
+                              updateFormField(
+                                "desvinculacionDays",
+                                Number.isFinite(parsed) ? parsed : 0,
+                              );
+
+                              if (parsed >= 1) {
+                                setHighlightDesvinculacionReason(false);
+                                setPropietarioError("");
+                              }
+                            }}
+                            className={`${inputClassName} ${
+                              highlightDesvinculacionReason && desvinculacionDaysIsInvalid
+                                ? "border-red-400"
+                                : ""
+                            }`}
+                            placeholder="Ej.: 30"
+                          />
+                        </label>
+                        <p
+                          className={`mt-2 text-[11px] font-semibold ${
+                            highlightDesvinculacionReason &&
+                            (desvinculacionReasonIsInvalid || desvinculacionDaysIsInvalid)
+                              ? "text-red-600"
+                              : "text-orange-800"
+                          }`}
+                        >
+                          {highlightDesvinculacionReason &&
+                          (desvinculacionReasonIsInvalid || desvinculacionDaysIsInvalid)
+                            ? "Completa motivo (mín. 5 caracteres) y duración (mín. 1 día)."
+                            : "Motivo mín. 5 caracteres · duración mín. 1 día"}
                         </p>
                       </div>
                     </div>
@@ -1416,15 +1619,6 @@ export default function PropietariosPage() {
               ) : null}
 
               <div className="mt-5 flex flex-wrap justify-end gap-2">
-                  {propietarioFormMode === "edit" ? (
-                  <button
-                    type="button"
-                    onClick={removePropietario}
-                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-red-600 px-4 text-xs font-semibold text-white transition hover:bg-red-700 active:translate-y-px"
-                  >
-                    Eliminar
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   onClick={resetPropietarioForm}

@@ -160,8 +160,12 @@ model Propietario {
   emergencyContactEmail String    @default("")
   emergencyContactPhone String    @default("")
   isActive              Boolean   @default(true)
+  status                String    @default("activo")
   inactiveReason          String    @default("")
   activationReason        String    @default("")
+  desvinculacionReason    String    @default("")
+  desvinculacionDays      Int       @default(0)
+  desvinculadoUntil       DateTime? @db.Date
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

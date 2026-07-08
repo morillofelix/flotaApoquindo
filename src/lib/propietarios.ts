@@ -18,6 +18,12 @@ import {
   normalizeTemplateHeader,
   PROPIETARIO_TEMPLATE_HEADERS,
 } from "@/lib/propietarios-template";
+import {
+  formatDateValue,
+  resolvePropietarioStatusFields,
+  resolvePropietarioStatusFromRecord,
+  type PropietarioStatus,
+} from "@/lib/propietario-status";
 import * as XLSX from "xlsx";
 
 export {
@@ -74,8 +80,12 @@ export type PropietarioConfig = {
   emergencyContactEmail: string;
   emergencyContactPhone: string;
   isActive: boolean;
+  status: PropietarioStatus;
   inactiveReason: string;
   activationReason: string;
+  desvinculacionReason: string;
+  desvinculacionDays: number;
+  desvinculadoUntil: string;
 };
 
 export type ParsedPropietarioRow = Omit<PropietarioConfig, "id" | "importKey"> & {
@@ -442,8 +452,12 @@ function createEmptyPropietarioFields(): Omit<ParsedPropietarioRow, "rowNumber" 
     emergencyContactEmail: "",
     emergencyContactPhone: "",
     isActive: true,
+    status: "activo" as PropietarioStatus,
     inactiveReason: "",
     activationReason: "",
+    desvinculacionReason: "",
+    desvinculacionDays: 0,
+    desvinculadoUntil: "",
   };
 }
 
@@ -752,11 +766,14 @@ export function toPropietario(value: {
   emergencyContactEmail: string;
   emergencyContactPhone: string;
   isActive: boolean;
+  status?: string | null;
   inactiveReason: string;
   activationReason: string;
+  desvinculacionReason?: string | null;
+  desvinculacionDays?: number | null;
+  desvinculadoUntil?: Date | null;
 }): PropietarioConfig {
-  const formatDate = (date: Date | null) =>
-    date ? date.toISOString().split("T")[0] ?? "" : "";
+  const status = resolvePropietarioStatusFromRecord(value);
 
   return {
     id: value.id,
@@ -792,16 +809,20 @@ export function toPropietario(value: {
     isVip: value.isVip,
     gender: value.gender,
     recordStatus: value.recordStatus,
-    licenseExpiryDate: formatDate(value.licenseExpiryDate),
-    birthDate: formatDate(value.birthDate),
-    incorporationDate: formatDate(value.incorporationDate),
-    deactivationDate: formatDate(value.deactivationDate),
+    licenseExpiryDate: formatDateValue(value.licenseExpiryDate),
+    birthDate: formatDateValue(value.birthDate),
+    incorporationDate: formatDateValue(value.incorporationDate),
+    deactivationDate: formatDateValue(value.deactivationDate),
     emergencyContactName: value.emergencyContactName,
     emergencyContactEmail: value.emergencyContactEmail,
     emergencyContactPhone: value.emergencyContactPhone,
-    isActive: value.isActive,
+    isActive: status === "activo",
+    status,
     inactiveReason: value.inactiveReason,
     activationReason: value.activationReason,
+    desvinculacionReason: value.desvinculacionReason ?? "",
+    desvinculacionDays: value.desvinculacionDays ?? 0,
+    desvinculadoUntil: formatDateValue(value.desvinculadoUntil),
   };
 }
 
@@ -814,6 +835,14 @@ export function toPropietarioCreateData(
     rut: row.rut,
     titularRut: row.titularRut,
     rowNumber: "rowNumber" in row ? row.rowNumber : undefined,
+  });
+
+  const statusFields = resolvePropietarioStatusFields({
+    status: "status" in row ? row.status : undefined,
+    isActive: row.isActive,
+    inactiveReason: row.inactiveReason,
+    desvinculacionReason: row.desvinculacionReason,
+    desvinculacionDays: row.desvinculacionDays,
   });
 
   return {
@@ -858,9 +887,16 @@ export function toPropietarioCreateData(
     emergencyContactName: row.emergencyContactName,
     emergencyContactEmail: row.emergencyContactEmail,
     emergencyContactPhone: row.emergencyContactPhone,
-    isActive: row.isActive,
-    inactiveReason: row.isActive ? "" : (row.inactiveReason ?? "").trim(),
-    activationReason: row.isActive ? (row.activationReason ?? "").trim() : "",
+    isActive: statusFields.isActive,
+    status: statusFields.status,
+    inactiveReason: statusFields.inactiveReason,
+    activationReason:
+      statusFields.status === "activo" ? (row.activationReason ?? "").trim() : "",
+    desvinculacionReason: statusFields.desvinculacionReason,
+    desvinculacionDays: statusFields.desvinculacionDays,
+    desvinculadoUntil: statusFields.desvinculadoUntil
+      ? parseOptionalDate(statusFields.desvinculadoUntil)
+      : null,
   };
 }
 

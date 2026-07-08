@@ -64,6 +64,9 @@ type PropietarioUpdateNotificationInput = {
   changes: PropietarioChangeRecord[];
   inactiveReason?: string;
   activationReason?: string;
+  desvinculacionReason?: string;
+  desvinculacionDays?: number;
+  desvinculadoUntil?: string;
 };
 
 function buildStatusReasonEmailLines(label: string, reason?: string) {
@@ -76,7 +79,33 @@ function buildStatusReasonEmailLines(label: string, reason?: string) {
   return ["", `${label}:`, normalizedReason];
 }
 
+function buildDesvinculacionEmailLines(input: {
+  desvinculacionReason?: string;
+  desvinculacionDays?: number;
+  desvinculadoUntil?: string;
+}) {
+  const lines: string[] = [];
+
+  if (input.desvinculacionReason?.trim()) {
+    lines.push("", "Motivo de desvinculación:", input.desvinculacionReason.trim());
+  }
+
+  if (input.desvinculacionDays && input.desvinculacionDays > 0) {
+    lines.push("", `Duración: ${input.desvinculacionDays} días`);
+  }
+
+  if (input.desvinculadoUntil?.trim()) {
+    lines.push("", `Vigente hasta: ${input.desvinculadoUntil.trim()}`);
+  }
+
+  return lines;
+}
+
 function buildUpdateEmailSubject(input: PropietarioUpdateNotificationInput) {
+  if (input.desvinculacionReason?.trim()) {
+    return "Desvinculación de propietario - Transportes Apoquindo";
+  }
+
   if (input.inactiveReason?.trim() && input.activationReason?.trim()) {
     return "Cambio de estado de propietario - Transportes Apoquindo";
   }
@@ -93,6 +122,10 @@ function buildUpdateEmailSubject(input: PropietarioUpdateNotificationInput) {
 }
 
 function buildUpdateEmailIntro(input: PropietarioUpdateNotificationInput) {
+  if (input.desvinculacionReason?.trim()) {
+    return "Se informa que un propietario fue marcado como desvinculado en el módulo de Propietarios.";
+  }
+
   if (input.inactiveReason?.trim() && input.activationReason?.trim()) {
     return "Se informa que se actualizó el estado de un registro en el módulo de Propietarios.";
   }
@@ -114,7 +147,8 @@ export async function sendPropietarioUpdateNotification(
   if (
     !input.changes.length &&
     !input.inactiveReason?.trim() &&
-    !input.activationReason?.trim()
+    !input.activationReason?.trim() &&
+    !input.desvinculacionReason?.trim()
   ) {
     return;
   }
@@ -129,6 +163,7 @@ export async function sendPropietarioUpdateNotification(
     "Motivo de activación",
     input.activationReason,
   );
+  const desvinculacionLines = buildDesvinculacionEmailLines(input);
 
   await sendPropietariosNotification(buildUpdateEmailSubject(input), [
     "Estimados,",
@@ -142,6 +177,7 @@ export async function sendPropietarioUpdateNotification(
     `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
     ...inactiveReasonLines,
     ...activationReasonLines,
+    ...desvinculacionLines,
     ...(changeLines.length
       ? ["", "Detalle de modificaciones:", "", ...changeLines]
       : []),
@@ -201,7 +237,8 @@ export async function notifyPropietarioUpdateSafely(
   if (
     !input.changes.length &&
     !input.inactiveReason?.trim() &&
-    !input.activationReason?.trim()
+    !input.activationReason?.trim() &&
+    !input.desvinculacionReason?.trim()
   ) {
     return false;
   }
@@ -248,6 +285,9 @@ type PropietarioCreateNotificationInput = {
   email: string;
   record: Record<string, unknown>;
   inactiveReason?: string;
+  desvinculacionReason?: string;
+  desvinculacionDays?: number;
+  desvinculadoUntil?: string;
 };
 
 export async function sendPropietarioCreateNotification(
@@ -259,13 +299,18 @@ export async function sendPropietarioCreateNotification(
     "Motivo de inactivación",
     input.inactiveReason,
   );
+  const desvinculacionLines = buildDesvinculacionEmailLines(input);
 
   await sendPropietariosNotification(
-    "Nuevo propietario creado - Transportes Apoquindo",
+    input.desvinculacionReason
+      ? "Nuevo propietario desvinculado - Transportes Apoquindo"
+      : "Nuevo propietario creado - Transportes Apoquindo",
     [
       "Estimados,",
       "",
-      "Se informa que se creó un nuevo registro en el módulo de Propietarios.",
+      input.desvinculacionReason
+        ? "Se informa que se creó un propietario en estado desvinculado."
+        : "Se informa que se creó un nuevo registro en el módulo de Propietarios.",
       "",
       `Fecha y hora: ${timestamp}`,
       `Usuario que realizó la acción: ${input.actor}`,
@@ -274,6 +319,7 @@ export async function sendPropietarioCreateNotification(
       `Móvil: ${input.vehicleNumber || "(sin móvil)"}`,
       `Correo: ${input.email || "(sin correo)"}`,
       ...inactiveReasonLines,
+      ...desvinculacionLines,
       ...detailLines,
       "",
       "Este mensaje fue generado automáticamente por el sistema.",
