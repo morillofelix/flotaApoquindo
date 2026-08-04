@@ -11,6 +11,8 @@ import {
 } from "@/lib/propietario-status";
 import {
   displayVehicleNumber,
+  isValidPropietarioPost,
+  normalizePropietarioPost,
   normalizeVehicleNumber,
   toPropietario,
   toPropietarioCreateData,
@@ -25,6 +27,7 @@ export const dynamic = "force-dynamic";
 type PropietarioBody = {
   id?: unknown;
   vehicleNumber?: unknown;
+  post?: unknown;
   fullName?: unknown;
   firstName?: unknown;
   lastName?: unknown;
@@ -81,6 +84,7 @@ function asPhone(value: unknown) {
 function parsePropietarioBody(body: PropietarioBody) {
   return {
     vehicleNumber: asString(body.vehicleNumber),
+    post: normalizePropietarioPost(asString(body.post)),
     fullName: asString(body.fullName),
     firstName: asString(body.firstName),
     lastName: asString(body.lastName),
@@ -155,6 +159,10 @@ function buildStatusPayload(
 function validatePropietarioInput(input: ReturnType<typeof parsePropietarioBody>) {
   if (input.fullName.length < 3) {
     return "Ingresa una razón social válida.";
+  }
+
+  if (!isValidPropietarioPost(input.post)) {
+    return "El código POST debe tener máximo 13 caracteres alfanuméricos.";
   }
 
   return null;

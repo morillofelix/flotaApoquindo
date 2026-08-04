@@ -38,10 +38,31 @@ export {
   readDriverOwnerFileContent as readPropietarioFileContent,
 };
 
+export const PROPIETARIO_POST_MAX_LENGTH = 13;
+
+export function normalizePropietarioPost(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, "")
+    .toUpperCase()
+    .slice(0, PROPIETARIO_POST_MAX_LENGTH);
+}
+
+export function isValidPropietarioPost(value: string) {
+  const normalized = normalizePropietarioPost(value);
+
+  if (!normalized) {
+    return true;
+  }
+
+  return /^[A-Z0-9]{1,13}$/.test(normalized);
+}
+
 export type PropietarioConfig = {
   id?: string;
   importKey?: string;
   vehicleNumber: string;
+  post: string;
   fullName: string;
   firstName: string;
   lastName: string;
@@ -116,6 +137,9 @@ const headerAliases: Record<string, string> = {
   nombre_banco: "bankName",
   nro_cta_banco: "bankAccount",
   nro_cta: "bankAccount",
+  post: "post",
+  codigo_post: "post",
+  equipo_post: "post",
   nif: "rut",
   dni: "rut",
   correo: "email",
@@ -414,6 +438,7 @@ function buildFullName(record: Record<string, string>) {
 function createEmptyPropietarioFields(): Omit<ParsedPropietarioRow, "rowNumber" | "importKey"> {
   return {
     vehicleNumber: "",
+    post: "",
     fullName: "",
     firstName: "",
     lastName: "",
@@ -504,6 +529,7 @@ function buildParsedPropietarioRow(
     importKey,
     ...createEmptyPropietarioFields(),
     vehicleNumber: hasMobileNumber ? normalizeVehicleNumber(rawMobile) : "",
+    post: normalizePropietarioPost(record.post ?? ""),
     fullName,
     rut,
     bankName: (record.bankName ?? "").trim(),
@@ -728,6 +754,7 @@ export function toPropietario(value: {
   id: string;
   importKey: string;
   vehicleNumber: string;
+  post: string;
   fullName: string;
   firstName: string;
   lastName: string;
@@ -779,6 +806,7 @@ export function toPropietario(value: {
     id: value.id,
     importKey: value.importKey,
     vehicleNumber: displayVehicleNumber(value.vehicleNumber),
+    post: value.post ?? "",
     fullName: value.fullName,
     firstName: value.firstName,
     lastName: value.lastName,
@@ -850,6 +878,7 @@ export function toPropietarioCreateData(
     vehicleNumber: row.vehicleNumber
       ? normalizeVehicleNumber(row.vehicleNumber)
       : "",
+    post: normalizePropietarioPost(row.post ?? ""),
     fullName: row.fullName,
     firstName: row.firstName,
     lastName: row.lastName,

@@ -122,6 +122,7 @@ model Propietario {
   id                    String    @id @default(uuid())
   importKey             String    @unique
   vehicleNumber         String    @default("")
+  post                  String    @default("")
   fullName              String
   firstName             String    @default("")
   lastName              String    @default("")

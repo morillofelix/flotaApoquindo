@@ -7,6 +7,7 @@ import {
 export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   rut: "RUT.-",
   vehicleNumber: "Móvil",
+  post: "POST",
   fullName: "Razón Social",
   email: "Correo",
   paymentMethod: "Cta Depósito",
@@ -102,6 +103,10 @@ function normalizeComparableValue(value: unknown, field?: string) {
 
   if (field === "titularRut") {
     return normalized.replace(/\D/g, "");
+  }
+
+  if (field === "post") {
+    return normalized.replace(/\s+/g, "").toUpperCase();
   }
 
   return normalized;

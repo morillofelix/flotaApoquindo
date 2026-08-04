@@ -10,7 +10,9 @@ import {
   displayVehicleNumber,
   downloadPropietariosExcel,
   formatFileSize,
+  normalizePropietarioPost,
   normalizeVehicleNumber,
+  PROPIETARIO_POST_MAX_LENGTH,
   parsePropietariosUploadBuffer,
   type ParsedPropietarioRow,
   type PropietarioConfig,
@@ -77,6 +79,7 @@ const bulkUploadSteps = [
 const emptyPropietarioForm: PropietarioForm = {
   id: "",
   vehicleNumber: "",
+  post: "",
   fullName: "",
   firstName: "",
   lastName: "",
@@ -610,6 +613,15 @@ export default function PropietariosPage() {
       return;
     }
 
+    const normalizedPost = normalizePropietarioPost(propietarioForm.post ?? "");
+
+    if (normalizedPost && !/^[A-Z0-9]{1,13}$/.test(normalizedPost)) {
+      setPropietarioError(
+        "El código POST debe tener máximo 13 caracteres alfanuméricos.",
+      );
+      return;
+    }
+
     const isCreatingPropietario = propietarioFormMode === "create";
 
     if (isCreatingPropietario) {
@@ -674,6 +686,7 @@ export default function PropietariosPage() {
         ...propietarioForm,
         status: formStatus,
         isActive: formStatus === "activo",
+        post: normalizedPost,
         rut: formatCompanyRutForDisplay(propietarioForm.rut),
         titularRut: formatBankRutForDisplay(propietarioForm.titularRut),
       };
@@ -821,6 +834,16 @@ export default function PropietariosPage() {
       bankName: bank.name,
       bankBic: bank.bankBic,
     }));
+  }
+
+  function handlePostChange(value: string) {
+    updateFormField(
+      "post",
+      value
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .toUpperCase()
+        .slice(0, PROPIETARIO_POST_MAX_LENGTH),
+    );
   }
 
   async function handleStatusChange(nextStatus: PropietarioStatus) {
@@ -1304,6 +1327,24 @@ export default function PropietariosPage() {
                     required={isCreatingPropietario}
                     aria-required={isCreatingPropietario}
                   />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <FieldLabel>POST</FieldLabel>
+                  <input
+                    type="text"
+                    inputMode="text"
+                    value={propietarioForm.post}
+                    onChange={(event) => handlePostChange(event.target.value)}
+                    maxLength={PROPIETARIO_POST_MAX_LENGTH}
+                    className={inputClassName}
+                    placeholder="Código equipo POST"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <span className="text-[11px] text-slate-500">
+                    Máx. {PROPIETARIO_POST_MAX_LENGTH} caracteres alfanuméricos
+                  </span>
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
