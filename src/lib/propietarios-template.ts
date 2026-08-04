@@ -9,6 +9,7 @@ export const PROPIETARIO_TEMPLATE_HEADERS = [
   "Nombre Banco",
   "Nro. Cta. Banco",
   "Correo",
+  "POST",
 ] as const;
 
 export const PROPIETARIO_DEPOSIT_ACCOUNT_TYPES = ["Jurídica", "Personal"] as const;

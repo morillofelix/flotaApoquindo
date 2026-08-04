@@ -2,6 +2,8 @@ import { requireAdminPermission } from "@/lib/admin-api-server";
 import { notifyPropietarioBulkImportSafely } from "@/lib/propietarios-notify-mail";
 import { getPropietarioNotifyActor } from "@/lib/propietarios-notify";
 import {
+  isValidPropietarioPost,
+  normalizePropietarioPost,
   parsePropietariosCsv,
   toPropietario,
   toPropietarioCreateData,
@@ -67,6 +69,23 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  for (const row of rows) {
+    const post = normalizePropietarioPost(row.post ?? "");
+
+    if (!isValidPropietarioPost(post)) {
+      return NextResponse.json(
+        {
+          message:
+            "Hay filas con código POST inválido (máx. 13 caracteres alfanuméricos).",
+          errors: [
+            `Fila ${row.rowNumber}: código POST inválido para ${row.fullName || "sin nombre"}.`,
+          ],
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const errors = [...parseErrors];

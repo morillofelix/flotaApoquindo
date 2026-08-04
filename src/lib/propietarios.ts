@@ -215,6 +215,12 @@ const propietarioTemplateHeaderAliases: Record<string, string> = {
   numero_de_movil: "vehicleNumber",
   n_movil: "vehicleNumber",
   nro_de_movil: "vehicleNumber",
+  post: "post",
+  pos: "post",
+  codigo_post: "post",
+  codigo_pos: "post",
+  equipo_post: "post",
+  equipo_pos: "post",
 };
 
 function mapPropietarioImportField(normalizedHeader: string) {
@@ -524,12 +530,21 @@ function buildParsedPropietarioRow(
 
   importedKeys.add(importKey);
 
+  const post = normalizePropietarioPost(record.post ?? "");
+
+  if (!isValidPropietarioPost(post)) {
+    errors.push(
+      `Fila ${lineNumber}: código POST inválido (máx. 13 caracteres alfanuméricos).`,
+    );
+    return null;
+  }
+
   return {
     rowNumber: lineNumber,
     importKey,
     ...createEmptyPropietarioFields(),
     vehicleNumber: hasMobileNumber ? normalizeVehicleNumber(rawMobile) : "",
-    post: normalizePropietarioPost(record.post ?? ""),
+    post,
     fullName,
     rut,
     bankName: (record.bankName ?? "").trim(),
@@ -604,7 +619,8 @@ export function parsePropietariosMatrix(matrix: string[][]) {
       Boolean(record.rut) ||
       Boolean(record.vehicleNumber) ||
       Boolean(record.bankAccount) ||
-      Boolean(record.email);
+      Boolean(record.email) ||
+      Boolean(record.post);
 
     if (!hasRowData) {
       continue;
@@ -959,6 +975,7 @@ export function downloadPropietariosExcel(
           <td>${escapeExcelHtml(row.bankName)}</td>
           <td>${escapeExcelHtml(row.bankAccount)}</td>
           <td>${escapeExcelHtml(row.email)}</td>
+          <td>${escapeExcelHtml(normalizePropietarioPost(row.post ?? ""))}</td>
         </tr>`,
     )
     .join("");

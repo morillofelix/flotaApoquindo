@@ -998,7 +998,7 @@ export default function PropietariosPage() {
                         Cargador masivo
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Sube la plantilla CUENTAS BANCARIAS (10 columnas) en XLS, CSV o
+                        Sube la plantilla CUENTAS BANCARIAS (11 columnas) en XLS, CSV o
                         SLK. La carga reemplaza por completo la base de propietarios e
                         importa todas las filas del archivo.
                       </p>
