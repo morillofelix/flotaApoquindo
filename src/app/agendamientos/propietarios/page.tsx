@@ -152,6 +152,9 @@ function getPropietarioRecordStatus(
 const inputClassName =
   "h-10 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 
+const statusSelectBaseClassName =
+  "h-10 w-full min-w-0 appearance-none rounded-2xl border px-3 pr-9 text-sm shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:ring-2";
+
 const labelClassName = "text-xs font-semibold text-[#173b68]";
 
 function RequiredMark() {
@@ -1494,24 +1497,32 @@ export default function PropietariosPage() {
                     <FieldLabel>Estado</FieldLabel>
                     {isCreatingPropietario ? (
                       <div
-                        className={`${inputClassName} flex items-center ${getPropietarioStatusSolidSelectClassName("revision")}`}
+                        className={`${statusSelectBaseClassName} flex items-center ${getPropietarioStatusSolidSelectClassName("revision")}`}
                       >
                         Revisión
                       </div>
                     ) : (
-                      <select
-                        value={formStatus}
-                        onChange={(event) =>
-                          void handleStatusChange(event.target.value as PropietarioStatus)
-                        }
-                        className={`${inputClassName} ${getPropietarioStatusSolidSelectClassName(formStatus)}`}
-                      >
-                        {PROPIETARIO_STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={formStatus}
+                          onChange={(event) =>
+                            void handleStatusChange(event.target.value as PropietarioStatus)
+                          }
+                          className={`${statusSelectBaseClassName} ${getPropietarioStatusSolidSelectClassName(formStatus)}`}
+                        >
+                          {PROPIETARIO_STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-white"
+                        >
+                          ▾
+                        </span>
+                      </div>
                     )}
                   </label>
                 </div>
