@@ -90,6 +90,26 @@ export function getPropietarioStatusSelectClassName(status: PropietarioStatus) {
   return "";
 }
 
+export function getPropietarioStatusSolidSelectClassName(status: PropietarioStatus) {
+  if (status === "activo") {
+    return "border-transparent bg-emerald-600 font-semibold text-white focus:border-emerald-600 focus:ring-emerald-300/40";
+  }
+
+  if (status === "revision") {
+    return "border-transparent bg-violet-600 font-semibold text-white focus:border-violet-600 focus:ring-violet-300/40";
+  }
+
+  if (status === "inactivo") {
+    return "border-transparent bg-slate-500 font-semibold text-white focus:border-slate-500 focus:ring-slate-300/40";
+  }
+
+  if (status === "desvinculado") {
+    return "border-transparent bg-amber-600 font-semibold text-white focus:border-amber-600 focus:ring-amber-300/40";
+  }
+
+  return "border-transparent bg-[#0b5cab] font-semibold text-white";
+}
+
 export function getSantiagoDateString(referenceDate = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
