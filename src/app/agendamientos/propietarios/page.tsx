@@ -1760,65 +1760,78 @@ export default function PropietariosPage() {
 
               <div
                 ref={bankGuaranteePdfRef}
-                className={`mb-3 rounded-2xl border px-3 py-2.5 transition-all duration-300 ${
+                className={`mb-3 rounded-[18px] border-2 px-3 py-3 transition-all duration-300 ${
                   highlightBankGuaranteePdf
-                    ? "border-red-300 bg-red-50/80 ring-1 ring-red-200"
-                    : "border-[#b7cce4] bg-[#f8fbff]"
+                    ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-violet-50 shadow-md shadow-red-100 ring-2 ring-red-200/70"
+                    : "border-[#b7cce4] bg-gradient-to-br from-[#f8fbff] via-white to-violet-50/40 shadow-sm"
                 }`}
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-[#173b68]">
+                <div className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm ${
+                      highlightBankGuaranteePdf ? "bg-red-500" : "bg-[#0b5cab]"
+                    }`}
+                  >
+                    PDF
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-heading text-sm font-bold tracking-tight text-[#0f2747]">
                       Garantía bancaria
-                      <span className="ml-0.5 text-red-600">*</span>
+                      <span className="ml-1 text-red-600">*</span>
                     </p>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-600">
+                      Adjunta el documento PDF que acredita la garantía de la cuenta
+                      bancaria. Es obligatorio para crear o guardar el registro.
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-xl bg-[#0b5cab] px-3 text-[11px] font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
+                        {propietarioForm.bankGuaranteePdfFileName ||
+                        propietarioForm.hasBankGuaranteePdf
+                          ? "Reemplazar PDF"
+                          : "Seleccionar PDF"}
+                        <input
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          onChange={(event) => void handleBankGuaranteePdfChange(event)}
+                          className="hidden"
+                        />
+                      </label>
+                      {canConsultBankGuaranteePdf ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void viewBankGuaranteePdf()}
+                            disabled={isBankGuaranteePdfLoading}
+                            className="inline-flex h-8 items-center justify-center rounded-xl border border-[#0b5cab] bg-white px-3 text-[11px] font-semibold text-[#0b5cab] transition hover:bg-[#eef4fb] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBankGuaranteePdfLoading ? "Abriendo..." : "Ver PDF"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void downloadBankGuaranteePdf()}
+                            disabled={isBankGuaranteePdfLoading}
+                            className="inline-flex h-8 items-center justify-center rounded-xl border border-emerald-500 bg-white px-3 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBankGuaranteePdfLoading ? "Descargando..." : "Descargar"}
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                    {bankGuaranteePdfLabel ? (
+                      <p className="mt-2 text-[11px] font-semibold text-emerald-700">
+                        Documento disponible: {bankGuaranteePdfLabel}
+                      </p>
+                    ) : null}
                     <p
-                      className={`mt-0.5 truncate text-[11px] ${
-                        bankGuaranteePdfLabel
-                          ? "font-medium text-emerald-700"
-                          : highlightBankGuaranteePdf
-                            ? "font-medium text-red-600"
-                            : "text-slate-500"
+                      className={`mt-1.5 text-[11px] font-semibold ${
+                        highlightBankGuaranteePdf ? "text-red-600" : "text-slate-500"
                       }`}
                     >
-                      {bankGuaranteePdfLabel
-                        ? bankGuaranteePdfLabel
-                        : highlightBankGuaranteePdf
-                          ? "PDF obligatorio antes de guardar"
-                          : "PDF obligatorio · máx. 5 MB"}
+                      {highlightBankGuaranteePdf
+                        ? "Debes cargar el PDF de garantía bancaria antes de guardar."
+                        : "Formato PDF · máximo 5 MB · obligatorio"}
                     </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-xl border border-[#0b5cab] bg-white px-3 text-[11px] font-semibold text-[#0b5cab] transition hover:bg-[#eef4fb] active:translate-y-px">
-                      {canConsultBankGuaranteePdf ? "Cambiar" : "Adjuntar"}
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        onChange={(event) => void handleBankGuaranteePdfChange(event)}
-                        className="hidden"
-                      />
-                    </label>
-                    {canConsultBankGuaranteePdf ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void viewBankGuaranteePdf()}
-                          disabled={isBankGuaranteePdfLoading}
-                          className="inline-flex h-8 items-center justify-center rounded-xl border border-[#b7cce4] bg-white px-3 text-[11px] font-semibold text-[#0f2747] transition hover:bg-white active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isBankGuaranteePdfLoading ? "..." : "Ver"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void downloadBankGuaranteePdf()}
-                          disabled={isBankGuaranteePdfLoading}
-                          className="inline-flex h-8 items-center justify-center rounded-xl border border-[#b7cce4] bg-white px-3 text-[11px] font-semibold text-[#0f2747] transition hover:bg-white active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isBankGuaranteePdfLoading ? "..." : "Descargar"}
-                        </button>
-                      </>
-                    ) : null}
                   </div>
                 </div>
               </div>
