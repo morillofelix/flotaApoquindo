@@ -150,7 +150,7 @@ function getPropietarioRecordStatus(
 }
 
 const inputClassName =
-  "h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
+  "h-10 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 
 const labelClassName = "text-xs font-semibold text-[#173b68]";
 
@@ -1492,7 +1492,7 @@ export default function PropietariosPage() {
                   <FieldLabel>Estado</FieldLabel>
                   {isCreatingPropietario ? (
                     <div
-                      className={`${inputClassName} ${getPropietarioStatusSelectClassName("revision")}`}
+                      className={`${inputClassName} flex items-center ${getPropietarioStatusSelectClassName("revision")}`}
                     >
                       Revisión
                     </div>
