@@ -1474,85 +1474,55 @@ export default function PropietariosPage() {
                 ) : null}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <FieldLabel>RUT.-</FieldLabel>
-                  <input
-                    type="text"
-                    inputMode="text"
-                    value={propietarioForm.rut}
-                    onChange={(event) => handleRutChange(event.target.value)}
-                    onBlur={handleRutBlur}
-                    className={inputClassName}
-                    placeholder="12.345.678-9"
-                  />
-                </label>
+              <div className="grid gap-3">
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+                  <label className="flex w-full max-w-[13rem] flex-col gap-1.5">
+                    <FieldLabel>RUT.-</FieldLabel>
+                    <input
+                      type="text"
+                      inputMode="text"
+                      value={propietarioForm.rut}
+                      onChange={(event) => handleRutChange(event.target.value)}
+                      onBlur={handleRutBlur}
+                      className={inputClassName}
+                      placeholder="12.345.678-9"
+                      maxLength={14}
+                    />
+                  </label>
+
+                  <label className="flex w-full max-w-[9.5rem] flex-col gap-1.5">
+                    <FieldLabel>Estado</FieldLabel>
+                    {isCreatingPropietario ? (
+                      <div
+                        className={`${inputClassName} flex items-center ${getPropietarioStatusSelectClassName("revision")}`}
+                      >
+                        Revisión
+                      </div>
+                    ) : (
+                      <select
+                        value={formStatus}
+                        onChange={(event) =>
+                          void handleStatusChange(event.target.value as PropietarioStatus)
+                        }
+                        className={`${inputClassName} ${getPropietarioStatusSelectClassName(formStatus)}`}
+                      >
+                        {PROPIETARIO_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {isCreatingPropietario ? (
+                      <span className="text-[11px] font-medium text-violet-700">
+                        Los nuevos propietarios se crean en revisión. Actívalo
+                        después para enviar las notificaciones.
+                      </span>
+                    ) : null}
+                  </label>
+                </div>
 
                 <label className="flex flex-col gap-1.5">
-                  <FieldLabel>Estado</FieldLabel>
-                  {isCreatingPropietario ? (
-                    <div
-                      className={`${inputClassName} flex items-center ${getPropietarioStatusSelectClassName("revision")}`}
-                    >
-                      Revisión
-                    </div>
-                  ) : (
-                    <select
-                      value={formStatus}
-                      onChange={(event) =>
-                        void handleStatusChange(event.target.value as PropietarioStatus)
-                      }
-                      className={`${inputClassName} ${getPropietarioStatusSelectClassName(formStatus)}`}
-                    >
-                      {PROPIETARIO_STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {isCreatingPropietario ? (
-                    <span className="text-[11px] font-medium text-violet-700">
-                      Los nuevos propietarios se crean en revisión. Actívalo después
-                      para enviar las notificaciones.
-                    </span>
-                  ) : null}
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={propietarioForm.vehicleNumber}
-                    onChange={(event) =>
-                      updateFormField("vehicleNumber", event.target.value)
-                    }
-                    className={inputClassName}
-                    required={isCreatingPropietario}
-                    aria-required={isCreatingPropietario}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <FieldLabel>POST</FieldLabel>
-                  <input
-                    type="text"
-                    inputMode="text"
-                    value={propietarioForm.post}
-                    onChange={(event) => handlePostChange(event.target.value)}
-                    maxLength={PROPIETARIO_POST_MAX_LENGTH}
-                    className={inputClassName}
-                    placeholder="Código equipo POST"
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <span className="text-[11px] text-slate-500">
-                    Máx. {PROPIETARIO_POST_MAX_LENGTH} caracteres alfanuméricos
-                  </span>
-                </label>
-
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
                   <FieldLabel required={isCreatingPropietario}>
                     Razón Social
                   </FieldLabel>
@@ -1566,7 +1536,43 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
+                  <label className="flex w-full max-w-[6rem] flex-col gap-1.5">
+                    <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={propietarioForm.vehicleNumber}
+                      onChange={(event) =>
+                        updateFormField("vehicleNumber", event.target.value)
+                      }
+                      className={inputClassName}
+                      maxLength={6}
+                      required={isCreatingPropietario}
+                      aria-required={isCreatingPropietario}
+                    />
+                  </label>
+
+                  <label className="flex w-full max-w-[14rem] flex-1 flex-col gap-1.5">
+                    <FieldLabel>POST</FieldLabel>
+                    <input
+                      type="text"
+                      inputMode="text"
+                      value={propietarioForm.post}
+                      onChange={(event) => handlePostChange(event.target.value)}
+                      maxLength={PROPIETARIO_POST_MAX_LENGTH}
+                      className={inputClassName}
+                      placeholder="Código equipo POST"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <span className="text-[11px] text-slate-500">
+                      Máx. {PROPIETARIO_POST_MAX_LENGTH} caracteres alfanuméricos
+                    </span>
+                  </label>
+                </div>
+
+                <label className="flex flex-col gap-1.5">
                   <FieldLabel required={isCreatingPropietario}>Correo</FieldLabel>
                   <input
                     type="email"
