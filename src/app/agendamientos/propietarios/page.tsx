@@ -1475,8 +1475,8 @@ export default function PropietariosPage() {
               </div>
 
               <div className="grid gap-3">
-                <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
-                  <label className="flex w-full max-w-[13rem] flex-col gap-1.5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_9.5rem]">
+                  <label className="flex flex-col gap-1.5">
                     <FieldLabel>RUT.-</FieldLabel>
                     <input
                       type="text"
@@ -1490,7 +1490,7 @@ export default function PropietariosPage() {
                     />
                   </label>
 
-                  <label className="flex w-full max-w-[9.5rem] flex-col gap-1.5">
+                  <label className="flex flex-col gap-1.5">
                     <FieldLabel>Estado</FieldLabel>
                     {isCreatingPropietario ? (
                       <div
@@ -1513,12 +1513,6 @@ export default function PropietariosPage() {
                         ))}
                       </select>
                     )}
-                    {isCreatingPropietario ? (
-                      <span className="text-[11px] font-medium text-violet-700">
-                        Los nuevos propietarios se crean en revisión. Actívalo
-                        después para enviar las notificaciones.
-                      </span>
-                    ) : null}
                   </label>
                 </div>
 
@@ -1536,8 +1530,8 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
-                  <label className="flex w-full max-w-[6rem] flex-col gap-1.5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[6rem_14rem]">
+                  <label className="flex flex-col gap-1.5">
                     <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
                     <input
                       type="text"
@@ -1553,7 +1547,7 @@ export default function PropietariosPage() {
                     />
                   </label>
 
-                  <label className="flex w-full max-w-[14rem] flex-1 flex-col gap-1.5">
+                  <label className="flex flex-col gap-1.5">
                     <FieldLabel>POST</FieldLabel>
                     <input
                       type="text"
