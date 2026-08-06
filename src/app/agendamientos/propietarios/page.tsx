@@ -22,7 +22,7 @@ import {
   formatDateLabel,
   formatPropietarioStatusLabel,
   getPropietarioStatusBadgeClassName,
-  getPropietarioStatusSelectClassName,
+  getPropietarioStatusSolidSelectClassName,
   PROPIETARIO_STATUS_OPTIONS,
   type PropietarioStatus,
 } from "@/lib/propietario-status";
@@ -1494,7 +1494,7 @@ export default function PropietariosPage() {
                     <FieldLabel>Estado</FieldLabel>
                     {isCreatingPropietario ? (
                       <div
-                        className={`${inputClassName} flex items-center ${getPropietarioStatusSelectClassName("revision")}`}
+                        className={`${inputClassName} flex items-center ${getPropietarioStatusSolidSelectClassName("revision")}`}
                       >
                         Revisión
                       </div>
@@ -1504,7 +1504,7 @@ export default function PropietariosPage() {
                         onChange={(event) =>
                           void handleStatusChange(event.target.value as PropietarioStatus)
                         }
-                        className={`${inputClassName} ${getPropietarioStatusSelectClassName(formStatus)}`}
+                        className={`${inputClassName} ${getPropietarioStatusSolidSelectClassName(formStatus)}`}
                       >
                         {PROPIETARIO_STATUS_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
