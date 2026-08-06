@@ -1530,6 +1530,20 @@ export default function PropietariosPage() {
                   />
                 </label>
 
+                <label className="flex flex-col gap-1.5">
+                  <FieldLabel required={isCreatingPropietario}>Correo</FieldLabel>
+                  <input
+                    type="email"
+                    value={propietarioForm.email}
+                    onChange={(event) =>
+                      updateFormField("email", event.target.value)
+                    }
+                    className={inputClassName}
+                    required={isCreatingPropietario}
+                    aria-required={isCreatingPropietario}
+                  />
+                </label>
+
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-[6rem_14rem]">
                   <label className="flex flex-col gap-1.5">
                     <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
@@ -1565,20 +1579,6 @@ export default function PropietariosPage() {
                     </span>
                   </label>
                 </div>
-
-                <label className="flex flex-col gap-1.5">
-                  <FieldLabel required={isCreatingPropietario}>Correo</FieldLabel>
-                  <input
-                    type="email"
-                    value={propietarioForm.email}
-                    onChange={(event) =>
-                      updateFormField("email", event.target.value)
-                    }
-                    className={inputClassName}
-                    required={isCreatingPropietario}
-                    aria-required={isCreatingPropietario}
-                  />
-                </label>
 
                 {formStatus === "inactivo" ? (
                   <div
