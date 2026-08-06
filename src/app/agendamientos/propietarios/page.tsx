@@ -1479,7 +1479,7 @@ export default function PropietariosPage() {
 
               <div className="grid gap-3">
                 <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
-                  <label className="flex w-full max-w-[12.5rem] flex-col gap-1.5">
+                  <label className="flex w-[12.5rem] shrink-0 flex-col gap-1.5">
                     <FieldLabel>RUT.-</FieldLabel>
                     <input
                       type="text"
@@ -1493,7 +1493,7 @@ export default function PropietariosPage() {
                     />
                   </label>
 
-                  <label className="flex w-full max-w-[9.5rem] flex-col gap-1.5">
+                  <label className="flex w-[9.5rem] shrink-0 flex-col gap-1.5">
                     <FieldLabel>Estado</FieldLabel>
                     {isCreatingPropietario ? (
                       <div
@@ -1518,7 +1518,7 @@ export default function PropietariosPage() {
                     )}
                   </label>
 
-                  <label className="flex w-full max-w-[6.5rem] flex-col gap-1.5">
+                  <label className="flex w-[6.5rem] shrink-0 flex-col gap-1.5">
                     <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
                     <input
                       type="text"
@@ -1534,7 +1534,7 @@ export default function PropietariosPage() {
                     />
                   </label>
 
-                  <label className="flex w-full max-w-[10.5rem] flex-col gap-1.5">
+                  <label className="flex w-[10.5rem] shrink-0 flex-col gap-1.5">
                     <FieldLabel>POST</FieldLabel>
                     <input
                       type="text"
