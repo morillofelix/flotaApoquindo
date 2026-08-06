@@ -31,6 +31,9 @@ import {
   matchesTextSearch,
   matchesVehicleNumberSearch,
 } from "@/lib/maintainer-search";
+import {
+  getPropietarioStatusSolidSelectClassName,
+} from "@/lib/propietario-status";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -38,6 +41,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 type DriverOwnerForm = DriverOwnerConfig & {
   id: string;
 };
+
+const statusSelectBaseClassName =
+  "h-10 w-full min-w-0 appearance-none rounded-2xl border px-3 pr-9 text-sm shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:ring-2";
 
 type BulkUploadPhase =
   | "idle"
@@ -1339,19 +1345,29 @@ export default function ConductoresPage() {
                   <span className="text-xs font-semibold text-[#173b68]">
                     Estado
                   </span>
-                  <select
-                    value={driverOwnerForm.isActive ? "activo" : "inactivo"}
-                    onChange={(event) =>
-                      setDriverOwnerForm((currentForm) => ({
-                        ...currentForm,
-                        isActive: event.target.value === "activo",
-                      }))
-                    }
-                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={driverOwnerForm.isActive ? "activo" : "inactivo"}
+                      onChange={(event) =>
+                        setDriverOwnerForm((currentForm) => ({
+                          ...currentForm,
+                          isActive: event.target.value === "activo",
+                        }))
+                      }
+                      className={`${statusSelectBaseClassName} ${getPropietarioStatusSolidSelectClassName(
+                        driverOwnerForm.isActive ? "activo" : "inactivo",
+                      )}`}
+                    >
+                      <option value="activo">Activo</option>
+                      <option value="inactivo">Inactivo</option>
+                    </select>
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-white"
+                    >
+                      ▾
+                    </span>
+                  </div>
                 </label>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
