@@ -22,7 +22,7 @@ import {
   formatDateLabel,
   formatPropietarioStatusLabel,
   getPropietarioStatusBadgeClassName,
-  getPropietarioStatusSolidSelectClassName,
+  getPropietarioStatusSelectClassName,
   PROPIETARIO_STATUS_OPTIONS,
   type PropietarioStatus,
 } from "@/lib/propietario-status";
@@ -148,9 +148,6 @@ function getPropietarioRecordStatus(
 
   return propietario.isActive ? "activo" : "inactivo";
 }
-
-const compactInputClassName =
-  "h-10 w-full rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 
 const inputClassName =
   "h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
@@ -1478,7 +1475,7 @@ export default function PropietariosPage() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex max-w-[12.5rem] flex-col gap-1.5 justify-self-start">
+                <label className="flex flex-col gap-1.5">
                   <FieldLabel>RUT.-</FieldLabel>
                   <input
                     type="text"
@@ -1486,17 +1483,16 @@ export default function PropietariosPage() {
                     value={propietarioForm.rut}
                     onChange={(event) => handleRutChange(event.target.value)}
                     onBlur={handleRutBlur}
-                    className={compactInputClassName}
+                    className={inputClassName}
                     placeholder="12.345.678-9"
-                    maxLength={14}
                   />
                 </label>
 
-                <label className="flex max-w-[9.5rem] flex-col gap-1.5 justify-self-start">
+                <label className="flex flex-col gap-1.5">
                   <FieldLabel>Estado</FieldLabel>
                   {isCreatingPropietario ? (
                     <div
-                      className={`${compactInputClassName} ${getPropietarioStatusSolidSelectClassName("revision")}`}
+                      className={`${inputClassName} ${getPropietarioStatusSelectClassName("revision")}`}
                     >
                       Revisión
                     </div>
@@ -1506,7 +1502,7 @@ export default function PropietariosPage() {
                       onChange={(event) =>
                         void handleStatusChange(event.target.value as PropietarioStatus)
                       }
-                      className={`${compactInputClassName} ${getPropietarioStatusSolidSelectClassName(formStatus)}`}
+                      className={`${inputClassName} ${getPropietarioStatusSelectClassName(formStatus)}`}
                     >
                       {PROPIETARIO_STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -1523,7 +1519,7 @@ export default function PropietariosPage() {
                   ) : null}
                 </label>
 
-                <label className="flex max-w-[6.5rem] flex-col gap-1.5 justify-self-start">
+                <label className="flex flex-col gap-1.5">
                   <FieldLabel required={isCreatingPropietario}>Móvil</FieldLabel>
                   <input
                     type="text"
@@ -1532,14 +1528,13 @@ export default function PropietariosPage() {
                     onChange={(event) =>
                       updateFormField("vehicleNumber", event.target.value)
                     }
-                    className={compactInputClassName}
-                    maxLength={6}
+                    className={inputClassName}
                     required={isCreatingPropietario}
                     aria-required={isCreatingPropietario}
                   />
                 </label>
 
-                <label className="flex max-w-[10.5rem] flex-col gap-1.5 justify-self-start">
+                <label className="flex flex-col gap-1.5">
                   <FieldLabel>POST</FieldLabel>
                   <input
                     type="text"
@@ -1547,7 +1542,7 @@ export default function PropietariosPage() {
                     value={propietarioForm.post}
                     onChange={(event) => handlePostChange(event.target.value)}
                     maxLength={PROPIETARIO_POST_MAX_LENGTH}
-                    className={compactInputClassName}
+                    className={inputClassName}
                     placeholder="Código equipo POST"
                     autoComplete="off"
                     spellCheck={false}
