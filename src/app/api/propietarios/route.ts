@@ -2,13 +2,19 @@ import { requireAdminPermission } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
 import { listPropietariosWithAutoStatus } from "@/lib/propietarios-auto-status";
 import { diffPropietarioChanges } from "@/lib/propietarios-changes";
-import { notifyPropietarioCreateSafely, notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
+import { notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
 import { getPropietarioNotifyActor } from "@/lib/propietarios-notify";
 import {
   getSantiagoDateString,
+  normalizePropietarioStatus,
   resolvePropietarioStatusFields,
   validatePropietarioStatusFields,
 } from "@/lib/propietario-status";
+import {
+  normalizePropietarioBankGuaranteeFileName,
+  normalizePropietarioBankGuaranteePdfData,
+  validatePropietarioBankGuaranteePdf,
+} from "@/lib/propietarios-bank-guarantee";
 import {
   displayVehicleNumber,
   isValidPropietarioPost,
@@ -71,6 +77,8 @@ type PropietarioBody = {
   activationReason?: unknown;
   desvinculacionReason?: unknown;
   desvinculacionDays?: unknown;
+  bankGuaranteePdfData?: unknown;
+  bankGuaranteePdfFileName?: unknown;
 };
 
 function asString(value: unknown) {
@@ -128,8 +136,79 @@ function parsePropietarioBody(body: PropietarioBody) {
     activationReason: asString(body.activationReason),
     desvinculacionReason: asString(body.desvinculacionReason),
     desvinculacionDays: body.desvinculacionDays,
+    bankGuaranteePdfData: normalizePropietarioBankGuaranteePdfData(
+      asString(body.bankGuaranteePdfData),
+    ),
+    bankGuaranteePdfFileName: normalizePropietarioBankGuaranteeFileName(
+      body.bankGuaranteePdfFileName,
+    ),
     importKey: "",
   };
+}
+
+function resolveBankGuaranteeFields(
+  input: ReturnType<typeof parsePropietarioBody>,
+  existing?: {
+    bankGuaranteePdfData?: string | null;
+    bankGuaranteePdfFileName?: string | null;
+  } | null,
+) {
+  const uploadedData = input.bankGuaranteePdfData;
+  const uploadedFileName = input.bankGuaranteePdfFileName;
+  const existingData = existing?.bankGuaranteePdfData?.trim() ?? "";
+  const existingFileName = existing?.bankGuaranteePdfFileName?.trim() ?? "";
+
+  return {
+    bankGuaranteePdfData: uploadedData || existingData,
+    bankGuaranteePdfFileName:
+      uploadedFileName ||
+      (uploadedData ? uploadedFileName || "garantia-bancaria.pdf" : existingFileName),
+  };
+}
+
+function validateManualBankGuaranteePdf(
+  fields: ReturnType<typeof resolveBankGuaranteeFields>,
+) {
+  return validatePropietarioBankGuaranteePdf(
+    fields.bankGuaranteePdfData,
+    fields.bankGuaranteePdfFileName || "garantia-bancaria.pdf",
+  );
+}
+
+function shouldSendPropietarioUpdateNotification(
+  previousStatus: string,
+  nextStatus: string,
+  changesCount: number,
+  options: {
+    inactiveReason?: string;
+    activationReason?: string;
+    desvinculacionReason?: string;
+  },
+) {
+  const previous = normalizePropietarioStatus(previousStatus);
+  const next = normalizePropietarioStatus(nextStatus);
+
+  if (next === "revision") {
+    return false;
+  }
+
+  if (previous === "revision") {
+    return (
+      next === "activo" ||
+      next === "inactivo" ||
+      next === "desvinculado" ||
+      Boolean(options.activationReason) ||
+      Boolean(options.inactiveReason) ||
+      Boolean(options.desvinculacionReason)
+    );
+  }
+
+  return (
+    changesCount > 0 ||
+    Boolean(options.inactiveReason) ||
+    Boolean(options.activationReason) ||
+    Boolean(options.desvinculacionReason)
+  );
 }
 
 function buildStatusPayload(
@@ -231,16 +310,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
   }
 
-  const statusFields = buildStatusPayload(input);
+  const statusFields = buildStatusPayload({
+    ...input,
+    status: "revision",
+    isActive: false,
+  });
   const statusValidationMessage = validatePropietarioStatusFields(statusFields);
 
   if (statusValidationMessage) {
     return NextResponse.json({ message: statusValidationMessage }, { status: 400 });
   }
 
+  const bankGuaranteeFields = resolveBankGuaranteeFields(input);
+  const bankGuaranteeValidation = validateManualBankGuaranteePdf(bankGuaranteeFields);
+
+  if (bankGuaranteeValidation) {
+    return NextResponse.json({ message: bankGuaranteeValidation }, { status: 400 });
+  }
+
   const createData = toPropietarioCreateData({
     ...input,
     ...statusFields,
+    ...bankGuaranteeFields,
     activationReason: "",
   });
 
@@ -263,38 +354,10 @@ export async function POST(request: NextRequest) {
       data: createData,
     });
 
-    const inactiveReasonForEmail =
-      createData.status === "inactivo" && statusFields.inactiveReason
-        ? statusFields.inactiveReason
-        : undefined;
-    const desvinculacionReasonForEmail =
-      createData.status === "desvinculado" && statusFields.desvinculacionReason
-        ? statusFields.desvinculacionReason
-        : undefined;
-
-    const notificationSent = await notifyPropietarioCreateSafely({
-      actor: getPropietarioNotifyActor(request),
-      fullName: propietario.fullName,
-      rut: propietario.rut,
-      vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
-      email: propietario.email,
-      record: createData,
-      inactiveReason: inactiveReasonForEmail,
-      desvinculacionReason: desvinculacionReasonForEmail,
-      desvinculacionDays:
-        createData.status === "desvinculado"
-          ? statusFields.desvinculacionDays
-          : undefined,
-      desvinculadoUntil:
-        createData.status === "desvinculado"
-          ? statusFields.desvinculadoUntil
-          : undefined,
-    });
-
     return NextResponse.json(
       {
         propietario: toPropietario(propietario),
-        notificationSent,
+        notificationSent: false,
       },
       { status: 201 },
     );
@@ -348,11 +411,21 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: statusValidationMessage }, { status: 400 });
   }
 
-  const previousStatus = existingPropietario.status || (existingPropietario.isActive ? "activo" : "inactivo");
+  const bankGuaranteeFields = resolveBankGuaranteeFields(input, existingPropietario);
+  const bankGuaranteeValidation = validateManualBankGuaranteePdf(bankGuaranteeFields);
+
+  if (bankGuaranteeValidation) {
+    return NextResponse.json({ message: bankGuaranteeValidation }, { status: 400 });
+  }
+
+  const previousStatus =
+    existingPropietario.status ||
+    (existingPropietario.isActive ? "activo" : "inactivo");
   const createData = toPropietarioCreateData({
     ...input,
     importKey: existingPropietario.importKey,
     ...statusFields,
+    ...bankGuaranteeFields,
     activationReason:
       statusFields.status === "activo" && previousStatus !== "activo"
         ? input.activationReason
@@ -379,8 +452,20 @@ export async function PATCH(request: NextRequest) {
   const activationReasonForEmail =
     statusFields.status === "activo" && previousStatus !== "activo"
       ? input.activationReason.trim() ||
-        "Reactivación manual del registro de propietario."
+        (previousStatus === "revision"
+          ? "Activación del propietario tras finalizar la revisión inicial."
+          : "Reactivación manual del registro de propietario.")
       : undefined;
+  const shouldNotify = shouldSendPropietarioUpdateNotification(
+    previousStatus,
+    statusFields.status,
+    changes.length,
+    {
+      inactiveReason: inactiveReasonForEmail,
+      activationReason: activationReasonForEmail,
+      desvinculacionReason: desvinculacionReasonForEmail,
+    },
+  );
 
   try {
     const propietario = await prisma.propietario.update({
@@ -388,24 +473,26 @@ export async function PATCH(request: NextRequest) {
       data: createData,
     });
 
-    const notificationSent = await notifyPropietarioUpdateSafely({
-      actor: getPropietarioNotifyActor(request),
-      fullName: propietario.fullName,
-      rut: propietario.rut,
-      vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
-      changes,
-      inactiveReason: inactiveReasonForEmail,
-      activationReason: activationReasonForEmail,
-      desvinculacionReason: desvinculacionReasonForEmail,
-      desvinculacionDays:
-        statusFields.status === "desvinculado"
-          ? statusFields.desvinculacionDays
-          : undefined,
-      desvinculadoUntil:
-        statusFields.status === "desvinculado"
-          ? statusFields.desvinculadoUntil
-          : undefined,
-    });
+    const notificationSent = shouldNotify
+      ? await notifyPropietarioUpdateSafely({
+          actor: getPropietarioNotifyActor(request),
+          fullName: propietario.fullName,
+          rut: propietario.rut,
+          vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
+          changes,
+          inactiveReason: inactiveReasonForEmail,
+          activationReason: activationReasonForEmail,
+          desvinculacionReason: desvinculacionReasonForEmail,
+          desvinculacionDays:
+            statusFields.status === "desvinculado"
+              ? statusFields.desvinculacionDays
+              : undefined,
+          desvinculadoUntil:
+            statusFields.status === "desvinculado"
+              ? statusFields.desvinculadoUntil
+              : undefined,
+        })
+      : false;
 
     return NextResponse.json({
       propietario: toPropietario(propietario) as PropietarioConfig,

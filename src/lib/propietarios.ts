@@ -19,6 +19,10 @@ import {
   PROPIETARIO_TEMPLATE_HEADERS,
 } from "@/lib/propietarios-template";
 import {
+  normalizePropietarioBankGuaranteeFileName,
+  normalizePropietarioBankGuaranteePdfData,
+} from "@/lib/propietarios-bank-guarantee";
+import {
   formatDateValue,
   resolvePropietarioStatusFields,
   resolvePropietarioStatusFromRecord,
@@ -107,6 +111,9 @@ export type PropietarioConfig = {
   desvinculacionReason: string;
   desvinculacionDays: number;
   desvinculadoUntil: string;
+  bankGuaranteePdfFileName: string;
+  hasBankGuaranteePdf?: boolean;
+  bankGuaranteePdfData?: string;
 };
 
 export type ParsedPropietarioRow = Omit<PropietarioConfig, "id" | "importKey"> & {
@@ -489,6 +496,8 @@ function createEmptyPropietarioFields(): Omit<ParsedPropietarioRow, "rowNumber" 
     desvinculacionReason: "",
     desvinculacionDays: 0,
     desvinculadoUntil: "",
+    bankGuaranteePdfFileName: "",
+    hasBankGuaranteePdf: false,
   };
 }
 
@@ -815,6 +824,8 @@ export function toPropietario(value: {
   desvinculacionReason?: string | null;
   desvinculacionDays?: number | null;
   desvinculadoUntil?: Date | null;
+  bankGuaranteePdfFileName?: string | null;
+  bankGuaranteePdfData?: string | null;
 }): PropietarioConfig {
   const status = resolvePropietarioStatusFromRecord(value);
 
@@ -867,6 +878,8 @@ export function toPropietario(value: {
     desvinculacionReason: value.desvinculacionReason ?? "",
     desvinculacionDays: value.desvinculacionDays ?? 0,
     desvinculadoUntil: formatDateValue(value.desvinculadoUntil),
+    bankGuaranteePdfFileName: value.bankGuaranteePdfFileName ?? "",
+    hasBankGuaranteePdf: Boolean(value.bankGuaranteePdfData?.trim()),
   };
 }
 
@@ -942,6 +955,12 @@ export function toPropietarioCreateData(
     desvinculadoUntil: statusFields.desvinculadoUntil
       ? parseOptionalDate(statusFields.desvinculadoUntil)
       : null,
+    bankGuaranteePdfFileName: normalizePropietarioBankGuaranteeFileName(
+      row.bankGuaranteePdfFileName,
+    ),
+    bankGuaranteePdfData: normalizePropietarioBankGuaranteePdfData(
+      row.bankGuaranteePdfData ?? "",
+    ),
   };
 }
 

@@ -1,10 +1,15 @@
-export type PropietarioStatus = "activo" | "inactivo" | "desvinculado";
+export type PropietarioStatus =
+  | "activo"
+  | "inactivo"
+  | "desvinculado"
+  | "revision";
 
 export const PROPIETARIO_STATUS_OPTIONS: Array<{
   value: PropietarioStatus;
   label: string;
 }> = [
   { value: "activo", label: "Activo" },
+  { value: "revision", label: "Revisión" },
   { value: "inactivo", label: "Inactivo" },
   { value: "desvinculado", label: "Desvinculado" },
 ];
@@ -12,9 +17,15 @@ export const PROPIETARIO_STATUS_OPTIONS: Array<{
 export function normalizePropietarioStatus(value: unknown): PropietarioStatus {
   const normalized = String(value ?? "")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
-  if (normalized === "inactivo" || normalized === "desvinculado") {
+  if (
+    normalized === "inactivo" ||
+    normalized === "desvinculado" ||
+    normalized === "revision"
+  ) {
     return normalized;
   }
 
@@ -41,6 +52,42 @@ export function formatPropietarioStatusLabel(status: PropietarioStatus) {
     PROPIETARIO_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
     "Activo"
   );
+}
+
+export function getPropietarioStatusBadgeClassName(status: PropietarioStatus) {
+  if (status === "activo") {
+    return "font-semibold text-emerald-700";
+  }
+
+  if (status === "revision") {
+    return "font-semibold text-violet-700";
+  }
+
+  if (status === "desvinculado") {
+    return "font-semibold text-amber-700";
+  }
+
+  return "font-semibold text-slate-500";
+}
+
+export function getPropietarioStatusSelectClassName(status: PropietarioStatus) {
+  if (status === "activo") {
+    return "border-emerald-400 bg-emerald-50 font-semibold text-emerald-950";
+  }
+
+  if (status === "revision") {
+    return "border-violet-400 bg-violet-50 font-semibold text-violet-950";
+  }
+
+  if (status === "inactivo") {
+    return "border-amber-400 bg-amber-50 font-semibold text-amber-950";
+  }
+
+  if (status === "desvinculado") {
+    return "border-orange-400 bg-orange-50 font-semibold text-orange-950";
+  }
+
+  return "";
 }
 
 export function getSantiagoDateString(referenceDate = new Date()) {
@@ -167,6 +214,17 @@ export function resolvePropietarioStatusFields(
       status,
       isActive: false,
       inactiveReason,
+      desvinculacionReason: "",
+      desvinculacionDays: 0,
+      desvinculadoUntil: "",
+    };
+  }
+
+  if (status === "revision") {
+    return {
+      status,
+      isActive: false,
+      inactiveReason: "",
       desvinculacionReason: "",
       desvinculacionDays: 0,
       desvinculadoUntil: "",

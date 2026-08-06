@@ -167,6 +167,8 @@ model Propietario {
   desvinculacionReason    String    @default("")
   desvinculacionDays      Int       @default(0)
   desvinculadoUntil       DateTime? @db.Date
+  bankGuaranteePdfFileName String   @default("")
+  bankGuaranteePdfData     String   @default("") @db.Text
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

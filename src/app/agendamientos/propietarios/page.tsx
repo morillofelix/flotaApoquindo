@@ -21,8 +21,14 @@ import { isValidEmail } from "@/lib/pago-propietario";
 import {
   formatDateLabel,
   formatPropietarioStatusLabel,
+  getPropietarioStatusBadgeClassName,
+  getPropietarioStatusSelectClassName,
+  PROPIETARIO_STATUS_OPTIONS,
   type PropietarioStatus,
 } from "@/lib/propietario-status";
+import {
+  PROPIETARIO_BANK_GUARANTEE_PDF_MAX_BYTES,
+} from "@/lib/propietarios-bank-guarantee";
 import {
   findPropietarioBankForSelection,
   getActivePropietarioBanks,
@@ -117,13 +123,16 @@ const emptyPropietarioForm: PropietarioForm = {
   emergencyContactName: "",
   emergencyContactEmail: "",
   emergencyContactPhone: "",
-  isActive: true,
-  status: "activo",
+  isActive: false,
+  status: "revision",
   inactiveReason: "",
   activationReason: "",
   desvinculacionReason: "",
   desvinculacionDays: 0,
   desvinculadoUntil: "",
+  bankGuaranteePdfFileName: "",
+  hasBankGuaranteePdf: false,
+  bankGuaranteePdfData: "",
 };
 
 function getPropietarioRecordStatus(
@@ -134,30 +143,6 @@ function getPropietarioRecordStatus(
   }
 
   return propietario.isActive ? "activo" : "inactivo";
-}
-
-function statusBadgeClassName(status: PropietarioStatus) {
-  if (status === "activo") {
-    return "font-semibold text-green-700";
-  }
-
-  if (status === "desvinculado") {
-    return "font-semibold text-amber-700";
-  }
-
-  return "font-semibold text-slate-400";
-}
-
-function statusSelectClassName(status: PropietarioStatus) {
-  if (status === "inactivo") {
-    return "border-amber-400 bg-amber-50 font-semibold text-amber-950";
-  }
-
-  if (status === "desvinculado") {
-    return "border-orange-400 bg-orange-50 font-semibold text-orange-950";
-  }
-
-  return "";
 }
 
 const inputClassName =
@@ -216,8 +201,10 @@ export default function PropietariosPage() {
   const [highlightInactiveReason, setHighlightInactiveReason] = useState(false);
   const [highlightDesvinculacionReason, setHighlightDesvinculacionReason] =
     useState(false);
+  const [highlightBankGuaranteePdf, setHighlightBankGuaranteePdf] = useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
   const desvinculacionReasonRef = useRef<HTMLDivElement>(null);
+  const bankGuaranteePdfRef = useRef<HTMLDivElement>(null);
   const accountHolderManuallyEditedRef = useRef(false);
   const titularRutManuallyEditedRef = useRef(false);
   const [bulkUpload, setBulkUpload] = useState<BulkUploadState>(emptyBulkUploadState);
@@ -375,11 +362,13 @@ export default function PropietariosPage() {
       ...propietario,
       rut: formatCompanyRutForDisplay(propietario.rut),
       titularRut: formatBankRutForDisplay(propietario.titularRut),
+      bankGuaranteePdfData: "",
     });
     resetPropietarioFormSyncFlags(propietario);
     const recordStatus = getPropietarioRecordStatus(propietario);
     setHighlightInactiveReason(recordStatus === "inactivo");
     setHighlightDesvinculacionReason(recordStatus === "desvinculado");
+    setHighlightBankGuaranteePdf(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -390,6 +379,7 @@ export default function PropietariosPage() {
     resetPropietarioFormSyncFlags();
     setHighlightInactiveReason(false);
     setHighlightDesvinculacionReason(false);
+    setHighlightBankGuaranteePdf(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -678,17 +668,37 @@ export default function PropietariosPage() {
       }
     }
 
+    const hasBankGuaranteePdf =
+      Boolean(propietarioForm.bankGuaranteePdfData?.trim()) ||
+      propietarioForm.hasBankGuaranteePdf;
+
+    if (!hasBankGuaranteePdf) {
+      setHighlightBankGuaranteePdf(true);
+      setPropietarioError(
+        "El documento PDF de garantía bancaria es obligatorio para guardar el registro.",
+      );
+      bankGuaranteePdfRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
+
     setIsSavingPropietario(true);
     const wasEditingPropietario = propietarioFormMode === "edit";
 
     try {
+      const resolvedStatus = isCreatingPropietario ? "revision" : formStatus;
       const payload = {
         ...propietarioForm,
-        status: formStatus,
-        isActive: formStatus === "activo",
+        status: resolvedStatus,
+        isActive: resolvedStatus === "activo",
         post: normalizedPost,
         rut: formatCompanyRutForDisplay(propietarioForm.rut),
         titularRut: formatBankRutForDisplay(propietarioForm.titularRut),
+        bankGuaranteePdfData: propietarioForm.bankGuaranteePdfData?.trim() || undefined,
+        bankGuaranteePdfFileName:
+          propietarioForm.bankGuaranteePdfFileName?.trim() || undefined,
       };
 
       const response = await fetch("/api/propietarios", {
@@ -718,11 +728,15 @@ export default function PropietariosPage() {
         setPropietarioMessage(
           "Registro guardado correctamente. Se envió la notificación por correo.",
         );
-      } else if (wasEditingPropietario && (data.changesDetected ?? 0) > 0) {
-        setPropietarioMessage(
-          "Registro guardado. No se pudo confirmar el envío del correo de notificación.",
-        );
       } else if (!wasEditingPropietario) {
+        setPropietarioMessage(
+          "Registro creado en revisión. No se envió correo hasta activar el propietario.",
+        );
+      } else if (formStatus === "revision") {
+        setPropietarioMessage(
+          "Registro guardado en revisión. No se envió correo mientras permanezca en este estado.",
+        );
+      } else if ((data.changesDetected ?? 0) > 0) {
         setPropietarioMessage(
           "Registro guardado. No se pudo confirmar el envío del correo de notificación.",
         );
@@ -846,7 +860,64 @@ export default function PropietariosPage() {
     );
   }
 
+  async function handleBankGuaranteePdfChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setPropietarioError("La garantía bancaria debe ser un archivo PDF.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > PROPIETARIO_BANK_GUARANTEE_PDF_MAX_BYTES) {
+      setPropietarioError("El PDF de garantía bancaria no puede superar 5 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const result = typeof reader.result === "string" ? reader.result : "";
+          const normalized = result.includes(",")
+            ? (result.split(",").pop() ?? "")
+            : result;
+
+          resolve(normalized.trim());
+        };
+
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo PDF."));
+        reader.readAsDataURL(file);
+      });
+
+      setPropietarioForm((currentForm) => ({
+        ...currentForm,
+        bankGuaranteePdfData: base64,
+        bankGuaranteePdfFileName: file.name,
+        hasBankGuaranteePdf: true,
+      }));
+      setHighlightBankGuaranteePdf(false);
+      setPropietarioError("");
+    } catch {
+      setPropietarioError("No se pudo cargar el PDF de garantía bancaria.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   async function handleStatusChange(nextStatus: PropietarioStatus) {
+    if (propietarioFormMode === "create") {
+      return;
+    }
+
     const currentStatus = getPropietarioRecordStatus(propietarioForm);
 
     if (nextStatus === currentStatus) {
@@ -917,6 +988,22 @@ export default function PropietariosPage() {
           block: "center",
         });
       });
+      return;
+    }
+
+    if (nextStatus === "revision") {
+      setPropietarioForm((currentForm) => ({
+        ...currentForm,
+        status: "revision",
+        isActive: false,
+        activationReason: "",
+        inactiveReason: "",
+        desvinculacionReason: "",
+        desvinculacionDays: 0,
+        desvinculadoUntil: "",
+      }));
+      setHighlightInactiveReason(false);
+      setHighlightDesvinculacionReason(false);
       return;
     }
 
@@ -1175,9 +1262,11 @@ export default function PropietariosPage() {
                         className={inputClassName}
                       >
                         <option value="todos">Todos</option>
-                        <option value="activo">Activo</option>
-                        <option value="inactivo">Inactivo</option>
-                        <option value="desvinculado">Desvinculado</option>
+                        {PROPIETARIO_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -1249,7 +1338,7 @@ export default function PropietariosPage() {
                         </span>
                         <span className="text-slate-600">{propietario.rut}</span>
                         <span
-                          className={statusBadgeClassName(
+                          className={getPropietarioStatusBadgeClassName(
                             getPropietarioRecordStatus(propietario),
                           )}
                         >
@@ -1301,17 +1390,33 @@ export default function PropietariosPage() {
 
                 <label className="flex flex-col gap-1.5">
                   <FieldLabel>Estado</FieldLabel>
-                  <select
-                    value={formStatus}
-                    onChange={(event) =>
-                      void handleStatusChange(event.target.value as PropietarioStatus)
-                    }
-                    className={`${inputClassName} ${statusSelectClassName(formStatus)}`}
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
-                    <option value="desvinculado">Desvinculado</option>
-                  </select>
+                  {isCreatingPropietario ? (
+                    <div
+                      className={`${inputClassName} ${getPropietarioStatusSelectClassName("revision")}`}
+                    >
+                      Revisión
+                    </div>
+                  ) : (
+                    <select
+                      value={formStatus}
+                      onChange={(event) =>
+                        void handleStatusChange(event.target.value as PropietarioStatus)
+                      }
+                      className={`${inputClassName} ${getPropietarioStatusSelectClassName(formStatus)}`}
+                    >
+                      {PROPIETARIO_STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {isCreatingPropietario ? (
+                    <span className="text-[11px] font-medium text-violet-700">
+                      Los nuevos propietarios se crean en revisión. Actívalo después
+                      para enviar las notificaciones.
+                    </span>
+                  ) : null}
                 </label>
 
                 <label className="flex flex-col gap-1.5">
@@ -1549,8 +1654,65 @@ export default function PropietariosPage() {
 
               <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
-                  Dato informacional
+                  Datos bancarios
                 </h4>
+              </div>
+
+              <div
+                ref={bankGuaranteePdfRef}
+                className={`mb-4 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
+                  highlightBankGuaranteePdf
+                    ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-violet-50 shadow-lg shadow-red-100 ring-2 ring-red-200/70"
+                    : "border-[#b7cce4] bg-gradient-to-br from-[#f8fbff] via-white to-violet-50/40 shadow-sm"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    aria-hidden
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm ${
+                      highlightBankGuaranteePdf ? "bg-red-500" : "bg-[#0b5cab]"
+                    }`}
+                  >
+                    PDF
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-heading text-sm font-bold tracking-tight text-[#0f2747]">
+                      Garantía bancaria
+                      <span className="ml-1 text-red-600">*</span>
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                      Adjunta el documento PDF que acredita la garantía de la cuenta
+                      bancaria. Es obligatorio para crear o guardar el registro.
+                    </p>
+                    <label className="mt-3 inline-flex h-10 cursor-pointer items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
+                      Seleccionar PDF
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        onChange={(event) => void handleBankGuaranteePdfChange(event)}
+                        className="hidden"
+                      />
+                    </label>
+                    {propietarioForm.bankGuaranteePdfFileName ? (
+                      <p className="mt-3 text-xs font-semibold text-emerald-700">
+                        Archivo cargado: {propietarioForm.bankGuaranteePdfFileName}
+                      </p>
+                    ) : propietarioForm.hasBankGuaranteePdf ? (
+                      <p className="mt-3 text-xs font-semibold text-emerald-700">
+                        Ya existe un PDF de garantía guardado para este propietario.
+                      </p>
+                    ) : null}
+                    <p
+                      className={`mt-2 text-[11px] font-semibold ${
+                        highlightBankGuaranteePdf ? "text-red-600" : "text-slate-500"
+                      }`}
+                    >
+                      {highlightBankGuaranteePdf
+                        ? "Debes cargar el PDF de garantía bancaria antes de guardar."
+                        : "Formato PDF · máximo 5 MB · obligatorio"}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
