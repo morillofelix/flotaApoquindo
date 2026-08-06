@@ -105,3 +105,62 @@ export function validatePropietarioBankGuaranteePdf(
 
   return null;
 }
+
+export function getPropietarioBankGuaranteeDisplayName(fileName: string) {
+  const normalized = fileName.trim();
+
+  if (!normalized) {
+    return "garantia-bancaria.pdf";
+  }
+
+  return normalized.toLowerCase().endsWith(".pdf")
+    ? normalized
+    : `${normalized}.pdf`;
+}
+
+export function createPropietarioBankGuaranteeBlob(base64Data: string) {
+  const normalized = normalizePropietarioBankGuaranteePdfData(base64Data);
+
+  if (!normalized || typeof window === "undefined") {
+    return null;
+  }
+
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+export function openPropietarioBankGuaranteeBlob(
+  blob: Blob,
+  fileName: string,
+) {
+  const objectUrl = URL.createObjectURL(blob);
+  const popup = window.open(objectUrl, "_blank", "noopener,noreferrer");
+
+  if (!popup) {
+    URL.revokeObjectURL(objectUrl);
+    return false;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  void fileName;
+  return true;
+}
+
+export function downloadPropietarioBankGuaranteeBlob(
+  blob: Blob,
+  fileName: string,
+) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = getPropietarioBankGuaranteeDisplayName(fileName);
+  anchor.rel = "noopener";
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}

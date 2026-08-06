@@ -27,6 +27,10 @@ import {
   type PropietarioStatus,
 } from "@/lib/propietario-status";
 import {
+  createPropietarioBankGuaranteeBlob,
+  downloadPropietarioBankGuaranteeBlob,
+  getPropietarioBankGuaranteeDisplayName,
+  openPropietarioBankGuaranteeBlob,
   PROPIETARIO_BANK_GUARANTEE_PDF_MAX_BYTES,
 } from "@/lib/propietarios-bank-guarantee";
 import {
@@ -202,6 +206,7 @@ export default function PropietariosPage() {
   const [highlightDesvinculacionReason, setHighlightDesvinculacionReason] =
     useState(false);
   const [highlightBankGuaranteePdf, setHighlightBankGuaranteePdf] = useState(false);
+  const [isBankGuaranteePdfLoading, setIsBankGuaranteePdfLoading] = useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
   const desvinculacionReasonRef = useRef<HTMLDivElement>(null);
   const bankGuaranteePdfRef = useRef<HTMLDivElement>(null);
@@ -859,6 +864,101 @@ export default function PropietariosPage() {
         .slice(0, PROPIETARIO_POST_MAX_LENGTH),
     );
   }
+
+  async function fetchBankGuaranteePdfBlob() {
+    const localPdfData = propietarioForm.bankGuaranteePdfData?.trim();
+
+    if (localPdfData) {
+      const localBlob = createPropietarioBankGuaranteeBlob(localPdfData);
+
+      if (!localBlob) {
+        throw new Error("No se pudo leer el PDF cargado.");
+      }
+
+      return localBlob;
+    }
+
+    if (!propietarioForm.id || !propietarioForm.hasBankGuaranteePdf) {
+      throw new Error("No hay PDF de garantía bancaria disponible.");
+    }
+
+    const response = await fetch(
+      `/api/propietarios/${propietarioForm.id}/bank-guarantee`,
+      {
+        credentials: adminFetchInit.credentials,
+      },
+    );
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as {
+        message?: string;
+      } | null;
+
+      throw new Error(
+        data?.message ?? "No se pudo obtener el PDF de garantía bancaria.",
+      );
+    }
+
+    return response.blob();
+  }
+
+  async function viewBankGuaranteePdf() {
+    setPropietarioError("");
+
+    try {
+      setIsBankGuaranteePdfLoading(true);
+      const blob = await fetchBankGuaranteePdfBlob();
+      const fileName = getPropietarioBankGuaranteeDisplayName(
+        propietarioForm.bankGuaranteePdfFileName,
+      );
+      const opened = openPropietarioBankGuaranteeBlob(blob, fileName);
+
+      if (!opened) {
+        setPropietarioError(
+          "No se pudo abrir el visor. Permite ventanas emergentes o usa Descargar.",
+        );
+      }
+    } catch (error) {
+      setPropietarioError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo visualizar el PDF de garantía bancaria.",
+      );
+    } finally {
+      setIsBankGuaranteePdfLoading(false);
+    }
+  }
+
+  async function downloadBankGuaranteePdf() {
+    setPropietarioError("");
+
+    try {
+      setIsBankGuaranteePdfLoading(true);
+      const blob = await fetchBankGuaranteePdfBlob();
+      downloadPropietarioBankGuaranteeBlob(
+        blob,
+        propietarioForm.bankGuaranteePdfFileName,
+      );
+    } catch (error) {
+      setPropietarioError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo descargar el PDF de garantía bancaria.",
+      );
+    } finally {
+      setIsBankGuaranteePdfLoading(false);
+    }
+  }
+
+  const canConsultBankGuaranteePdf =
+    Boolean(propietarioForm.bankGuaranteePdfData?.trim()) ||
+    propietarioForm.hasBankGuaranteePdf;
+
+  const bankGuaranteePdfLabel = propietarioForm.bankGuaranteePdfFileName
+    ? getPropietarioBankGuaranteeDisplayName(propietarioForm.bankGuaranteePdfFileName)
+    : propietarioForm.hasBankGuaranteePdf
+      ? "garantia-bancaria.pdf"
+      : "";
 
   async function handleBankGuaranteePdfChange(
     event: React.ChangeEvent<HTMLInputElement>,
@@ -1684,22 +1784,43 @@ export default function PropietariosPage() {
                       Adjunta el documento PDF que acredita la garantía de la cuenta
                       bancaria. Es obligatorio para crear o guardar el registro.
                     </p>
-                    <label className="mt-3 inline-flex h-10 cursor-pointer items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
-                      Seleccionar PDF
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        onChange={(event) => void handleBankGuaranteePdfChange(event)}
-                        className="hidden"
-                      />
-                    </label>
-                    {propietarioForm.bankGuaranteePdfFileName ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
+                        {propietarioForm.bankGuaranteePdfFileName ||
+                        propietarioForm.hasBankGuaranteePdf
+                          ? "Reemplazar PDF"
+                          : "Seleccionar PDF"}
+                        <input
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          onChange={(event) => void handleBankGuaranteePdfChange(event)}
+                          className="hidden"
+                        />
+                      </label>
+                      {canConsultBankGuaranteePdf ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void viewBankGuaranteePdf()}
+                            disabled={isBankGuaranteePdfLoading}
+                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#0b5cab] bg-white px-4 text-xs font-semibold text-[#0b5cab] transition hover:bg-[#eef4fb] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBankGuaranteePdfLoading ? "Abriendo..." : "Ver PDF"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void downloadBankGuaranteePdf()}
+                            disabled={isBankGuaranteePdfLoading}
+                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-emerald-500 bg-white px-4 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBankGuaranteePdfLoading ? "Descargando..." : "Descargar"}
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                    {bankGuaranteePdfLabel ? (
                       <p className="mt-3 text-xs font-semibold text-emerald-700">
-                        Archivo cargado: {propietarioForm.bankGuaranteePdfFileName}
-                      </p>
-                    ) : propietarioForm.hasBankGuaranteePdf ? (
-                      <p className="mt-3 text-xs font-semibold text-emerald-700">
-                        Ya existe un PDF de garantía guardado para este propietario.
+                        Documento disponible: {bankGuaranteePdfLabel}
                       </p>
                     ) : null}
                     <p
