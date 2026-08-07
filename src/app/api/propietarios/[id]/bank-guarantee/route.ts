@@ -20,8 +20,8 @@ function buildPdfFileName(fileName: string, fullName: string) {
   const safeName = fullName.trim().replace(/[^\w\s.-]/g, "").replace(/\s+/g, "-");
 
   return safeName
-    ? `garantia-bancaria-${safeName}.pdf`
-    : "garantia-bancaria.pdf";
+    ? `certificado-bancario-${safeName}.pdf`
+    : "certificado-bancario.pdf";
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   if (!propietario?.bankGuaranteePdfData?.trim()) {
     return NextResponse.json(
-      { message: "No hay PDF de garantía bancaria para este propietario." },
+      { message: "No hay PDF de certificado bancario para este propietario." },
       { status: 404 },
     );
   }

@@ -17,7 +17,7 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   bankName: "Nombre Banco",
   bankAccount: "Nro. Cta. Banco",
   status: "Estado",
-  bankGuaranteePdfFileName: "Garantía bancaria (PDF)",
+  bankGuaranteePdfFileName: "Certificado bancario (PDF)",
   inactiveReason: "Motivo de inactivación",
   desvinculacionReason: "Motivo de desvinculación",
   desvinculacionDays: "Días de desvinculación",

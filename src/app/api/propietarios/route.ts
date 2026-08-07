@@ -162,7 +162,7 @@ function resolveBankGuaranteeFields(
     bankGuaranteePdfData: uploadedData || existingData,
     bankGuaranteePdfFileName:
       uploadedFileName ||
-      (uploadedData ? uploadedFileName || "garantia-bancaria.pdf" : existingFileName),
+      (uploadedData ? uploadedFileName || "certificado-bancario.pdf" : existingFileName),
   };
 }
 
@@ -171,7 +171,7 @@ function validateManualBankGuaranteePdf(
 ) {
   return validatePropietarioBankGuaranteePdf(
     fields.bankGuaranteePdfData,
-    fields.bankGuaranteePdfFileName || "garantia-bancaria.pdf",
+    fields.bankGuaranteePdfFileName || "certificado-bancario.pdf",
   );
 }
 

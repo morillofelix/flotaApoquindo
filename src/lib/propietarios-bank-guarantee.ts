@@ -82,25 +82,25 @@ export function validatePropietarioBankGuaranteePdf(
   const normalizedFileName = normalizePropietarioBankGuaranteeFileName(fileName);
 
   if (!normalizedData) {
-    return "Debes adjuntar el documento PDF de garantía bancaria.";
+    return "Debes adjuntar el documento PDF del certificado bancario.";
   }
 
   if (normalizedFileName && !/\.pdf$/i.test(normalizedFileName)) {
-    return "La garantía bancaria debe ser un archivo PDF.";
+    return "El certificado bancario debe ser un archivo PDF.";
   }
 
   const byteLength = getPropietarioBankGuaranteePdfByteLength(normalizedData);
 
   if (byteLength <= 0) {
-    return "El archivo PDF de garantía bancaria no es válido.";
+    return "El archivo PDF del certificado bancario no es válido.";
   }
 
   if (byteLength > PROPIETARIO_BANK_GUARANTEE_PDF_MAX_BYTES) {
-    return "El PDF de garantía bancaria no puede superar 5 MB.";
+    return "El PDF del certificado bancario no puede superar 5 MB.";
   }
 
   if (!isValidPropietarioBankGuaranteePdf(normalizedData, normalizedFileName)) {
-    return "El archivo PDF de garantía bancaria no es válido.";
+    return "El archivo PDF del certificado bancario no es válido.";
   }
 
   return null;
@@ -110,7 +110,7 @@ export function getPropietarioBankGuaranteeDisplayName(fileName: string) {
   const normalized = fileName.trim();
 
   if (!normalized) {
-    return "garantia-bancaria.pdf";
+    return "certificado-bancario.pdf";
   }
 
   return normalized.toLowerCase().endsWith(".pdf")

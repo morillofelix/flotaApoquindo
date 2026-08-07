@@ -683,7 +683,7 @@ export default function PropietariosPage() {
     if (!hasBankGuaranteePdf) {
       setHighlightBankGuaranteePdf(true);
       setPropietarioError(
-        "El documento PDF de garantía bancaria es obligatorio para guardar el registro.",
+        "El documento PDF de certificado bancario es obligatorio para guardar el registro.",
       );
       bankGuaranteePdfRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -882,7 +882,7 @@ export default function PropietariosPage() {
     }
 
     if (!propietarioForm.id || !propietarioForm.hasBankGuaranteePdf) {
-      throw new Error("No hay PDF de garantía bancaria disponible.");
+      throw new Error("No hay PDF de certificado bancario disponible.");
     }
 
     const response = await fetch(
@@ -898,7 +898,7 @@ export default function PropietariosPage() {
       } | null;
 
       throw new Error(
-        data?.message ?? "No se pudo obtener el PDF de garantía bancaria.",
+        data?.message ?? "No se pudo obtener el PDF de certificado bancario.",
       );
     }
 
@@ -925,7 +925,7 @@ export default function PropietariosPage() {
       setPropietarioError(
         error instanceof Error
           ? error.message
-          : "No se pudo visualizar el PDF de garantía bancaria.",
+          : "No se pudo visualizar el PDF de certificado bancario.",
       );
     } finally {
       setIsBankGuaranteePdfLoading(false);
@@ -946,7 +946,7 @@ export default function PropietariosPage() {
       setPropietarioError(
         error instanceof Error
           ? error.message
-          : "No se pudo descargar el PDF de garantía bancaria.",
+          : "No se pudo descargar el PDF de certificado bancario.",
       );
     } finally {
       setIsBankGuaranteePdfLoading(false);
@@ -960,7 +960,7 @@ export default function PropietariosPage() {
   const bankGuaranteePdfLabel = propietarioForm.bankGuaranteePdfFileName
     ? getPropietarioBankGuaranteeDisplayName(propietarioForm.bankGuaranteePdfFileName)
     : propietarioForm.hasBankGuaranteePdf
-      ? "garantia-bancaria.pdf"
+      ? "certificado-bancario.pdf"
       : "";
 
   async function handleBankGuaranteePdfChange(
@@ -973,13 +973,13 @@ export default function PropietariosPage() {
     }
 
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setPropietarioError("La garantía bancaria debe ser un archivo PDF.");
+      setPropietarioError("El certificado bancario debe ser un archivo PDF.");
       event.target.value = "";
       return;
     }
 
     if (file.size > PROPIETARIO_BANK_GUARANTEE_PDF_MAX_BYTES) {
-      setPropietarioError("El PDF de garantía bancaria no puede superar 5 MB.");
+      setPropietarioError("El PDF de certificado bancario no puede superar 5 MB.");
       event.target.value = "";
       return;
     }
@@ -1010,7 +1010,7 @@ export default function PropietariosPage() {
       setHighlightBankGuaranteePdf(false);
       setPropietarioError("");
     } catch {
-      setPropietarioError("No se pudo cargar el PDF de garantía bancaria.");
+      setPropietarioError("No se pudo cargar el PDF de certificado bancario.");
     } finally {
       event.target.value = "";
     }
@@ -1788,12 +1788,12 @@ export default function PropietariosPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-heading text-sm font-bold tracking-tight text-[#0f2747]">
-                      Garantía bancaria
+                      Certificado bancario
                       <span className="ml-1 text-red-600">*</span>
                     </p>
                     <p className="mt-1 text-[11px] leading-5 text-slate-600">
-                      Adjunta el documento PDF que acredita la garantía de la cuenta
-                      bancaria. Es obligatorio para crear o guardar el registro.
+                      Adjunta el documento PDF del certificado bancario de la cuenta.
+                      Es obligatorio para crear o guardar el registro.
                     </p>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-xl bg-[#0b5cab] px-3 text-[11px] font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px">
@@ -1840,7 +1840,7 @@ export default function PropietariosPage() {
                       }`}
                     >
                       {highlightBankGuaranteePdf
-                        ? "Debes cargar el PDF de garantía bancaria antes de guardar."
+                        ? "Debes cargar el PDF de certificado bancario antes de guardar."
                         : "Formato PDF · máximo 5 MB · obligatorio"}
                     </p>
                   </div>
