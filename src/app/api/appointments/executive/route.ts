@@ -19,6 +19,7 @@ import {
 } from "@/lib/appointments";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { resolveExecutiveCreatorName } from "@/lib/executive-creator";
+import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { readAdminSession } from "@/lib/driver-auth";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +31,7 @@ export const dynamic = "force-dynamic";
 type AppointmentCreateBody = {
   vehicleNumber?: unknown;
   appointmentDate?: unknown;
+  assignedExecutive?: unknown;
   appointmentReason?: unknown;
   vacationStartDate?: unknown;
   vacationEndDate?: unknown;
@@ -85,6 +87,7 @@ function validateExecutiveCreateBody(
   body: AppointmentCreateBody,
   reasonConfig: AppointmentReasonConfig | null,
   appointmentDate: string,
+  assignedExecutive: string,
   driverOwner: {
     fullName: string;
     vehicleNumber: string;
@@ -112,6 +115,9 @@ function validateExecutiveCreateBody(
     typeof body.permitEndTime === "string" ? body.permitEndTime : "";
   const usesDateRange = Boolean(reasonConfig?.usesDateRange);
   const usesPermitDetails = Boolean(reasonConfig?.usesPermitDetails);
+  const requiresExecutiveAssignment = Boolean(
+    reasonConfig?.allowsExecutiveAssignment,
+  );
 
   if (
     !driverOwner.fullName ||
@@ -120,7 +126,9 @@ function validateExecutiveCreateBody(
     !reasonConfig ||
     !reasonConfig.isActive ||
     !driverOwner.email ||
-    !driverOwner.phone
+    !driverOwner.phone ||
+    (requiresExecutiveAssignment &&
+      (!assignedExecutive || assignedExecutive.length > 120))
   ) {
     return null;
   }
@@ -174,6 +182,7 @@ function validateExecutiveCreateBody(
       usesPermitDetails && permitType === "horas" ? permitStartTime : "",
     permitEndTime: usesPermitDetails && permitType === "horas" ? permitEndTime : "",
     appointmentReason,
+    assignedExecutive: requiresExecutiveAssignment ? assignedExecutive : "",
     email: driverOwner.email,
     phone: driverOwner.phone,
   };
@@ -287,19 +296,47 @@ export async function POST(request: NextRequest) {
   const reason = toReasonConfig(reasonConfig);
   const ingressDate = getSantiagoToday().date;
   const executiveName = await resolveExecutiveCreatorName(session);
+  const assignedExecutive =
+    typeof body.assignedExecutive === "string"
+      ? body.assignedExecutive.trim()
+      : "";
 
   const appointment = validateExecutiveCreateBody(
     body,
     reason,
     resolveAppointmentDate(body, reason, ingressDate) ?? "",
+    assignedExecutive,
     driverProfile,
   );
 
   if (!appointment) {
     return NextResponse.json(
-      { message: "Datos de solicitud incompletos." },
+      {
+        message: reason?.allowsExecutiveAssignment
+          ? "Completa móvil, motivo, fecha y ejecutivo para derivar la solicitud."
+          : "Datos de solicitud incompletos.",
+      },
       { status: 400 },
     );
+  }
+
+  let executiveSlot: { startTime: string; endTime: string } | null = null;
+
+  if (reason?.allowsExecutiveAssignment) {
+    const assignmentValidation = await validateExecutiveAssignmentForDate(
+      appointment.assignedExecutive,
+      appointment.appointmentDate,
+      reason,
+    );
+
+    if (!assignmentValidation.ok) {
+      return NextResponse.json(
+        { message: assignmentValidation.message },
+        { status: assignmentValidation.limitReached ? 409 : 400 },
+      );
+    }
+
+    executiveSlot = assignmentValidation.slot;
   }
 
   const holidayRecords = reason
@@ -369,6 +406,10 @@ export async function POST(request: NextRequest) {
           ? toDateOnly(appointment.permitEndDate)
           : null,
         permitDate: appointment.permitDate ? toDateOnly(appointment.permitDate) : null,
+        assignedExecutive: appointment.assignedExecutive,
+        scheduledStartTime: executiveSlot?.startTime ?? "",
+        scheduledEndTime: executiveSlot?.endTime ?? "",
+        status: appointment.assignedExecutive ? "revisado" : "pendiente",
         createdByType: "ejecutivo",
         createdByExecutiveName: executiveName,
         driverApprovalPending: true,
@@ -377,7 +418,10 @@ export async function POST(request: NextRequest) {
     });
 
     const mappedAppointment = toAppointment(createdAppointment, reason ?? undefined);
-    const approvalMessage = `${executiveName} registró una solicitud (${getAppointmentTicketLabel(mappedAppointment)}) por ${mappedAppointment.appointmentReasonLabel}. Fecha requerida: ${getRequiredDateSummary(mappedAppointment) || "No aplica"}. Revisa el detalle y aprueba para continuar.`;
+    const executiveSummary = appointment.assignedExecutive
+      ? ` Ejecutivo asignado: ${appointment.assignedExecutive}.`
+      : "";
+    const approvalMessage = `${executiveName} registró una solicitud (${getAppointmentTicketLabel(mappedAppointment)}) por ${mappedAppointment.appointmentReasonLabel}. Fecha requerida: ${getRequiredDateSummary(mappedAppointment) || "No aplica"}.${executiveSummary} Revisa el detalle y aprueba para continuar.`;
 
     const updatedAppointment = await prisma.appointment.update({
       where: { id: createdAppointment.id },

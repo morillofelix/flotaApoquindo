@@ -9,7 +9,7 @@ import {
   type AppointmentDatePatch,
 } from "@/lib/appointment-date-edit";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
-import { computeExecutiveAppointmentSlot } from "@/lib/executive-appointment-slot";
+import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
 import { requireAdminPermission, requireDriverSession } from "@/lib/admin-api-server";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
@@ -114,14 +114,11 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
   return hasPatch ? patch : null;
 }
 
-async function ensureDefaultExecutives() {
-  await prisma.executive.createMany({
-    data: defaultExecutives,
-    skipDuplicates: true,
-  });
+function formatDateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
-async function rescheduleExecutiveSlot(
+async function resolveExecutiveAssignmentSlot(
   appointmentId: string,
   appointmentDate: Date,
   assignedExecutiveName: string,
@@ -132,44 +129,34 @@ async function rescheduleExecutiveSlot(
   });
   const reason = toReasonConfig(reasonRecord);
 
-  if (!reason?.allowsExecutiveAssignment) {
-    return null;
+  if (!reason) {
+    return { ok: false as const, message: "Motivo inválido." };
   }
 
-  const executive = await prisma.executive.findUnique({
-    where: { name: assignedExecutiveName },
-  });
-
-  if (!executive?.isActive) {
-    return null;
-  }
-
-  const existingAppointments = await prisma.appointment.findMany({
-    where: {
-      id: { not: appointmentId },
-      assignedExecutive: assignedExecutiveName,
-      appointmentDate,
-      scheduledStartTime: { not: "" },
-      scheduledEndTime: { not: "" },
-    },
-    select: {
-      scheduledStartTime: true,
-      scheduledEndTime: true,
-    },
-  });
-
-  return computeExecutiveAppointmentSlot({
+  return validateExecutiveAssignmentForDate(
+    assignedExecutiveName,
+    formatDateOnly(appointmentDate),
     reason,
-    executiveLunchBreak: {
-      lunchBreakEnabled: executive.lunchBreakEnabled,
-      lunchBreakStart: executive.lunchBreakStart,
-      lunchBreakEnd: executive.lunchBreakEnd,
-    },
-    existingSlots: existingAppointments.map((appointment) => ({
-      startTime: appointment.scheduledStartTime,
-      endTime: appointment.scheduledEndTime,
-    })),
+    appointmentId,
+  );
+}
+
+async function ensureDefaultExecutives() {
+  await prisma.executive.createMany({
+    data: defaultExecutives,
+    skipDuplicates: true,
   });
+}
+
+function assignmentErrorResponse(result: {
+  ok: false;
+  message: string;
+  limitReached?: boolean;
+}) {
+  return NextResponse.json(
+    { message: result.message },
+    { status: result.limitReached ? 409 : 400 },
+  );
 }
 
 function validateDatePatchForReason(
@@ -593,39 +580,33 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       const appointmentDateForSlot =
         data.appointmentDate ?? currentAppointment.appointmentDate;
 
-      const slot = await rescheduleExecutiveSlot(
+      const assignmentResult = await resolveExecutiveAssignmentSlot(
         id,
         appointmentDateForSlot,
         assignedExecutiveName,
         currentAppointment.appointmentReason,
       );
 
-      if (!slot) {
-        return NextResponse.json(
-          { message: "No se pudo calcular el horario de la cita." },
-          { status: 400 },
-        );
+      if (!assignmentResult.ok) {
+        return assignmentErrorResponse(assignmentResult);
       }
 
-      data.scheduledStartTime = slot.startTime;
-      data.scheduledEndTime = slot.endTime;
+      data.scheduledStartTime = assignmentResult.slot.startTime;
+      data.scheduledEndTime = assignmentResult.slot.endTime;
     } else if (datePatch?.appointmentDate && assignedExecutiveName) {
-      const slot = await rescheduleExecutiveSlot(
+      const assignmentResult = await resolveExecutiveAssignmentSlot(
         id,
         data.appointmentDate!,
         assignedExecutiveName,
         currentAppointment.appointmentReason,
       );
 
-      if (!slot) {
-        return NextResponse.json(
-          { message: "No se pudo calcular el horario de la cita." },
-          { status: 400 },
-        );
+      if (!assignmentResult.ok) {
+        return assignmentErrorResponse(assignmentResult);
       }
 
-      data.scheduledStartTime = slot.startTime;
-      data.scheduledEndTime = slot.endTime;
+      data.scheduledStartTime = assignmentResult.slot.startTime;
+      data.scheduledEndTime = assignmentResult.slot.endTime;
     }
 
     const updatedAppointment = await prisma.appointment.update({

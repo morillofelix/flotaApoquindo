@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  type Appointment,
   type AppointmentReasonConfig,
+  type ExecutiveConfig,
   appointmentReasonAllowsExecutive,
   appointmentReasonUsesDateRange,
   appointmentReasonUsesPermitDetails,
@@ -9,6 +11,7 @@ import {
   getSantiagoToday,
   checkReasonDateRules,
 } from "@/lib/appointments";
+import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
   type HolidayConfig,
   checkHolidayRestrictedDates,
@@ -29,12 +32,15 @@ type ExecutiveAppointmentCreateModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
+  executives: ExecutiveConfig[];
+  appointments: Appointment[];
 };
 
 type FormValues = {
   vehicleNumber: string;
   appointmentReason: string;
   appointmentDate: string;
+  assignedExecutive: string;
   vacationStartDate: string;
   vacationEndDate: string;
   permitType: string;
@@ -49,6 +55,7 @@ const initialValues: FormValues = {
   vehicleNumber: "",
   appointmentReason: "",
   appointmentDate: "",
+  assignedExecutive: "",
   vacationStartDate: "",
   vacationEndDate: "",
   permitType: "",
@@ -63,6 +70,8 @@ export default function ExecutiveAppointmentCreateModal({
   isOpen,
   onClose,
   onCreated,
+  executives,
+  appointments,
 }: ExecutiveAppointmentCreateModalProps) {
   const titleId = useId();
   const today = useMemo(() => getSantiagoToday().date, []);
@@ -139,6 +148,32 @@ export default function ExecutiveAppointmentCreateModal({
       holidayDateSet,
     );
   }, [selectedReasonConfig, values, holidays, holidayDateSet, today]);
+
+  const executiveLimitStatus = useMemo(() => {
+    if (!allowsExecutiveAssignment || !values.assignedExecutive || !values.appointmentDate) {
+      return { blocked: false as const };
+    }
+
+    const executive = executives.find(
+      (option) => option.name === values.assignedExecutive,
+    );
+
+    return getExecutiveDailyLimitStatus(
+      executive,
+      appointments,
+      {
+        id: "draft",
+        appointmentDate: values.appointmentDate,
+      } as Appointment,
+      values.assignedExecutive,
+    );
+  }, [
+    allowsExecutiveAssignment,
+    appointments,
+    executives,
+    values.appointmentDate,
+    values.assignedExecutive,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -279,7 +314,7 @@ export default function ExecutiveAppointmentCreateModal({
         : {}),
       ...(name === "appointmentReason" &&
       !appointmentReasonAllowsExecutive(value, reasons)
-        ? { appointmentDate: "" }
+        ? { appointmentDate: "", assignedExecutive: "" }
         : {}),
       ...(name === "permitType" && value === "dias"
         ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
@@ -295,6 +330,9 @@ export default function ExecutiveAppointmentCreateModal({
     Boolean(selectedDriver) &&
     Boolean(values.appointmentReason) &&
     !reasonDateCheck.blocked &&
+    !executiveLimitStatus.blocked &&
+    (!allowsExecutiveAssignment ||
+      (Boolean(values.appointmentDate) && Boolean(values.assignedExecutive))) &&
     !isSubmitting &&
     !isLoadingContext;
 
@@ -448,20 +486,51 @@ export default function ExecutiveAppointmentCreateModal({
             </label>
 
             {allowsExecutiveAssignment ? (
-              <label className="flex flex-col gap-2 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#173b68]">
-                  Fecha requerida para la cita
-                </span>
-                <input
-                  type="date"
-                  value={values.appointmentDate}
-                  min={today}
-                  onChange={(event) =>
-                    updateField("appointmentDate", event.target.value)
-                  }
-                  className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                />
-              </label>
+              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Fecha requerida para la cita
+                  </span>
+                  <input
+                    type="date"
+                    value={values.appointmentDate}
+                    min={today}
+                    onChange={(event) =>
+                      updateField("appointmentDate", event.target.value)
+                    }
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Ejecutivo que atenderá
+                  </span>
+                  <select
+                    value={values.assignedExecutive}
+                    onChange={(event) =>
+                      updateField("assignedExecutive", event.target.value)
+                    }
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                  >
+                    <option value="">Selecciona un ejecutivo</option>
+                    {executives.map((executive) => (
+                      <option key={executive.name} value={executive.name}>
+                        {executive.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {executiveLimitStatus.blocked ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 sm:col-span-2">
+                    {executiveLimitStatus.executiveName} ya llegó al tope de{" "}
+                    {executiveLimitStatus.max} solicitudes para el{" "}
+                    {executiveLimitStatus.appointmentDate}. Elige otro ejecutivo o
+                    otra fecha.
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
             {usesDateRange ? (
