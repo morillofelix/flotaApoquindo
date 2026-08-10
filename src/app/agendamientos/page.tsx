@@ -36,7 +36,6 @@ import {
   shouldSendCalendarInvite,
   shouldSendCancellationEmails,
   shouldSendDecisionEmail,
-  statusStyles,
 } from "@/lib/agendamientos-appointments";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
@@ -47,6 +46,7 @@ import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAck
 import AppointmentRowActions, {
   canResendAppointmentReminder,
 } from "@/components/agendamientos/AppointmentRowActions";
+import AppointmentStatusControl from "@/components/agendamientos/AppointmentStatusControl";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -388,6 +388,47 @@ function AppointmentsPageContent() {
       setAppointments(previousAppointments);
       setAppointmentsError("No se pudo actualizar el estado.");
     }
+  }
+
+  async function requestStatusChange(
+    appointment: Appointment,
+    nextStatus: AppointmentStatus,
+  ) {
+    if (nextStatus === appointment.status) {
+      return;
+    }
+
+    if (nextStatus === "cancelado") {
+      const confirmed = await confirm({
+        title: "¿Está de acuerdo?",
+        message: "¿Está de acuerdo en cancelar esta solicitud?",
+        detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}.`,
+        confirmLabel: "Sí, cancelar",
+        cancelLabel: "No",
+        tone: "danger",
+      });
+
+      if (!confirmed) {
+        return;
+      }
+    } else if (
+      nextStatus === "revisado" &&
+      appointment.status === "cancelado"
+    ) {
+      const confirmed = await confirm({
+        title: "¿Está seguro?",
+        message: "¿Está seguro de cambiar el estado a Agendado?",
+        detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}.`,
+        confirmLabel: "Sí, agendar",
+        cancelLabel: "No",
+      });
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    await updateStatus(appointment.id, nextStatus);
   }
 
   function requestExecutiveAssignment(
@@ -1287,30 +1328,22 @@ function AppointmentsPageContent() {
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.reasonAllowsExecutiveAssignment &&
                           canEditAppointmentDates(appointment.status) ? (
-                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Fecha requerida
-                              </p>
-                              <input
-                                key={`${appointment.id}-${appointment.appointmentDate}`}
-                                type="date"
-                                defaultValue={appointment.appointmentDate}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "appointmentDate",
-                                    event.target.value,
-                                  )
-                                }
-                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                            </div>
+                            <input
+                              key={`${appointment.id}-${appointment.appointmentDate}`}
+                              type="date"
+                              defaultValue={appointment.appointmentDate}
+                              onChange={(event) =>
+                                requestDateFieldChange(
+                                  appointment,
+                                  "appointmentDate",
+                                  event.target.value,
+                                )
+                              }
+                              className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                            />
                           ) : appointment.reasonUsesDateRange &&
                           canEditAppointmentDates(appointment.status) ? (
-                            <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Fecha requerida
-                              </p>
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <input
                                 key={`${appointment.id}-${appointment.vacationStartDate}`}
                                 type="date"
@@ -1322,19 +1355,16 @@ function AppointmentsPageContent() {
                                     event.target.value,
                                   )
                                 }
-                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               />
-                              <p className="mt-1 text-[11px] font-semibold text-[#173b68]">
-                                Hasta {formatDate(appointment.vacationEndDate)}
-                              </p>
+                              <span className="text-[11px] font-medium text-slate-500">
+                                hasta {formatDate(appointment.vacationEndDate)}
+                              </span>
                             </div>
                           ) : appointment.reasonUsesPermitDetails &&
                             appointment.permitType === "dias" &&
                             canEditAppointmentDates(appointment.status) ? (
-                            <div className="max-w-44 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Fecha requerida
-                              </p>
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <input
                                 key={`${appointment.id}-${appointment.permitStartDate}`}
                                 type="date"
@@ -1346,19 +1376,16 @@ function AppointmentsPageContent() {
                                     event.target.value,
                                   )
                                 }
-                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               />
-                              <p className="mt-1 text-[11px] font-semibold text-[#173b68]">
-                                Hasta {formatDate(appointment.permitEndDate)}
-                              </p>
+                              <span className="text-[11px] font-medium text-slate-500">
+                                hasta {formatDate(appointment.permitEndDate)}
+                              </span>
                             </div>
                           ) : appointment.reasonUsesPermitDetails &&
                             appointment.permitType === "horas" &&
                             canEditAppointmentDates(appointment.status) ? (
-                            <div className="max-w-48 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-2">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                Fecha requerida
-                              </p>
+                            <div className="flex flex-wrap items-center gap-1">
                               <input
                                 key={`${appointment.id}-${appointment.permitDate}`}
                                 type="date"
@@ -1370,59 +1397,44 @@ function AppointmentsPageContent() {
                                     event.target.value,
                                   )
                                 }
-                                className="mt-1 h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               />
-                              <div className="mt-2 grid grid-cols-2 gap-2">
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                    Desde
-                                  </span>
-                                  <input
-                                    key={`${appointment.id}-${appointment.permitStartTime}`}
-                                    type="time"
-                                    defaultValue={appointment.permitStartTime}
-                                    onChange={(event) =>
-                                      requestDateFieldChange(
-                                        appointment,
-                                        "permitStartTime",
-                                        event.target.value,
-                                      )
-                                    }
-                                    className="h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                                  />
-                                </label>
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                    Hasta
-                                  </span>
-                                  <input
-                                    key={`${appointment.id}-${appointment.permitEndTime}`}
-                                    type="time"
-                                    defaultValue={appointment.permitEndTime}
-                                    onChange={(event) =>
-                                      requestDateFieldChange(
-                                        appointment,
-                                        "permitEndTime",
-                                        event.target.value,
-                                      )
-                                    }
-                                    className="h-8 w-full rounded-xl border border-[#9fb8d9] bg-white px-2 text-xs text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                                  />
-                                </label>
-                              </div>
+                              <input
+                                key={`${appointment.id}-${appointment.permitStartTime}`}
+                                type="time"
+                                defaultValue={appointment.permitStartTime}
+                                onChange={(event) =>
+                                  requestDateFieldChange(
+                                    appointment,
+                                    "permitStartTime",
+                                    event.target.value,
+                                  )
+                                }
+                                className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              />
+                              <span className="text-slate-400">—</span>
+                              <input
+                                key={`${appointment.id}-${appointment.permitEndTime}`}
+                                type="time"
+                                defaultValue={appointment.permitEndTime}
+                                onChange={(event) =>
+                                  requestDateFieldChange(
+                                    appointment,
+                                    "permitEndTime",
+                                    event.target.value,
+                                  )
+                                }
+                                className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              />
                             </div>
                           ) : appointment.reasonAllowsExecutiveAssignment ? (
-                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
-                              <p className="text-[11px] font-semibold leading-3.5 text-[#173b68]">
-                                {getRequiredDateSummary(appointment)}
-                              </p>
-                            </div>
+                            <span className="text-[11px] font-semibold text-[#173b68]">
+                              {getRequiredDateSummary(appointment)}
+                            </span>
                           ) : getRequiredDateSummary(appointment) ? (
-                            <div className="max-w-40 rounded-xl border border-[#b7cce4] bg-[#f8fbff] px-2 py-1">
-                              <p className="text-[11px] font-semibold leading-3.5 text-[#173b68]">
-                                {getRequiredDateSummary(appointment)}
-                              </p>
-                            </div>
+                            <span className="text-[11px] font-semibold text-[#173b68]">
+                              {getRequiredDateSummary(appointment)}
+                            </span>
                           ) : (
                             <span className="text-slate-400">No aplica</span>
                           )}
@@ -1517,62 +1529,15 @@ function AppointmentsPageContent() {
                           )}
                         </td>
                         <td className="px-2.5 py-2 align-top">
-                          {appointment.status === "revisado" ? (
-                            <div className="flex min-w-28 flex-col gap-1.5">
-                              <span
-                                className={`inline-flex h-8 items-center justify-center rounded-full border px-2.5 text-xs font-semibold ${statusStyles.revisado}`}
-                              >
-                                Agendado
-                              </span>
-                              <select
-                                defaultValue=""
-                                onChange={(event) => {
-                                  const nextStatus = event.target
-                                    .value as AppointmentStatus;
-
-                                  if (!nextStatus) {
-                                    return;
-                                  }
-
-                                  updateStatus(appointment.id, nextStatus);
-                                  event.target.value = "";
-                                }}
-                                className="h-8 rounded-full border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              >
-                                <option value="">Cambiar estado</option>
-                                {appointmentAllowsExecutive(appointment) ? (
-                                  <option value="cancelado">Cancelado</option>
-                                ) : (
-                                  <>
-                                    <option value="pendiente">Pendiente</option>
-                                    <option value="aprobado">Aprobado</option>
-                                    <option value="rechazado">Rechazado</option>
-                                  </>
-                                )}
-                              </select>
-                            </div>
-                          ) : appointment.status === "cancelado" ? (
-                            <span
-                              className={`inline-flex h-8 min-w-28 items-center justify-center rounded-full border px-2.5 text-xs font-semibold ${statusStyles.cancelado}`}
-                            >
-                              Cancelado
-                            </span>
-                          ) : (
-                            <select
-                              value={appointment.status}
-                              onChange={(event) =>
-                                updateStatus(
-                                  appointment.id,
-                                  event.target.value as AppointmentStatus,
-                                )
-                              }
-                              className={`h-8 min-w-28 rounded-full border px-2.5 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-[#0b5cab]/15 ${statusStyles[appointment.status]}`}
-                            >
-                              <option value="pendiente">Pendiente</option>
-                              <option value="aprobado">Aprobado</option>
-                              <option value="rechazado">Rechazado</option>
-                            </select>
-                          )}
+                          <AppointmentStatusControl
+                            appointment={appointment}
+                            onRequestStatusChange={(currentAppointment, nextStatus) =>
+                              void requestStatusChange(
+                                currentAppointment,
+                                nextStatus,
+                              )
+                            }
+                          />
                         </td>
                         <td className="px-1 py-2 align-top">
                           <div className="flex justify-center">
