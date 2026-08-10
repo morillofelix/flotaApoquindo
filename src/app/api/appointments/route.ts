@@ -208,44 +208,56 @@ export async function GET(request: NextRequest) {
     return unauthorized;
   }
 
-  await ensureDefaultReasons();
-  const reasons = await prisma.appointmentReason.findMany();
-  const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));
-  const appointments = await prisma.appointment.findMany({
-    orderBy: { createdAt: "desc" },
-  });
-  const driverOwners = await prisma.driverOwner.findMany({
-    select: {
-      vehicleNumber: true,
-      shifts: true,
-    },
-  });
-  const vehicleShiftByNumber: Record<string, string> = {};
-  const vehicleShiftsByNumber: Record<string, ShiftType[]> = {};
+  try {
+    await ensureDefaultReasons();
+    const reasons = await prisma.appointmentReason.findMany();
+    const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));
+    const appointments = await prisma.appointment.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    const driverOwners = await prisma.driverOwner.findMany({
+      select: {
+        vehicleNumber: true,
+        shifts: true,
+      },
+    });
+    const vehicleShiftByNumber: Record<string, string> = {};
+    const vehicleShiftsByNumber: Record<string, ShiftType[]> = {};
 
-  for (const driverOwner of driverOwners) {
-    const key = normalizeVehicleNumber(driverOwner.vehicleNumber);
+    for (const driverOwner of driverOwners) {
+      const key = normalizeVehicleNumber(driverOwner.vehicleNumber);
 
-    if (!key) {
-      continue;
+      if (!key) {
+        continue;
+      }
+
+      const shifts = shiftsFromStorage(driverOwner.shifts);
+      vehicleShiftsByNumber[key] = shifts;
+      vehicleShiftByNumber[key] = formatShifts(shifts);
     }
 
-    const shifts = shiftsFromStorage(driverOwner.shifts);
-    vehicleShiftsByNumber[key] = shifts;
-    vehicleShiftByNumber[key] = formatShifts(shifts);
-  }
-
-  return NextResponse.json({
-    appointments: appointments.map((appointment) =>
-      toAppointment(
-        appointment,
-        toReasonConfig(reasonByValue.get(appointment.appointmentReason) ?? null) ??
-          undefined,
+    return NextResponse.json({
+      appointments: appointments.map((appointment) =>
+        toAppointment(
+          appointment,
+          toReasonConfig(reasonByValue.get(appointment.appointmentReason) ?? null) ??
+            undefined,
+        ),
       ),
-    ),
-    vehicleShiftByNumber,
-    vehicleShiftsByNumber,
-  });
+      vehicleShiftByNumber,
+      vehicleShiftsByNumber,
+    });
+  } catch (error) {
+    console.error("GET /api/appointments failed:", error);
+
+    return NextResponse.json(
+      {
+        message:
+          "No se pudieron cargar las solicitudes. Verifica que la base de datos esté actualizada.",
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {

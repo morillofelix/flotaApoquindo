@@ -1536,8 +1536,29 @@ function AppointmentsPageContent() {
       <ExecutiveAppointmentCreateModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreated={() => {
-          void refreshAppointmentsData();
+        onCreated={async (createdAppointment) => {
+          await refreshAppointmentsData();
+
+          if (!shouldSendCalendarInvite(createdAppointment)) {
+            return;
+          }
+
+          try {
+            setEmailNotice({
+              status: "sending",
+              message: "Enviando cita y confirmación...",
+            });
+            await sendExecutiveAssignmentEmails(createdAppointment);
+            setEmailNotice({
+              status: "sent",
+              message: "Correos enviados.",
+            });
+          } catch {
+            setEmailNotice(null);
+            setAppointmentsError(
+              "La solicitud quedó creada, pero no se pudieron enviar todos los correos.",
+            );
+          }
         }}
         executives={activeExecutives}
         appointments={appointments}

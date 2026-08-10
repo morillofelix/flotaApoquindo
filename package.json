@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -H localhost -p 3000",
     "dev:clean": "powershell -ExecutionPolicy Bypass -Command \"if (Test-Path .next) { Remove-Item .next -Recurse -Force }; npm run dev\"",
-    "build": "next build",
+    "build": "prisma db push --skip-generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "next lint"
