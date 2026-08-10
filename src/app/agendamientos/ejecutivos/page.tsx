@@ -44,6 +44,7 @@ export default function EjecutivosPage() {
   const [executiveMessage, setExecutiveMessage] = useState("");
   const [executiveError, setExecutiveError] = useState("");
   const [isSavingExecutive, setIsSavingExecutive] = useState(false);
+  const [isListPanelCollapsed, setIsListPanelCollapsed] = useState(false);
 
   const reloadExecutives = useCallback(async () => {
     const loadedExecutives = await loadExecutives();
@@ -129,6 +130,7 @@ export default function EjecutivosPage() {
 
   function resetExecutiveForm() {
     setExecutiveForm(emptyExecutiveForm);
+    setIsListPanelCollapsed(false);
     setExecutiveMessage("");
     setExecutiveError("");
   }
@@ -233,8 +235,26 @@ export default function EjecutivosPage() {
         />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
-          <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+          <div
+            className={`grid gap-4 p-4 ${
+              isListPanelCollapsed
+                ? "grid-cols-1"
+                : "xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]"
+            }`}
+          >
+            {!isListPanelCollapsed ? (
+            <div className="min-w-0 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+              <div className="mb-3 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsListPanelCollapsed(true)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68] transition hover:bg-[#eef4fb]"
+                  aria-label="Ocultar lista de ejecutivos"
+                >
+                  <span aria-hidden>◀</span>
+                  Ocultar lista
+                </button>
+              </div>
               <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end lg:grid-cols-[1fr_auto_auto_auto]">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-semibold text-[#173b68]">
@@ -325,11 +345,27 @@ export default function EjecutivosPage() {
                 </div>
               </div>
             </div>
+            ) : null}
+
+            <div className="min-w-0">
+              {isListPanelCollapsed ? (
+                <div className="mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsListPanelCollapsed(false)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68] transition hover:bg-[#eef4fb]"
+                    aria-label="Mostrar lista de ejecutivos"
+                  >
+                    <span aria-hidden>▶</span>
+                    Mostrar lista
+                  </button>
+                </div>
+              ) : null}
 
             <form
               noValidate
               onSubmit={saveExecutive}
-              className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
+              className="min-w-0 max-h-[85vh] overflow-x-hidden overflow-y-auto rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
               <div className="mb-4 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-base font-semibold text-[#0f2747]">
@@ -556,6 +592,7 @@ export default function EjecutivosPage() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       </section>
