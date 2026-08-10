@@ -872,22 +872,22 @@ function AppointmentsPageContent() {
             </p>
           </div>
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#173b68]">
+          <div className="mb-3 flex flex-wrap items-end gap-2 xl:flex-nowrap">
+            <label className="flex w-full min-w-0 flex-col gap-1.5 sm:w-[10.5rem]">
+              <span className="text-[11px] font-semibold text-[#173b68]">
                 Filtrar por ticket
               </span>
               <input
                 type="search"
                 value={ticketFilter}
                 onChange={(event) => setTicketFilter(event.target.value)}
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                placeholder="Ej: APQ-000036 o 36"
+                className="h-9 w-full rounded-xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                placeholder="APQ-000036"
               />
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#173b68]">
+            <label className="flex w-full min-w-0 flex-col gap-1.5 sm:w-[8.5rem]">
+              <span className="text-[11px] font-semibold text-[#173b68]">
                 Filtrar por estado
               </span>
               <select
@@ -897,7 +897,7 @@ function AppointmentsPageContent() {
                     event.target.value as "todos" | AppointmentStatus,
                   )
                 }
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                className="h-9 w-full rounded-xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todos</option>
                 <option value="pendiente">Pendientes</option>
@@ -908,8 +908,8 @@ function AppointmentsPageContent() {
               </select>
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#173b68]">
+            <label className="flex min-w-0 flex-1 flex-col gap-1.5 basis-full sm:basis-[12rem] sm:max-w-[17rem]">
+              <span className="text-[11px] font-semibold text-[#173b68]">
                 Filtrar por motivo
               </span>
               <select
@@ -917,7 +917,7 @@ function AppointmentsPageContent() {
                 onChange={(event) =>
                   setReasonFilter(event.target.value as "todos" | PermissionReason)
                 }
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                className="h-9 w-full rounded-xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todos los motivos</option>
                 {activeReasons.map((reason) => (
@@ -928,21 +928,22 @@ function AppointmentsPageContent() {
               </select>
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#173b68]">
+            <label className="flex w-full min-w-0 flex-col gap-1.5 sm:w-[5.75rem]">
+              <span className="text-[11px] font-semibold text-[#173b68]">
                 Filtrar por móvil
               </span>
               <input
                 type="search"
+                inputMode="numeric"
                 value={vehicleFilter}
                 onChange={(event) => setVehicleFilter(event.target.value)}
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                placeholder="Número de móvil"
+                className="h-9 w-full rounded-xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                placeholder="999"
               />
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#173b68]">
+            <label className="flex w-full min-w-0 flex-col gap-1.5 sm:w-[8rem]">
+              <span className="text-[11px] font-semibold text-[#173b68]">
                 Filtrar por turno
               </span>
               <select
@@ -950,7 +951,7 @@ function AppointmentsPageContent() {
                 onChange={(event) =>
                   setShiftFilter(event.target.value as "todos" | ShiftType)
                 }
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                className="h-9 w-full rounded-xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todos los turnos</option>
                 {shiftOptions.map((shift) => (
@@ -961,8 +962,8 @@ function AppointmentsPageContent() {
               </select>
             </label>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#173b68]">
+            <label className="flex w-full min-w-0 flex-col gap-1.5 sm:w-[10.5rem]">
+              <span className="text-[11px] font-semibold text-[#173b68]">
                 Filtrar por fecha de registro
               </span>
               <select
@@ -970,7 +971,7 @@ function AppointmentsPageContent() {
                 onChange={(event) =>
                   setDateFilter(event.target.value as DateFilter)
                 }
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                className="h-9 w-full rounded-xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
               >
                 <option value="todos">Todas las fechas</option>
                 <option value="hoy">Hoy</option>
