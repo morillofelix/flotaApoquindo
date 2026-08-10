@@ -14,6 +14,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/agendamientos/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, max-age=0",
+          },
+        ],
+      },
+      {
         source: "/:path*",
         headers: securityHeaders,
       },

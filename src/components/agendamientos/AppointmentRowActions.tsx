@@ -23,13 +23,13 @@ export function canResendAppointmentReminder(appointment: Appointment) {
 
 function iconButtonClassName(variant: "danger" | "primary") {
   const base =
-    "inline-flex size-8 items-center justify-center rounded-xl border bg-white transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex size-9 items-center justify-center rounded-lg border bg-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   if (variant === "danger") {
-    return `${base} border-red-200 text-red-700 hover:bg-red-50 focus-visible:ring-red-200/60`;
+    return `${base} border-red-300 text-red-700 hover:bg-red-50 focus-visible:ring-red-200/70`;
   }
 
-  return `${base} border-[#9fb8d9] text-[#0b5cab] hover:border-[#0b5cab] hover:bg-[#f8fbff] focus-visible:ring-[#0b5cab]/20`;
+  return `${base} border-[#7eb0dc] text-[#0b5cab] hover:border-[#0b5cab] hover:bg-[#eef6ff] focus-visible:ring-[#0b5cab]/25`;
 }
 
 export default function AppointmentRowActions({
@@ -41,7 +41,10 @@ export default function AppointmentRowActions({
   const showResend = canResendAppointmentReminder(appointment);
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div
+      className="inline-flex flex-col items-center gap-1.5 rounded-xl border border-[#b7cce4] bg-[#f8fbff] p-1.5"
+      title="Acciones de la solicitud"
+    >
       {showResend ? (
         <button
           type="button"
@@ -54,10 +57,10 @@ export default function AppointmentRowActions({
           <svg
             aria-hidden
             viewBox="0 0 24 24"
-            className={`size-4 ${isResending ? "animate-pulse" : ""}`}
+            className={`size-[18px] ${isResending ? "animate-pulse" : ""}`}
             fill="currentColor"
           >
-            <path d="M2.3 11.2 21 3l-3.2 8.4 4.8 1.6-3.2 1.1-1.1 3.2-1.6-4.8L2.3 11.2z" />
+            <path d="M2.2 11.4 21.2 2.8l-3.4 8.8 5.1 1.7-3.4 1.2-1.2 3.4-1.7-5.1L2.2 11.4z" />
           </svg>
         </button>
       ) : null}
@@ -72,18 +75,18 @@ export default function AppointmentRowActions({
         <svg
           aria-hidden
           viewBox="0 0 24 24"
-          className="size-4"
+          className="size-[18px]"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.8"
+          strokeWidth="1.9"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
           <path d="M4.5 7h15" />
-          <path d="M9.5 7V5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7" />
-          <path d="M7 7l.7 11.2a1.5 1.5 0 0 0 1.5 1.3h5.6a1.5 1.5 0 0 0 1.5-1.3L17 7" />
-          <path d="M10 10.5v6" />
-          <path d="M14 10.5v6" />
+          <path d="M9.5 7V5.6a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7" />
+          <path d="M7 7l.75 11.5a1.4 1.4 0 0 0 1.4 1.2h5.7a1.4 1.4 0 0 0 1.4-1.2L17 7" />
+          <path d="M10 10.8v5.8" />
+          <path d="M14 10.8v5.8" />
         </svg>
       </button>
     </div>

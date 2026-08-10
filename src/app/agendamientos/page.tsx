@@ -1220,8 +1220,8 @@ function AppointmentsPageContent() {
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Teléfono</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Ejecutivo</th>
                       <th className="min-w-32 px-2.5 py-2 font-semibold">Estado</th>
-                      <th className="w-12 px-1.5 py-2 font-semibold">
-                        <span className="sr-only">Acciones</span>
+                      <th className="w-14 px-1 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-[#173b68]">
+                        Acciones
                       </th>
                     </tr>
                   </thead>
@@ -1574,8 +1574,9 @@ function AppointmentsPageContent() {
                             </select>
                           )}
                         </td>
-                        <td className="px-1.5 py-2 align-top">
-                          <AppointmentRowActions
+                        <td className="px-1 py-2 align-top">
+                          <div className="flex justify-center">
+                            <AppointmentRowActions
                             appointment={appointment}
                             isResending={resendingAppointmentId === appointment.id}
                             onResend={(currentAppointment) =>
@@ -1583,6 +1584,7 @@ function AppointmentsPageContent() {
                             }
                             onDelete={confirmRemoveAppointment}
                           />
+                          </div>
                         </td>
                       </tr>
                     ))}
