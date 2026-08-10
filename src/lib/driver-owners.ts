@@ -335,6 +335,19 @@ export function buildVehicleShiftLookup(
   return lookup;
 }
 
+export function getVehicleShifts(
+  vehicleNumber: string,
+  shiftsByNumber: Record<string, ShiftType[]>,
+) {
+  const key = normalizeVehicleNumber(vehicleNumber);
+
+  if (!key) {
+    return [];
+  }
+
+  return shiftsByNumber[key] ?? [];
+}
+
 export function getVehicleShiftLabel(
   vehicleNumber: string,
   lookup: Map<string, string>,

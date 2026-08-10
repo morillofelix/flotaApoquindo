@@ -8,7 +8,7 @@ import {
   formatRestrictedWeekdays,
   formatBusinessDayAdvanceSummary,
 } from "@/lib/appointments";
-import { type DriverOwnerConfig } from "@/lib/driver-owners";
+import { type DriverOwnerConfig, type ShiftType } from "@/lib/driver-owners";
 import { type PropietarioConfig } from "@/lib/propietarios";
 import { type PropietarioBankConfig } from "@/lib/propietarios-banks";
 
@@ -25,11 +25,13 @@ export async function loadAppointments() {
   const data = (await response.json()) as {
     appointments?: Appointment[];
     vehicleShiftByNumber?: Record<string, string>;
+    vehicleShiftsByNumber?: Record<string, ShiftType[]>;
   };
 
   return {
     appointments: data.appointments ?? [],
     vehicleShiftByNumber: data.vehicleShiftByNumber ?? {},
+    vehicleShiftsByNumber: data.vehicleShiftsByNumber ?? {},
   };
 }
 

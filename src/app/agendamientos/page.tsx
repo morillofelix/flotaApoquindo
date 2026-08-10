@@ -55,6 +55,9 @@ import {
 } from "@/lib/appointment-date-edit";
 import {
   getVehicleShiftLabel,
+  getVehicleShifts,
+  shiftOptions,
+  type ShiftType,
 } from "@/lib/driver-owners";
 
 function AppointmentsPageContent() {
@@ -70,6 +73,9 @@ function AppointmentsPageContent() {
   const [vehicleShiftByNumber, setVehicleShiftByNumber] = useState<
     Record<string, string>
   >({});
+  const [vehicleShiftsByNumber, setVehicleShiftsByNumber] = useState<
+    Record<string, ShiftType[]>
+  >({});
   const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
     "todos",
   );
@@ -77,6 +83,7 @@ function AppointmentsPageContent() {
     "todos",
   );
   const [vehicleFilter, setVehicleFilter] = useState("");
+  const [shiftFilter, setShiftFilter] = useState<"todos" | ShiftType>("todos");
   const [dateFilter, setDateFilter] = useState<DateFilter>("todos");
   const [customDateRange, setCustomDateRange] = useState({
     startDate: "",
@@ -114,6 +121,7 @@ function AppointmentsPageContent() {
 
     setAppointments(loadedAppointmentsData.appointments);
     setVehicleShiftByNumber(loadedAppointmentsData.vehicleShiftByNumber);
+    setVehicleShiftsByNumber(loadedAppointmentsData.vehicleShiftsByNumber);
     setReasons(loadedReasons);
     setExecutiveOptions(loadedExecutives);
     setAppointmentsError("");
@@ -203,16 +211,30 @@ function AppointmentsPageContent() {
         customDateRange.startDate,
         customDateRange.endDate,
       );
+      const matchesShift =
+        shiftFilter === "todos" ||
+        getVehicleShifts(
+          appointment.vehicleNumber,
+          vehicleShiftsByNumber,
+        ).includes(shiftFilter);
 
-      return matchesStatus && matchesReason && matchesVehicle && matchesDate;
+      return (
+        matchesStatus &&
+        matchesReason &&
+        matchesVehicle &&
+        matchesDate &&
+        matchesShift
+      );
     });
   }, [
     appointments,
     customDateRange,
     dateFilter,
     reasonFilter,
+    shiftFilter,
     statusFilter,
     vehicleFilter,
+    vehicleShiftsByNumber,
   ]);
 
   const vehicleShiftLookup = useMemo(
@@ -836,7 +858,7 @@ function AppointmentsPageContent() {
             </p>
           </div>
 
-          <div className="mb-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
+          <div className="mb-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] xl:items-end">
             <label className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-[#173b68]">
                 Filtrar por estado
@@ -890,6 +912,26 @@ function AppointmentsPageContent() {
                 className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                 placeholder="Número de móvil"
               />
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-xs font-semibold text-[#173b68]">
+                Filtrar por turno
+              </span>
+              <select
+                value={shiftFilter}
+                onChange={(event) =>
+                  setShiftFilter(event.target.value as "todos" | ShiftType)
+                }
+                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+              >
+                <option value="todos">Todos los turnos</option>
+                {shiftOptions.map((shift) => (
+                  <option key={shift.value} value={shift.value}>
+                    {shift.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="flex flex-col gap-2">

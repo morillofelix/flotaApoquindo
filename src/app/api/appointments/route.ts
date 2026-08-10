@@ -20,6 +20,7 @@ import {
   formatShifts,
   normalizeVehicleNumber,
   shiftsFromStorage,
+  type ShiftType,
 } from "@/lib/driver-owners";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
@@ -224,6 +225,7 @@ export async function GET(request: NextRequest) {
     },
   });
   const vehicleShiftByNumber: Record<string, string> = {};
+  const vehicleShiftsByNumber: Record<string, ShiftType[]> = {};
 
   for (const driverOwner of driverOwners) {
     const key = normalizeVehicleNumber(driverOwner.vehicleNumber);
@@ -232,9 +234,9 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    vehicleShiftByNumber[key] = formatShifts(
-      shiftsFromStorage(driverOwner.shifts),
-    );
+    const shifts = shiftsFromStorage(driverOwner.shifts);
+    vehicleShiftsByNumber[key] = shifts;
+    vehicleShiftByNumber[key] = formatShifts(shifts);
   }
 
   return NextResponse.json({
@@ -246,6 +248,7 @@ export async function GET(request: NextRequest) {
       ),
     ),
     vehicleShiftByNumber,
+    vehicleShiftsByNumber,
   });
 }
 
