@@ -254,11 +254,14 @@ export default function PublicAppointmentHistory({
       return;
     }
 
-    const pendingApprovalIds = appointments
+    const pendingApprovalKeys = appointments
       .filter((appointment) => appointment.driverApprovalPending)
-      .map((appointment) => appointment.id);
-    const hasNewApproval = pendingApprovalIds.some(
-      (appointmentId) => !knownApprovalIdsRef.current.has(appointmentId),
+      .map(
+        (appointment) =>
+          `${appointment.id}:${appointment.driverApprovalMessage}`,
+      );
+    const hasNewApproval = pendingApprovalKeys.some(
+      (approvalKey) => !knownApprovalIdsRef.current.has(approvalKey),
     );
 
     if (hasNewApproval) {
@@ -266,7 +269,7 @@ export default function PublicAppointmentHistory({
       setIsOpen(true);
     }
 
-    knownApprovalIdsRef.current = new Set(pendingApprovalIds);
+    knownApprovalIdsRef.current = new Set(pendingApprovalKeys);
   }, [appointments, showBell]);
 
   useEffect(() => {

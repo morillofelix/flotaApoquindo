@@ -44,6 +44,9 @@ import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalenda
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import ExecutiveAppointmentCreateModal from "@/components/agendamientos/ExecutiveAppointmentCreateModal";
 import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
+import AppointmentRowActions, {
+  canResendAppointmentReminder,
+} from "@/components/agendamientos/AppointmentRowActions";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -118,6 +121,7 @@ function AppointmentsPageContent() {
   } | null>(null);
   const [isSavingDateChange, setIsSavingDateChange] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [resendingAppointmentId, setResendingAppointmentId] = useState("");
 
   const reloadAppointmentsData = useCallback(async () => {
     const [loadedAppointmentsData, loadedReasons, loadedExecutives] =
@@ -141,7 +145,8 @@ function AppointmentsPageContent() {
     isLoadingAppointments ||
     dateEditPrompt !== null ||
     isSavingDateChange ||
-    isCreateModalOpen;
+    isCreateModalOpen ||
+    resendingAppointmentId !== "";
 
   const {
     refresh: refreshAppointmentsData,
@@ -725,6 +730,74 @@ function AppointmentsPageContent() {
     }
   }
 
+  async function resendAppointment(appointment: Appointment) {
+    if (!canResendAppointmentReminder(appointment)) {
+      return;
+    }
+
+    setResendingAppointmentId(appointment.id);
+    setAppointmentsError("");
+    setEmailNotice(null);
+
+    try {
+      const response = await fetch(`/api/appointments/${appointment.id}/resend`, {
+        ...adminFetchInit,
+        method: "POST",
+      });
+
+      const result = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        appointment?: Appointment;
+        reminderSent?: boolean;
+        emailsSent?: boolean;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.message || "No se pudo reenviar la solicitud.");
+      }
+
+      if (result.appointment) {
+        setAppointments((currentAppointments) =>
+          currentAppointments.map((currentAppointment) =>
+            currentAppointment.id === appointment.id
+              ? result.appointment!
+              : currentAppointment,
+          ),
+        );
+      }
+
+      if (result.emailsSent && result.reminderSent) {
+        setEmailNotice({
+          status: "sent",
+          message: "Solicitud reenviada al conductor y correos de cita enviados.",
+        });
+      } else if (result.emailsSent) {
+        setEmailNotice({
+          status: "sent",
+          message: "Correos de cita reenviados.",
+        });
+      } else if (result.reminderSent) {
+        setEmailNotice({
+          status: "sent",
+          message: "Recordatorio reenviado al conductor.",
+        });
+      } else {
+        setEmailNotice({
+          status: "sent",
+          message: "Solicitud reenviada.",
+        });
+      }
+    } catch (error) {
+      setAppointmentsError(
+        error instanceof Error && error.message
+          ? error.message
+          : "No se pudo reenviar la solicitud.",
+      );
+    } finally {
+      setResendingAppointmentId("");
+    }
+  }
+
   if (isCalendarView) {
     return (
       <main className="px-3 py-4 sm:px-6 sm:py-6 xl:px-10">
@@ -1147,7 +1220,9 @@ function AppointmentsPageContent() {
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Teléfono</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Ejecutivo</th>
                       <th className="min-w-32 px-2.5 py-2 font-semibold">Estado</th>
-                      <th className="min-w-20 px-2.5 py-2 font-semibold">Acción</th>
+                      <th className="w-12 px-1.5 py-2 font-semibold">
+                        <span className="sr-only">Acciones</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#c5d8eb]">
@@ -1499,14 +1574,15 @@ function AppointmentsPageContent() {
                             </select>
                           )}
                         </td>
-                        <td className="px-2.5 py-2">
-                          <button
-                            type="button"
-                            onClick={() => confirmRemoveAppointment(appointment)}
-                            className="h-8 rounded-2xl border border-red-200 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-50 active:translate-y-px"
-                          >
-                            Eliminar
-                          </button>
+                        <td className="px-1.5 py-2 align-top">
+                          <AppointmentRowActions
+                            appointment={appointment}
+                            isResending={resendingAppointmentId === appointment.id}
+                            onResend={(currentAppointment) =>
+                              void resendAppointment(currentAppointment)
+                            }
+                            onDelete={confirmRemoveAppointment}
+                          />
                         </td>
                       </tr>
                     ))}
