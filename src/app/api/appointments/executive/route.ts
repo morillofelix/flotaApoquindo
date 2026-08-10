@@ -20,6 +20,10 @@ import {
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { resolveExecutiveCreatorName } from "@/lib/executive-creator";
 import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
+import {
+  sendExecutiveAssignmentEmailsServer,
+  shouldSendExecutiveAssignmentEmails,
+} from "@/lib/appointment-emails-server";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { readAdminSession } from "@/lib/driver-auth";
 import { prisma } from "@/lib/prisma";
@@ -431,9 +435,30 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const savedAppointment = toAppointment(
+      updatedAppointment,
+      reason ?? undefined,
+    );
+
+    let emailWarning = "";
+
+    if (shouldSendExecutiveAssignmentEmails(savedAppointment)) {
+      try {
+        await sendExecutiveAssignmentEmailsServer(savedAppointment);
+      } catch (error) {
+        console.error("Executive create email failed:", error);
+        emailWarning =
+          error instanceof Error && error.message
+            ? `La solicitud se creó, pero no se pudieron enviar los correos: ${error.message}`
+            : "La solicitud se creó, pero no se pudieron enviar los correos de la cita.";
+      }
+    }
+
     return NextResponse.json(
       {
-        appointment: toAppointment(updatedAppointment, reason ?? undefined),
+        appointment: savedAppointment,
+        emailsSent: emailWarning === "",
+        emailWarning,
       },
       { status: 201 },
     );

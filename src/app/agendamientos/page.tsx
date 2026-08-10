@@ -1536,28 +1536,19 @@ function AppointmentsPageContent() {
       <ExecutiveAppointmentCreateModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreated={async (createdAppointment) => {
+        onCreated={async (_createdAppointment, meta) => {
           await refreshAppointmentsData();
 
-          if (!shouldSendCalendarInvite(createdAppointment)) {
+          if (meta.emailWarning) {
+            setAppointmentsError(meta.emailWarning);
             return;
           }
 
-          try {
-            setEmailNotice({
-              status: "sending",
-              message: "Enviando cita y confirmación...",
-            });
-            await sendExecutiveAssignmentEmails(createdAppointment);
+          if (meta.emailsSent) {
             setEmailNotice({
               status: "sent",
-              message: "Correos enviados.",
+              message: "Correos de cita enviados al ejecutivo y al conductor.",
             });
-          } catch {
-            setEmailNotice(null);
-            setAppointmentsError(
-              "La solicitud quedó creada, pero no se pudieron enviar todos los correos.",
-            );
           }
         }}
         executives={activeExecutives}

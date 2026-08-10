@@ -31,7 +31,10 @@ type VehicleLookupResult = {
 type ExecutiveAppointmentCreateModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onCreated: (appointment: Appointment) => void | Promise<void>;
+  onCreated: (
+    appointment: Appointment,
+    meta: { emailsSent: boolean; emailWarning: string },
+  ) => void | Promise<void>;
   executives: ExecutiveConfig[];
   appointments: Appointment[];
 };
@@ -357,6 +360,8 @@ export default function ExecutiveAppointmentCreateModal({
       const result = (await response.json().catch(() => ({}))) as {
         message?: string;
         appointment?: Appointment;
+        emailsSent?: boolean;
+        emailWarning?: string;
       };
 
       if (!response.ok) {
@@ -367,7 +372,10 @@ export default function ExecutiveAppointmentCreateModal({
         throw new Error("No se pudo registrar la solicitud.");
       }
 
-      await onCreated(result.appointment);
+      await onCreated(result.appointment, {
+        emailsSent: result.emailsSent === true,
+        emailWarning: result.emailWarning ?? "",
+      });
       onClose();
     } catch (error) {
       setSubmitError(
