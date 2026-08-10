@@ -16,6 +16,11 @@ import {
   toHolidayConfig,
 } from "@/lib/holidays";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
+import {
+  formatShifts,
+  normalizeVehicleNumber,
+  shiftsFromStorage,
+} from "@/lib/driver-owners";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeEmail } from "@/lib/password-utils";
@@ -212,6 +217,25 @@ export async function GET(request: NextRequest) {
   const appointments = await prisma.appointment.findMany({
     orderBy: { createdAt: "desc" },
   });
+  const driverOwners = await prisma.driverOwner.findMany({
+    select: {
+      vehicleNumber: true,
+      shifts: true,
+    },
+  });
+  const vehicleShiftByNumber: Record<string, string> = {};
+
+  for (const driverOwner of driverOwners) {
+    const key = normalizeVehicleNumber(driverOwner.vehicleNumber);
+
+    if (!key) {
+      continue;
+    }
+
+    vehicleShiftByNumber[key] = formatShifts(
+      shiftsFromStorage(driverOwner.shifts),
+    );
+  }
 
   return NextResponse.json({
     appointments: appointments.map((appointment) =>
@@ -221,6 +245,7 @@ export async function GET(request: NextRequest) {
           undefined,
       ),
     ),
+    vehicleShiftByNumber,
   });
 }
 

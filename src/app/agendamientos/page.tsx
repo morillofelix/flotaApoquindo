@@ -14,7 +14,6 @@ import {
 import {
   loadAppointmentReasons,
   loadAppointments,
-  loadDriverOwners,
   loadExecutives,
 } from "@/lib/agendamientos-admin";
 import { adminFetchInit } from "@/lib/admin-fetch";
@@ -55,9 +54,7 @@ import {
   type AppointmentDatePatch,
 } from "@/lib/appointment-date-edit";
 import {
-  buildVehicleShiftLookup,
   getVehicleShiftLabel,
-  type DriverOwnerConfig,
 } from "@/lib/driver-owners";
 
 function AppointmentsPageContent() {
@@ -70,7 +67,9 @@ function AppointmentsPageContent() {
   );
   const [executiveOptions, setExecutiveOptions] =
     useState<ExecutiveConfig[]>(defaultExecutives);
-  const [driverOwners, setDriverOwners] = useState<DriverOwnerConfig[]>([]);
+  const [vehicleShiftByNumber, setVehicleShiftByNumber] = useState<
+    Record<string, string>
+  >({});
   const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
     "todos",
   );
@@ -106,18 +105,17 @@ function AppointmentsPageContent() {
   const [isSavingDateChange, setIsSavingDateChange] = useState(false);
 
   const reloadAppointmentsData = useCallback(async () => {
-    const [loadedAppointments, loadedReasons, loadedExecutives, loadedDriverOwners] =
+    const [loadedAppointmentsData, loadedReasons, loadedExecutives] =
       await Promise.all([
         loadAppointments(),
         loadAppointmentReasons(),
         loadExecutives(),
-        loadDriverOwners(),
       ]);
 
-    setAppointments(loadedAppointments);
+    setAppointments(loadedAppointmentsData.appointments);
+    setVehicleShiftByNumber(loadedAppointmentsData.vehicleShiftByNumber);
     setReasons(loadedReasons);
     setExecutiveOptions(loadedExecutives);
-    setDriverOwners(loadedDriverOwners);
     setAppointmentsError("");
   }, []);
 
@@ -218,8 +216,8 @@ function AppointmentsPageContent() {
   ]);
 
   const vehicleShiftLookup = useMemo(
-    () => buildVehicleShiftLookup(driverOwners),
-    [driverOwners],
+    () => new Map(Object.entries(vehicleShiftByNumber)),
+    [vehicleShiftByNumber],
   );
 
   const pendingCount = appointments.filter(

@@ -22,8 +22,15 @@ export async function loadAppointments() {
     throw new Error("No se pudieron cargar las solicitudes.");
   }
 
-  const data = (await response.json()) as { appointments?: Appointment[] };
-  return data.appointments ?? [];
+  const data = (await response.json()) as {
+    appointments?: Appointment[];
+    vehicleShiftByNumber?: Record<string, string>;
+  };
+
+  return {
+    appointments: data.appointments ?? [],
+    vehicleShiftByNumber: data.vehicleShiftByNumber ?? {},
+  };
 }
 
 export async function loadAppointmentReasons() {
