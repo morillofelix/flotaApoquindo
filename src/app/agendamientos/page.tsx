@@ -14,6 +14,7 @@ import {
 import {
   loadAppointmentReasons,
   loadAppointments,
+  loadDriverOwners,
   loadExecutives,
 } from "@/lib/agendamientos-admin";
 import { adminFetchInit } from "@/lib/admin-fetch";
@@ -53,6 +54,11 @@ import {
   getAdminDateChangeWarning,
   type AppointmentDatePatch,
 } from "@/lib/appointment-date-edit";
+import {
+  buildVehicleShiftLookup,
+  getVehicleShiftLabel,
+  type DriverOwnerConfig,
+} from "@/lib/driver-owners";
 
 function AppointmentsPageContent() {
   const { confirm, dialog } = useConfirmAction();
@@ -64,6 +70,7 @@ function AppointmentsPageContent() {
   );
   const [executiveOptions, setExecutiveOptions] =
     useState<ExecutiveConfig[]>(defaultExecutives);
+  const [driverOwners, setDriverOwners] = useState<DriverOwnerConfig[]>([]);
   const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
     "todos",
   );
@@ -99,16 +106,18 @@ function AppointmentsPageContent() {
   const [isSavingDateChange, setIsSavingDateChange] = useState(false);
 
   const reloadAppointmentsData = useCallback(async () => {
-    const [loadedAppointments, loadedReasons, loadedExecutives] =
+    const [loadedAppointments, loadedReasons, loadedExecutives, loadedDriverOwners] =
       await Promise.all([
         loadAppointments(),
         loadAppointmentReasons(),
         loadExecutives(),
+        loadDriverOwners(),
       ]);
 
     setAppointments(loadedAppointments);
     setReasons(loadedReasons);
     setExecutiveOptions(loadedExecutives);
+    setDriverOwners(loadedDriverOwners);
     setAppointmentsError("");
   }, []);
 
@@ -207,6 +216,11 @@ function AppointmentsPageContent() {
     statusFilter,
     vehicleFilter,
   ]);
+
+  const vehicleShiftLookup = useMemo(
+    () => buildVehicleShiftLookup(driverOwners),
+    [driverOwners],
+  );
 
   const pendingCount = appointments.filter(
     (appointment) => appointment.status === "pendiente",
@@ -1016,6 +1030,7 @@ function AppointmentsPageContent() {
                 downloadExcel(
                   filteredAppointments,
                   "agendamientos-filtrados.xls",
+                  vehicleShiftLookup,
                 )
               }
               disabled={filteredAppointments.length === 0}
@@ -1029,7 +1044,11 @@ function AppointmentsPageContent() {
             <button
               type="button"
               onClick={() =>
-                downloadExcel(appointments, "agendamientos-totales.xls")
+                downloadExcel(
+                  appointments,
+                  "agendamientos-totales.xls",
+                  vehicleShiftLookup,
+                )
               }
               disabled={appointments.length === 0}
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-emerald-500 bg-white px-4 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
@@ -1044,12 +1063,13 @@ function AppointmentsPageContent() {
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
               <div className="max-h-[62dvh] overflow-auto">
-                <table className="min-w-[1040px] w-full border-collapse text-left text-xs">
+                <table className="min-w-[1100px] w-full border-collapse text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[#d7e7f8] text-[10px] uppercase tracking-[0.12em] text-[#0f2747] shadow-[0_2px_0_#b7cce4]">
                     <tr>
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Ticket</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Conductor</th>
                       <th className="min-w-14 px-2.5 py-2 font-semibold">Móvil</th>
+                      <th className="min-w-20 px-2.5 py-2 font-semibold">Turno</th>
                       <th className="min-w-24 px-2.5 py-2 font-semibold">
                         Fecha de registro
                       </th>
@@ -1076,6 +1096,12 @@ function AppointmentsPageContent() {
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.vehicleNumber}
+                        </td>
+                        <td className="px-2.5 py-2 text-[11px] font-medium text-slate-600">
+                          {getVehicleShiftLabel(
+                            appointment.vehicleNumber,
+                            vehicleShiftLookup,
+                          )}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {formatCreatedAt(appointment.createdAt)}

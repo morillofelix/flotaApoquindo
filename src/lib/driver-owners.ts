@@ -317,6 +317,37 @@ export function formatShifts(shifts: ShiftType[]) {
     .join(" · ");
 }
 
+export function buildVehicleShiftLookup(
+  driverOwners: DriverOwnerConfig[],
+): Map<string, string> {
+  const lookup = new Map<string, string>();
+
+  for (const driverOwner of driverOwners) {
+    const key = normalizeVehicleNumber(driverOwner.vehicleNumber);
+
+    if (!key) {
+      continue;
+    }
+
+    lookup.set(key, formatShifts(driverOwner.shifts));
+  }
+
+  return lookup;
+}
+
+export function getVehicleShiftLabel(
+  vehicleNumber: string,
+  lookup: Map<string, string>,
+) {
+  const key = normalizeVehicleNumber(vehicleNumber);
+
+  if (!key) {
+    return "—";
+  }
+
+  return lookup.get(key) ?? "—";
+}
+
 export function parseDateValue(value: string) {
   const trimmedValue = value.trim();
 

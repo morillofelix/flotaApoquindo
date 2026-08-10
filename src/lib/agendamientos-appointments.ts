@@ -4,6 +4,7 @@ import {
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import { adminFetchInit } from "@/lib/admin-fetch";
+import { getVehicleShiftLabel } from "@/lib/driver-owners";
 
 export const statusLabels: Record<AppointmentStatus, string> = {
   pendiente: "Pendiente",
@@ -201,7 +202,10 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#039;");
 }
 
-function createExcelTable(appointments: Appointment[]) {
+function createExcelTable(
+  appointments: Appointment[],
+  vehicleShiftLookup?: Map<string, string>,
+) {
   const rows = appointments
     .map((appointment) => {
       const dateFrom =
@@ -224,6 +228,12 @@ function createExcelTable(appointments: Appointment[]) {
           <td>${escapeHtml(getAppointmentTicketLabel(appointment))}</td>
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
+          <td>${escapeHtml(
+            getVehicleShiftLabel(
+              appointment.vehicleNumber,
+              vehicleShiftLookup ?? new Map(),
+            ),
+          )}</td>
           <td>${escapeHtml(getRequiredDateSummary(appointment) || "No aplica")}</td>
           <td>${escapeHtml(appointment.appointmentReasonLabel)}</td>
           <td>${escapeHtml(appointment.permitDate || "No aplica")}</td>
@@ -253,6 +263,7 @@ function createExcelTable(appointments: Appointment[]) {
               <th>Ticket</th>
               <th>Conductor</th>
               <th>Móvil</th>
+              <th>Turno</th>
               <th>Fecha requerida</th>
               <th>Motivo</th>
               <th>Fecha permiso</th>
@@ -274,8 +285,12 @@ function createExcelTable(appointments: Appointment[]) {
     </html>`;
 }
 
-export function downloadExcel(appointments: Appointment[], fileName: string) {
-  const htmlTable = createExcelTable(appointments);
+export function downloadExcel(
+  appointments: Appointment[],
+  fileName: string,
+  vehicleShiftLookup?: Map<string, string>,
+) {
+  const htmlTable = createExcelTable(appointments, vehicleShiftLookup);
   const blob = new Blob([htmlTable], {
     type: "application/vnd.ms-excel;charset=utf-8;",
   });
