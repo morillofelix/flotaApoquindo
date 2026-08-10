@@ -159,6 +159,10 @@ type AppointmentSubmission = Omit<
   | "scheduledEndTime"
   | "dateChangePending"
   | "dateChangeMessage"
+  | "createdByType"
+  | "createdByExecutiveName"
+  | "driverApprovalPending"
+  | "driverApprovalMessage"
   | "createdAt"
   | "status"
 >;
@@ -483,39 +487,46 @@ function AppointmentRequestForm({
     }
 
     let cancelled = false;
-    setIsLoadingRecent(true);
 
-    fetch("/api/appointments/by-vehicle", {
-      ...sessionFetchInit,
-      cache: "no-store",
-    })
-      .then((response) => {
+    async function loadRecentAppointments() {
+      setIsLoadingRecent(true);
+
+      try {
+        const response = await fetch("/api/appointments/by-vehicle", {
+          ...sessionFetchInit,
+          cache: "no-store",
+        });
+
         if (!response.ok) {
           throw new Error("No se pudieron cargar las solicitudes.");
         }
 
-        return response.json() as Promise<{
+        const data = (await response.json()) as {
           appointments?: PublicAppointmentSummary[];
-        }>;
-      })
-      .then((data) => {
+        };
+
         if (!cancelled) {
           setRecentAppointments(data.appointments ?? []);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setRecentAppointments([]);
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setIsLoadingRecent(false);
         }
-      });
+      }
+    }
+
+    void loadRecentAppointments();
+    const intervalId = window.setInterval(() => {
+      void loadRecentAppointments();
+    }, 30000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [linkedVehicleNumber]);
 
@@ -547,6 +558,37 @@ function AppointmentRequestForm({
       );
     } catch {
       // ignore dismiss errors in the conductor view
+    }
+  }
+
+  async function approveDriverRequest(appointmentId: string) {
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        ...sessionFetchInit,
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ acknowledgeDriverApproval: true }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setRecentAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment.id === appointmentId
+            ? {
+                ...appointment,
+                driverApprovalPending: false,
+                driverApprovalMessage: "",
+              }
+            : appointment,
+        ),
+      );
+    } catch {
+      // ignore approval errors in the conductor view
     }
   }
 
@@ -878,6 +920,9 @@ function AppointmentRequestForm({
                 vehicleNumber={linkedVehicleNumber}
                 onDismissDateChange={(appointmentId) =>
                   void dismissDateChangeNotice(appointmentId)
+                }
+                onApproveDriverRequest={(appointmentId) =>
+                  void approveDriverRequest(appointmentId)
                 }
               />
             </div>

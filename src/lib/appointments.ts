@@ -216,6 +216,8 @@ export type AppointmentStatus =
   | "rechazado"
   | "cancelado";
 
+export type AppointmentCreatedByType = "conductor" | "ejecutivo";
+
 export type Appointment = {
   id: string;
   ticketNumber: number;
@@ -246,6 +248,10 @@ export type Appointment = {
   scheduledEndTime: string;
   dateChangePending: boolean;
   dateChangeMessage: string;
+  createdByType: AppointmentCreatedByType;
+  createdByExecutiveName: string;
+  driverApprovalPending: boolean;
+  driverApprovalMessage: string;
   createdAt: string;
   status: AppointmentStatus;
 };

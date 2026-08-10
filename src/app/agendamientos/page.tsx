@@ -41,6 +41,7 @@ import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
+import ExecutiveAppointmentCreateModal from "@/components/agendamientos/ExecutiveAppointmentCreateModal";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -59,6 +60,9 @@ import {
   shiftOptions,
   type ShiftType,
 } from "@/lib/driver-owners";
+import {
+  getAppointmentOriginBadge,
+} from "@/lib/appointment-origin";
 
 function AppointmentsPageContent() {
   const { confirm, dialog } = useConfirmAction();
@@ -110,6 +114,7 @@ function AppointmentsPageContent() {
     previewLabel: string;
   } | null>(null);
   const [isSavingDateChange, setIsSavingDateChange] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const reloadAppointmentsData = useCallback(async () => {
     const [loadedAppointmentsData, loadedReasons, loadedExecutives] =
@@ -132,7 +137,8 @@ function AppointmentsPageContent() {
     executiveAssignmentPrompt !== null ||
     isLoadingAppointments ||
     dateEditPrompt !== null ||
-    isSavingDateChange;
+    isSavingDateChange ||
+    isCreateModalOpen;
 
   const {
     refresh: refreshAppointmentsData,
@@ -954,8 +960,17 @@ function AppointmentsPageContent() {
               </select>
             </label>
 
-            <div className="flex h-10 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-4 text-xs font-semibold text-slate-600">
-              Mostrando {filteredAppointments.length} de {appointments.length}
+            <div className="flex min-h-10 flex-col items-stretch justify-center gap-2 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 py-2 text-xs font-semibold text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Mostrando {filteredAppointments.length} de {appointments.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#094a8d]"
+              >
+                Crear
+              </button>
             </div>
           </div>
 
@@ -1103,9 +1118,10 @@ function AppointmentsPageContent() {
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
               <div className="max-h-[62dvh] overflow-auto">
-                <table className="min-w-[1100px] w-full border-collapse text-left text-xs">
+                <table className="min-w-[1160px] w-full border-collapse text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[#d7e7f8] text-[10px] uppercase tracking-[0.12em] text-[#0f2747] shadow-[0_2px_0_#b7cce4]">
                     <tr>
+                      <th className="min-w-12 px-2.5 py-2 font-semibold">Origen</th>
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Ticket</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Conductor</th>
                       <th className="min-w-14 px-2.5 py-2 font-semibold">Móvil</th>
@@ -1128,6 +1144,27 @@ function AppointmentsPageContent() {
                         key={appointment.id}
                         className="align-top transition hover:bg-[#f8fbff]"
                       >
+                        <td className="px-2.5 py-2">
+                          {(() => {
+                            const originBadge = getAppointmentOriginBadge(
+                              appointment.createdByType,
+                            );
+
+                            return (
+                              <span
+                                title={
+                                  appointment.createdByType === "ejecutivo" &&
+                                  appointment.createdByExecutiveName
+                                    ? `${originBadge.title}: ${appointment.createdByExecutiveName}`
+                                    : originBadge.title
+                                }
+                                className={`inline-flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${originBadge.className}`}
+                              >
+                                {originBadge.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="px-2.5 py-2 font-semibold text-[#0b5cab]">
                           {getAppointmentTicketLabel(appointment)}
                         </td>
@@ -1473,6 +1510,13 @@ function AppointmentsPageContent() {
           )}
         </section>
       </section>
+      <ExecutiveAppointmentCreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreated={() => {
+          void refreshAppointmentsData();
+        }}
+      />
       {dialog}
     </main>
   );

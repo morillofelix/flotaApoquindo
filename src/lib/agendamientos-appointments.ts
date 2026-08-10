@@ -226,6 +226,7 @@ function createExcelTable(
       return `
         <tr>
           <td>${escapeHtml(getAppointmentTicketLabel(appointment))}</td>
+          <td>${escapeHtml(appointment.createdByType === "ejecutivo" ? "E" : "C")}</td>
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(
@@ -261,6 +262,7 @@ function createExcelTable(
           <thead>
             <tr>
               <th>Ticket</th>
+              <th>Origen</th>
               <th>Conductor</th>
               <th>Móvil</th>
               <th>Turno</th>

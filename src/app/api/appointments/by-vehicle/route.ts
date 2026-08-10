@@ -5,6 +5,7 @@ import {
 import { resolveAppointmentSchedule } from "@/lib/appointment-scheduling";
 import { readDriverSession } from "@/lib/driver-auth";
 import { toReasonConfig } from "@/lib/appointments-mapper";
+import { normalizeAppointmentCreatedByType } from "@/lib/appointment-origin";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -20,6 +21,10 @@ export type PublicAppointmentSummary = {
   scheduledSummary: string;
   dateChangePending: boolean;
   dateChangeMessage: string;
+  driverApprovalPending: boolean;
+  driverApprovalMessage: string;
+  createdByType: string;
+  createdByExecutiveName: string;
   createdAt: string;
 };
 
@@ -88,6 +93,10 @@ export async function GET(request: NextRequest) {
         status: true,
         dateChangePending: true,
         dateChangeMessage: true,
+        driverApprovalPending: true,
+        driverApprovalMessage: true,
+        createdByType: true,
+        createdByExecutiveName: true,
         createdAt: true,
       },
     });
@@ -146,6 +155,12 @@ export async function GET(request: NextRequest) {
           scheduledSummary: schedule?.summaryLabel ?? "",
           dateChangePending: appointment.dateChangePending,
           dateChangeMessage: appointment.dateChangeMessage,
+          driverApprovalPending: appointment.driverApprovalPending,
+          driverApprovalMessage: appointment.driverApprovalMessage,
+          createdByType: normalizeAppointmentCreatedByType(
+            appointment.createdByType,
+          ),
+          createdByExecutiveName: appointment.createdByExecutiveName,
           createdAt: appointment.createdAt.toISOString(),
         } satisfies PublicAppointmentSummary;
       });

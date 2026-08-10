@@ -4,9 +4,10 @@ import {
   statusLabels,
   formatCreatedAt,
 } from "@/lib/agendamientos-appointments";
-import { type AppointmentStatus } from "@/lib/appointments";
+import { type AppointmentCreatedByType, type AppointmentStatus } from "@/lib/appointments";
+import { playNotificationSound } from "@/lib/notification-sound";
 import { UI_PANEL_BORDER } from "@/lib/ui-borders";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export type PublicAppointmentSummary = {
   id: string;
@@ -18,6 +19,10 @@ export type PublicAppointmentSummary = {
   scheduledSummary: string;
   dateChangePending: boolean;
   dateChangeMessage: string;
+  driverApprovalPending: boolean;
+  driverApprovalMessage: string;
+  createdByType: AppointmentCreatedByType;
+  createdByExecutiveName: string;
   createdAt: string;
 };
 
@@ -54,12 +59,14 @@ type PublicAppointmentHistoryContentProps = {
   appointments: PublicAppointmentSummary[];
   vehicleNumber: string;
   onDismissDateChange?: (appointmentId: string) => void;
+  onApproveDriverRequest?: (appointmentId: string) => void;
 };
 
 function PublicAppointmentHistoryContent({
   appointments,
   vehicleNumber,
   onDismissDateChange,
+  onApproveDriverRequest,
 }: PublicAppointmentHistoryContentProps) {
   return (
     <>
@@ -77,6 +84,27 @@ function PublicAppointmentHistoryContent({
             className={`rounded-xl border border-[#c5d8eb] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,39,71,0.04)] ${publicStatusCardAccent[appointment.status]}`}
           >
             <div className="flex flex-col gap-2.5">
+              {appointment.driverApprovalPending &&
+              appointment.driverApprovalMessage ? (
+                <div className="rounded-xl border-2 border-violet-400 bg-violet-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-900">
+                    Solicitud de tu ejecutivo
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-violet-950">
+                    {appointment.driverApprovalMessage}
+                  </p>
+                  {onApproveDriverRequest ? (
+                    <button
+                      type="button"
+                      onClick={() => onApproveDriverRequest(appointment.id)}
+                      className="mt-3 inline-flex h-8 items-center justify-center rounded-xl bg-violet-700 px-3 text-[11px] font-semibold text-white transition hover:bg-violet-800"
+                    >
+                      Aprobar solicitud
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
               {appointment.dateChangePending && appointment.dateChangeMessage ? (
                 <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-3 py-2.5">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
@@ -106,12 +134,23 @@ function PublicAppointmentHistoryContent({
                   />
                   {statusLabels[appointment.status]}
                 </span>
-                {appointment.allowsExecutiveAssignment &&
-                appointment.assignedExecutive ? (
-                  <span className="inline-flex items-center rounded-full border border-[#0b5cab]/25 bg-[#d7e7f8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0b5cab]">
-                    Derivado
-                  </span>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  {appointment.createdByType === "ejecutivo" ? (
+                    <span className="inline-flex items-center rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
+                      E
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-800">
+                      C
+                    </span>
+                  )}
+                  {appointment.allowsExecutiveAssignment &&
+                  appointment.assignedExecutive ? (
+                    <span className="inline-flex items-center rounded-full border border-[#0b5cab]/25 bg-[#d7e7f8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0b5cab]">
+                      Derivado
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
               <div className="min-w-0 space-y-1">
@@ -127,15 +166,21 @@ function PublicAppointmentHistoryContent({
                 <p className="text-[11px] text-slate-500">
                   {formatCreatedAt(appointment.createdAt)}
                 </p>
-                  {appointment.scheduledSummary ? (
-                    <p className="text-xs font-medium text-[#0f2747]">
-                      Atención:{" "}
-                      <span className="text-[#0b5cab]">
-                        {appointment.scheduledSummary}
-                      </span>
-                    </p>
-                  ) : null}
-                  {appointment.assignedExecutive ? (
+                {appointment.createdByType === "ejecutivo" &&
+                appointment.createdByExecutiveName ? (
+                  <p className="text-xs font-medium text-violet-800">
+                    Creada por ejecutivo: {appointment.createdByExecutiveName}
+                  </p>
+                ) : null}
+                {appointment.scheduledSummary ? (
+                  <p className="text-xs font-medium text-[#0f2747]">
+                    Atención:{" "}
+                    <span className="text-[#0b5cab]">
+                      {appointment.scheduledSummary}
+                    </span>
+                  </p>
+                ) : null}
+                {appointment.assignedExecutive ? (
                   <p className="text-xs font-medium text-[#0f2747]">
                     Ejecutivo:{" "}
                     <span className="text-[#0b5cab]">
@@ -162,6 +207,7 @@ type PublicAppointmentHistoryProps = {
   isLoading: boolean;
   vehicleNumber: string;
   onDismissDateChange?: (appointmentId: string) => void;
+  onApproveDriverRequest?: (appointmentId: string) => void;
 };
 
 export default function PublicAppointmentHistory({
@@ -169,14 +215,41 @@ export default function PublicAppointmentHistory({
   isLoading,
   vehicleNumber,
   onDismissDateChange,
+  onApproveDriverRequest,
 }: PublicAppointmentHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const titleId = useId();
+  const knownApprovalIdsRef = useRef<Set<string>>(new Set());
+  const hasPendingApproval = appointments.some(
+    (appointment) => appointment.driverApprovalPending,
+  );
+  const hasPendingDateChange = appointments.some(
+    (appointment) => appointment.dateChangePending,
+  );
   const showBell =
     Boolean(vehicleNumber) &&
     !isLoading &&
-    (appointments.length > 0 ||
-      appointments.some((appointment) => appointment.dateChangePending));
+    (appointments.length > 0 || hasPendingApproval || hasPendingDateChange);
+
+  useEffect(() => {
+    if (!showBell) {
+      return;
+    }
+
+    const pendingApprovalIds = appointments
+      .filter((appointment) => appointment.driverApprovalPending)
+      .map((appointment) => appointment.id);
+    const hasNewApproval = pendingApprovalIds.some(
+      (appointmentId) => !knownApprovalIdsRef.current.has(appointmentId),
+    );
+
+    if (hasNewApproval) {
+      playNotificationSound();
+      setIsOpen(true);
+    }
+
+    knownApprovalIdsRef.current = new Set(pendingApprovalIds);
+  }, [appointments, showBell]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -214,7 +287,11 @@ export default function PublicAppointmentHistory({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="relative mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#9fb8d9] bg-white text-[#0b5cab] shadow-[0_1px_2px_rgba(15,39,71,0.05)] transition hover:border-[#0b5cab] hover:bg-[#f8fbff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b5cab]/25"
+        className={`relative mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl border bg-white text-[#0b5cab] shadow-[0_1px_2px_rgba(15,39,71,0.05)] transition hover:border-[#0b5cab] hover:bg-[#f8fbff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b5cab]/25 ${
+          hasPendingApproval
+            ? "animate-pulse border-violet-400"
+            : "border-[#9fb8d9]"
+        }`}
         aria-label={`Ver ${appointments.length} solicitud${appointments.length === 1 ? "" : "es"} recientes`}
       >
         <svg
@@ -231,10 +308,16 @@ export default function PublicAppointmentHistory({
             d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
           />
         </svg>
-        <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-[#0b5cab] text-[10px] font-bold text-white ring-2 ring-white">
-          {appointments.some((appointment) => appointment.dateChangePending)
-            ? "!"
-            : appointments.length}
+        <span
+          className={`absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white ${
+            hasPendingApproval
+              ? "bg-violet-700"
+              : hasPendingDateChange
+                ? "bg-amber-600"
+                : "bg-[#0b5cab]"
+          }`}
+        >
+          {hasPendingApproval || hasPendingDateChange ? "!" : appointments.length}
         </span>
       </button>
 
@@ -292,6 +375,7 @@ export default function PublicAppointmentHistory({
               appointments={appointments}
               vehicleNumber={vehicleNumber}
               onDismissDateChange={onDismissDateChange}
+              onApproveDriverRequest={onApproveDriverRequest}
             />
           </div>
         </div>

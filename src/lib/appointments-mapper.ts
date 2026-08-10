@@ -6,6 +6,7 @@ import {
   getPermissionReasonLabel,
 } from "@/lib/appointments";
 import { parseRestrictedWeekdays, parseWeekdayBusinessAdvance } from "@/lib/appointment-reason-weekdays";
+import { normalizeAppointmentCreatedByType } from "@/lib/appointment-origin";
 
 const validStatuses: AppointmentStatus[] = [
   "pendiente",
@@ -95,6 +96,10 @@ export function toAppointment(
     status: string;
     dateChangePending: boolean;
     dateChangeMessage: string;
+    createdByType: string;
+    createdByExecutiveName: string;
+    driverApprovalPending: boolean;
+    driverApprovalMessage: string;
     createdAt: Date;
   },
   reasonConfig?: AppointmentReasonConfig,
@@ -147,6 +152,10 @@ export function toAppointment(
     scheduledEndTime: value.scheduledEndTime,
     dateChangePending: value.dateChangePending,
     dateChangeMessage: value.dateChangeMessage,
+    createdByType: normalizeAppointmentCreatedByType(value.createdByType),
+    createdByExecutiveName: value.createdByExecutiveName,
+    driverApprovalPending: value.driverApprovalPending,
+    driverApprovalMessage: value.driverApprovalMessage,
     status,
     createdAt: value.createdAt.toISOString(),
   };
