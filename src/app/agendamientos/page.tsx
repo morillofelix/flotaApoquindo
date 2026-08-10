@@ -10,6 +10,7 @@ import {
   defaultAppointmentReasons,
   defaultExecutives,
   getAppointmentTicketLabel,
+  matchesAppointmentTicketSearch,
 } from "@/lib/appointments";
 import {
   loadAppointmentReasons,
@@ -87,6 +88,7 @@ function AppointmentsPageContent() {
     "todos",
   );
   const [vehicleFilter, setVehicleFilter] = useState("");
+  const [ticketFilter, setTicketFilter] = useState("");
   const [shiftFilter, setShiftFilter] = useState<"todos" | ShiftType>("todos");
   const [dateFilter, setDateFilter] = useState<DateFilter>("todos");
   const [customDateRange, setCustomDateRange] = useState({
@@ -198,6 +200,7 @@ function AppointmentsPageContent() {
 
   const filteredAppointments = useMemo(() => {
     const normalizedVehicleFilter = vehicleFilter.trim();
+    const normalizedTicketFilter = ticketFilter.trim();
 
     return appointments.filter((appointment) => {
       const matchesStatus =
@@ -205,6 +208,9 @@ function AppointmentsPageContent() {
       const matchesReason =
         reasonFilter === "todos" ||
         appointment.appointmentReason === reasonFilter;
+      const matchesTicket =
+        normalizedTicketFilter === "" ||
+        matchesAppointmentTicketSearch(appointment, normalizedTicketFilter);
       const matchesVehicle =
         normalizedVehicleFilter === "" ||
         matchesVehicleNumberSearch(
@@ -227,6 +233,7 @@ function AppointmentsPageContent() {
       return (
         matchesStatus &&
         matchesReason &&
+        matchesTicket &&
         matchesVehicle &&
         matchesDate &&
         matchesShift
@@ -239,6 +246,7 @@ function AppointmentsPageContent() {
     reasonFilter,
     shiftFilter,
     statusFilter,
+    ticketFilter,
     vehicleFilter,
     vehicleShiftsByNumber,
   ]);
@@ -864,7 +872,20 @@ function AppointmentsPageContent() {
             </p>
           </div>
 
-          <div className="mb-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] xl:items-end">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="flex flex-col gap-2">
+              <span className="text-xs font-semibold text-[#173b68]">
+                Filtrar por ticket
+              </span>
+              <input
+                type="search"
+                value={ticketFilter}
+                onChange={(event) => setTicketFilter(event.target.value)}
+                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-4 text-sm text-[#0f2747] outline-none transition placeholder:text-slate-400 focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                placeholder="Ej: APQ-000036 o 36"
+              />
+            </label>
+
             <label className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-[#173b68]">
                 Filtrar por estado
@@ -959,10 +980,6 @@ function AppointmentsPageContent() {
                 <option value="personalizado">Personalizado</option>
               </select>
             </label>
-
-            <div className="flex h-10 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-4 text-xs font-semibold text-slate-600">
-              Mostrando {filteredAppointments.length} de {appointments.length}
-            </div>
           </div>
 
           {dateFilter === "personalizado" ? (
@@ -1069,8 +1086,8 @@ function AppointmentsPageContent() {
             </div>
           ) : null}
 
-          <div className="mb-3 flex flex-col gap-2 border-b border-[#c5d8eb] pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="mb-3 flex flex-col gap-3 border-b border-[#c5d8eb] pb-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
                 onClick={() =>
@@ -1106,13 +1123,18 @@ function AppointmentsPageContent() {
                 Exportar todo
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#094a8d] active:translate-y-px sm:shrink-0"
-            >
-              Crear solicitud
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <div className="inline-flex h-9 items-center rounded-full border border-[#b7cce4] bg-[#f8fbff] px-4 text-xs font-semibold text-slate-600">
+                Mostrando {filteredAppointments.length} de {appointments.length}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex h-9 items-center justify-center rounded-full bg-[#0b5cab] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#094a8d] active:translate-y-px"
+              >
+                Crear solicitud
+              </button>
+            </div>
           </div>
 
           {filteredAppointments.length > 0 ? (

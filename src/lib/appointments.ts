@@ -307,6 +307,41 @@ export function getAppointmentTicketLabel(
     : appointment.id;
 }
 
+export function matchesAppointmentTicketSearch(
+  appointment: Pick<Appointment, "id" | "ticketNumber">,
+  query: string,
+) {
+  const normalizedQuery = query.trim().toUpperCase().replace(/\s/g, "");
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const ticketLabel = getAppointmentTicketLabel(appointment).toUpperCase();
+  const queryDigits = normalizedQuery.replace(/\D/g, "");
+
+  if (ticketLabel.includes(normalizedQuery)) {
+    return true;
+  }
+
+  if (!queryDigits) {
+    return false;
+  }
+
+  if (appointment.ticketNumber > 0) {
+    const ticketDigits = appointment.ticketNumber.toString();
+    const paddedTicketDigits = appointment.ticketNumber.toString().padStart(6, "0");
+
+    return (
+      ticketDigits.includes(queryDigits) ||
+      paddedTicketDigits.includes(queryDigits) ||
+      ticketLabel.replace(/\D/g, "").includes(queryDigits)
+    );
+  }
+
+  return appointment.id.toUpperCase().includes(normalizedQuery);
+}
+
 export function appointmentReasonAllowsExecutive(
   value: string,
   reasons = defaultAppointmentReasons,
