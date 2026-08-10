@@ -22,6 +22,7 @@ export type PublicAppointmentSummary = {
   dateChangePending: boolean;
   dateChangeMessage: string;
   driverApprovalPending: boolean;
+  driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   createdByType: string;
   createdByExecutiveName: string;
@@ -94,6 +95,7 @@ export async function GET(request: NextRequest) {
         dateChangePending: true,
         dateChangeMessage: true,
         driverApprovalPending: true,
+        driverApprovalRejected: true,
         driverApprovalMessage: true,
         createdByType: true,
         createdByExecutiveName: true,
@@ -156,6 +158,7 @@ export async function GET(request: NextRequest) {
           dateChangePending: appointment.dateChangePending,
           dateChangeMessage: appointment.dateChangeMessage,
           driverApprovalPending: appointment.driverApprovalPending,
+          driverApprovalRejected: appointment.driverApprovalRejected,
           driverApprovalMessage: appointment.driverApprovalMessage,
           createdByType: normalizeAppointmentCreatedByType(
             appointment.createdByType,

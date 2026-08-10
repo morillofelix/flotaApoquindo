@@ -43,6 +43,7 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import ExecutiveAppointmentCreateModal from "@/components/agendamientos/ExecutiveAppointmentCreateModal";
+import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -1162,17 +1163,28 @@ function AppointmentsPageContent() {
                             );
 
                             return (
-                              <span
-                                title={
-                                  appointment.createdByType === "ejecutivo" &&
-                                  appointment.createdByExecutiveName
-                                    ? `${originBadge.title}: ${appointment.createdByExecutiveName}`
-                                    : originBadge.title
-                                }
-                                className={`inline-flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${originBadge.className}`}
-                              >
-                                {originBadge.label}
-                              </span>
+                              <div className="inline-flex items-center gap-1">
+                                <span
+                                  title={
+                                    appointment.createdByType === "ejecutivo" &&
+                                    appointment.createdByExecutiveName
+                                      ? `${originBadge.title}: ${appointment.createdByExecutiveName}`
+                                      : originBadge.title
+                                  }
+                                  className={`inline-flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${originBadge.className}`}
+                                >
+                                  {originBadge.label}
+                                </span>
+                                <DriverApprovalAckBadge
+                                  createdByType={appointment.createdByType}
+                                  driverApprovalPending={
+                                    appointment.driverApprovalPending
+                                  }
+                                  driverApprovalRejected={
+                                    appointment.driverApprovalRejected
+                                  }
+                                />
+                              </div>
                             );
                           })()}
                         </td>

@@ -38,6 +38,7 @@ type PatchBody = {
   permitEndTime?: unknown;
   acknowledgeDateChange?: unknown;
   acknowledgeDriverApproval?: unknown;
+  rejectDriverApproval?: unknown;
 };
 
 const validStatuses: AppointmentStatus[] = [
@@ -300,6 +301,77 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         where: { id },
         data: {
           driverApprovalPending: false,
+          driverApprovalRejected: false,
+          driverApprovalMessage: "",
+        },
+      });
+      const reasonRecord = await prisma.appointmentReason.findUnique({
+        where: { value: updatedAppointment.appointmentReason },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        appointment: toAppointment(
+          updatedAppointment,
+          toReasonConfig(reasonRecord) ?? undefined,
+        ),
+      });
+    } catch {
+      return NextResponse.json(
+        { message: "No se pudo actualizar la solicitud." },
+        { status: 500 },
+      );
+    }
+  }
+
+  if (body.rejectDriverApproval === true) {
+    const driverUnauthorized = requireDriverSession(request);
+
+    if (driverUnauthorized) {
+      return driverUnauthorized;
+    }
+
+    const session = readDriverSession(request);
+
+    if (!session) {
+      return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+    }
+
+    try {
+      const existingAppointment = await prisma.appointment.findUnique({
+        where: { id },
+      });
+
+      if (!existingAppointment) {
+        return NextResponse.json(
+          { message: "Solicitud no encontrada." },
+          { status: 404 },
+        );
+      }
+
+      if (
+        normalizeVehicleNumber(existingAppointment.vehicleNumber) !==
+          session.vehicleNumber ||
+        normalizeEmail(existingAppointment.email) !== normalizeEmail(session.email)
+      ) {
+        return NextResponse.json(
+          { message: "No autorizado para esta solicitud." },
+          { status: 403 },
+        );
+      }
+
+      if (!existingAppointment.driverApprovalPending) {
+        return NextResponse.json(
+          { message: "Esta solicitud no requiere respuesta." },
+          { status: 400 },
+        );
+      }
+
+      const updatedAppointment = await prisma.appointment.update({
+        where: { id },
+        data: {
+          driverApprovalPending: false,
+          driverApprovalRejected: true,
           driverApprovalMessage: "",
         },
       });

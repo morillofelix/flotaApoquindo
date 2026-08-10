@@ -162,6 +162,7 @@ type AppointmentSubmission = Omit<
   | "createdByType"
   | "createdByExecutiveName"
   | "driverApprovalPending"
+  | "driverApprovalRejected"
   | "driverApprovalMessage"
   | "createdAt"
   | "status"
@@ -582,6 +583,7 @@ function AppointmentRequestForm({
             ? {
                 ...appointment,
                 driverApprovalPending: false,
+                driverApprovalRejected: false,
                 driverApprovalMessage: "",
               }
             : appointment,
@@ -589,6 +591,38 @@ function AppointmentRequestForm({
       );
     } catch {
       // ignore approval errors in the conductor view
+    }
+  }
+
+  async function rejectDriverRequest(appointmentId: string) {
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        ...sessionFetchInit,
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rejectDriverApproval: true }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setRecentAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment.id === appointmentId
+            ? {
+                ...appointment,
+                driverApprovalPending: false,
+                driverApprovalRejected: true,
+                driverApprovalMessage: "",
+              }
+            : appointment,
+        ),
+      );
+    } catch {
+      // ignore rejection errors in the conductor view
     }
   }
 
@@ -923,6 +957,9 @@ function AppointmentRequestForm({
                 }
                 onApproveDriverRequest={(appointmentId) =>
                   void approveDriverRequest(appointmentId)
+                }
+                onRejectDriverRequest={(appointmentId) =>
+                  void rejectDriverRequest(appointmentId)
                 }
               />
             </div>

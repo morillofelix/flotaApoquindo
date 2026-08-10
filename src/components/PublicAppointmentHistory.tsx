@@ -20,6 +20,7 @@ export type PublicAppointmentSummary = {
   dateChangePending: boolean;
   dateChangeMessage: string;
   driverApprovalPending: boolean;
+  driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   createdByType: AppointmentCreatedByType;
   createdByExecutiveName: string;
@@ -60,6 +61,7 @@ type PublicAppointmentHistoryContentProps = {
   vehicleNumber: string;
   onDismissDateChange?: (appointmentId: string) => void;
   onApproveDriverRequest?: (appointmentId: string) => void;
+  onRejectDriverRequest?: (appointmentId: string) => void;
 };
 
 function PublicAppointmentHistoryContent({
@@ -67,6 +69,7 @@ function PublicAppointmentHistoryContent({
   vehicleNumber,
   onDismissDateChange,
   onApproveDriverRequest,
+  onRejectDriverRequest,
 }: PublicAppointmentHistoryContentProps) {
   return (
     <>
@@ -93,14 +96,27 @@ function PublicAppointmentHistoryContent({
                   <p className="mt-1 text-xs font-semibold leading-5 text-violet-950">
                     {appointment.driverApprovalMessage}
                   </p>
-                  {onApproveDriverRequest ? (
-                    <button
-                      type="button"
-                      onClick={() => onApproveDriverRequest(appointment.id)}
-                      className="mt-3 inline-flex h-8 items-center justify-center rounded-xl bg-violet-700 px-3 text-[11px] font-semibold text-white transition hover:bg-violet-800"
-                    >
-                      Aprobar solicitud
-                    </button>
+                  {onApproveDriverRequest || onRejectDriverRequest ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {onApproveDriverRequest ? (
+                        <button
+                          type="button"
+                          onClick={() => onApproveDriverRequest(appointment.id)}
+                          className="inline-flex h-8 items-center justify-center rounded-xl bg-violet-700 px-3 text-[11px] font-semibold text-white transition hover:bg-violet-800"
+                        >
+                          Aprobar solicitud
+                        </button>
+                      ) : null}
+                      {onRejectDriverRequest ? (
+                        <button
+                          type="button"
+                          onClick={() => onRejectDriverRequest(appointment.id)}
+                          className="inline-flex h-8 items-center justify-center rounded-xl border border-red-300 bg-white px-3 text-[11px] font-semibold text-red-700 transition hover:bg-red-50"
+                        >
+                          Rechazar
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -208,6 +224,7 @@ type PublicAppointmentHistoryProps = {
   vehicleNumber: string;
   onDismissDateChange?: (appointmentId: string) => void;
   onApproveDriverRequest?: (appointmentId: string) => void;
+  onRejectDriverRequest?: (appointmentId: string) => void;
 };
 
 export default function PublicAppointmentHistory({
@@ -216,6 +233,7 @@ export default function PublicAppointmentHistory({
   vehicleNumber,
   onDismissDateChange,
   onApproveDriverRequest,
+  onRejectDriverRequest,
 }: PublicAppointmentHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const titleId = useId();
@@ -376,6 +394,7 @@ export default function PublicAppointmentHistory({
               vehicleNumber={vehicleNumber}
               onDismissDateChange={onDismissDateChange}
               onApproveDriverRequest={onApproveDriverRequest}
+              onRejectDriverRequest={onRejectDriverRequest}
             />
           </div>
         </div>

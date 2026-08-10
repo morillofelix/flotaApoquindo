@@ -99,6 +99,7 @@ export function toAppointment(
     createdByType: string;
     createdByExecutiveName: string;
     driverApprovalPending: boolean;
+    driverApprovalRejected: boolean;
     driverApprovalMessage: string;
     createdAt: Date;
   },
@@ -155,6 +156,7 @@ export function toAppointment(
     createdByType: normalizeAppointmentCreatedByType(value.createdByType),
     createdByExecutiveName: value.createdByExecutiveName,
     driverApprovalPending: value.driverApprovalPending,
+    driverApprovalRejected: value.driverApprovalRejected ?? false,
     driverApprovalMessage: value.driverApprovalMessage,
     status,
     createdAt: value.createdAt.toISOString(),

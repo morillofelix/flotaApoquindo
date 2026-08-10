@@ -34,6 +34,7 @@ model Appointment {
   createdByType              String   @default("conductor")
   createdByExecutiveName     String   @default("")
   driverApprovalPending      Boolean  @default(false)
+  driverApprovalRejected     Boolean  @default(false)
   driverApprovalMessage      String   @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

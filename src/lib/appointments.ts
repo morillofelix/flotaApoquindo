@@ -251,6 +251,7 @@ export type Appointment = {
   createdByType: AppointmentCreatedByType;
   createdByExecutiveName: string;
   driverApprovalPending: boolean;
+  driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   createdAt: string;
   status: AppointmentStatus;

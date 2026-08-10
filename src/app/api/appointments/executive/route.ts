@@ -413,6 +413,7 @@ export async function POST(request: NextRequest) {
         createdByType: "ejecutivo",
         createdByExecutiveName: executiveName,
         driverApprovalPending: true,
+        driverApprovalRejected: false,
         driverApprovalMessage: "",
       },
     });
