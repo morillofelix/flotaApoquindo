@@ -1226,7 +1226,7 @@ export default function ConductoresPage() {
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
-                <div className="grid grid-cols-[auto_0.55fr_1fr_0.9fr_0.8fr_0.55fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+                <div className="grid grid-cols-[auto_0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
                   <span className="sr-only">Seleccionar</span>
                   <span>Móvil</span>
                   <span>Nombre</span>
