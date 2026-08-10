@@ -80,10 +80,6 @@ function resolveAppointmentDate(
   return today;
 }
 
-function normalizeVehicleNumber(value: string) {
-  return value.trim().padStart(3, "0");
-}
-
 function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
 }
