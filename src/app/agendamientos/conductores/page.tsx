@@ -45,6 +45,9 @@ type DriverOwnerForm = DriverOwnerConfig & {
 const statusSelectBaseClassName =
   "h-10 w-full min-w-0 appearance-none rounded-2xl border px-3 pr-9 text-sm shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:ring-2";
 
+const driverOwnerListGridClassName =
+  "grid grid-cols-[2.5rem_4rem_minmax(10rem,1fr)_5.5rem_5.5rem_4.5rem] gap-2 px-3";
+
 type BulkUploadPhase =
   | "idle"
   | "ready"
@@ -1226,15 +1229,18 @@ export default function ConductoresPage() {
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
-                <div className="grid grid-cols-[auto_0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
-                  <span className="sr-only">Seleccionar</span>
-                  <span>Móvil</span>
-                  <span>Nombre</span>
-                  <span>Tipo</span>
-                  <span>Turnos</span>
-                  <span>Estado</span>
-                </div>
-                <div className="max-h-[50dvh] overflow-auto divide-y divide-[#c5d8eb]">
+                <div className="max-h-[50dvh] overflow-auto">
+                  <div
+                    className={`sticky top-0 z-10 ${driverOwnerListGridClassName} min-w-[40rem] bg-[#d7e7f8] py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]`}
+                  >
+                    <span aria-hidden className="block h-4 w-4" />
+                    <span>Móvil</span>
+                    <span>Nombre</span>
+                    <span>Tipo</span>
+                    <span>Turnos</span>
+                    <span>Estado</span>
+                  </div>
+                  <div className="divide-y divide-[#c5d8eb]">
                   {filteredDriverOwners.map((driverOwner) => (
                     <div
                       key={driverOwner.id ?? driverOwner.vehicleNumber}
@@ -1250,7 +1256,7 @@ export default function ConductoresPage() {
                       }}
                       className={uiListRowClass(
                         isSelectedDriverOwner(driverOwner),
-                        "grid w-full cursor-pointer grid-cols-[auto_0.55fr_1fr_0.9fr_0.8fr_0.55fr] gap-2 px-3 py-2 text-left text-xs",
+                        `${driverOwnerListGridClassName} min-w-[40rem] w-full cursor-pointer py-2 text-left text-xs`,
                       )}
                     >
                       <label
@@ -1280,7 +1286,7 @@ export default function ConductoresPage() {
                       <strong className="text-[#0f2747]">
                         {displayVehicleNumber(driverOwner.vehicleNumber)}
                       </strong>
-                      <span className="text-[#0f2747]">
+                      <span className="min-w-0 truncate text-[#0f2747]">
                         {driverOwner.fullName}
                       </span>
                       <span className="text-slate-600">
@@ -1303,6 +1309,7 @@ export default function ConductoresPage() {
                       </span>
                     </div>
                   ))}
+                  </div>
                 </div>
               </div>
             </div>
