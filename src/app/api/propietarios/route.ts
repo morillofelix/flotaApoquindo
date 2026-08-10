@@ -79,6 +79,7 @@ type PropietarioBody = {
   desvinculacionDays?: unknown;
   bankGuaranteePdfData?: unknown;
   bankGuaranteePdfFileName?: unknown;
+  isProvisionalBankData?: unknown;
 };
 
 function asString(value: unknown) {
@@ -142,6 +143,7 @@ function parsePropietarioBody(body: PropietarioBody) {
     bankGuaranteePdfFileName: normalizePropietarioBankGuaranteeFileName(
       body.bankGuaranteePdfFileName,
     ),
+    isProvisionalBankData: body.isProvisionalBankData === true,
     importKey: "",
   };
 }

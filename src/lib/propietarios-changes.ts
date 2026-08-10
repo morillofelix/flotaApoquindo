@@ -18,6 +18,7 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   bankAccount: "Nro. Cta. Banco",
   status: "Estado",
   bankGuaranteePdfFileName: "Certificado bancario (PDF)",
+  isProvisionalBankData: "Datos bancarios provisorios",
   inactiveReason: "Motivo de inactivación",
   desvinculacionReason: "Motivo de desvinculación",
   desvinculacionDays: "Días de desvinculación",
@@ -110,6 +111,10 @@ function normalizeComparableValue(value: unknown, field?: string) {
     return normalized.replace(/\s+/g, "").toUpperCase();
   }
 
+  if (field === "isProvisionalBankData") {
+    return value === true ? "true" : "false";
+  }
+
   return normalized;
 }
 
@@ -138,6 +143,10 @@ function displayComparableValue(
 
   if (field === "desvinculadoUntil" && normalized) {
     return formatDateLabel(normalized);
+  }
+
+  if (field === "isProvisionalBankData") {
+    return value === true ? "Sí" : "No";
   }
 
   return normalized;

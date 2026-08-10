@@ -137,6 +137,7 @@ const emptyPropietarioForm: PropietarioForm = {
   bankGuaranteePdfFileName: "",
   hasBankGuaranteePdf: false,
   bankGuaranteePdfData: "",
+  isProvisionalBankData: false,
 };
 
 function getPropietarioRecordStatus(
@@ -210,6 +211,7 @@ export default function PropietariosPage() {
     useState(false);
   const [highlightBankGuaranteePdf, setHighlightBankGuaranteePdf] = useState(false);
   const [isBankGuaranteePdfLoading, setIsBankGuaranteePdfLoading] = useState(false);
+  const [isListPanelCollapsed, setIsListPanelCollapsed] = useState(false);
   const inactiveReasonRef = useRef<HTMLDivElement>(null);
   const desvinculacionReasonRef = useRef<HTMLDivElement>(null);
   const bankGuaranteePdfRef = useRef<HTMLDivElement>(null);
@@ -377,6 +379,7 @@ export default function PropietariosPage() {
     setHighlightInactiveReason(recordStatus === "inactivo");
     setHighlightDesvinculacionReason(recordStatus === "desvinculado");
     setHighlightBankGuaranteePdf(false);
+    setIsListPanelCollapsed(recordStatus === "desvinculado");
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -388,6 +391,7 @@ export default function PropietariosPage() {
     setHighlightInactiveReason(false);
     setHighlightDesvinculacionReason(false);
     setHighlightBankGuaranteePdf(false);
+    setIsListPanelCollapsed(false);
     setPropietarioMessage("");
     setPropietarioError("");
   }
@@ -1123,6 +1127,7 @@ export default function PropietariosPage() {
     }));
     setHighlightInactiveReason(false);
     setHighlightDesvinculacionReason(true);
+    setIsListPanelCollapsed(true);
 
     requestAnimationFrame(() => {
       desvinculacionReasonRef.current?.scrollIntoView({
@@ -1178,8 +1183,26 @@ export default function PropietariosPage() {
         />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
-          <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+          <div
+            className={`grid gap-4 p-4 ${
+              isListPanelCollapsed
+                ? "grid-cols-1"
+                : "xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]"
+            }`}
+          >
+            {!isListPanelCollapsed ? (
+            <div className="min-w-0 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+              <div className="mb-3 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsListPanelCollapsed(true)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68] transition hover:bg-[#eef4fb]"
+                  aria-label="Ocultar lista de propietarios"
+                >
+                  <span aria-hidden>◀</span>
+                  Ocultar lista
+                </button>
+              </div>
               <div className="mb-3 rounded-2xl border border-[#b7cce4] bg-white p-3">
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1455,11 +1478,27 @@ export default function PropietariosPage() {
                 </div>
               </div>
             </div>
+            ) : null}
+
+            <div className="min-w-0">
+              {isListPanelCollapsed ? (
+                <div className="mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsListPanelCollapsed(false)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68] transition hover:bg-[#eef4fb]"
+                    aria-label="Mostrar lista de propietarios"
+                  >
+                    <span aria-hidden>▶</span>
+                    Mostrar lista
+                  </button>
+                </div>
+              ) : null}
 
             <form
               noValidate
               onSubmit={savePropietario}
-              className="max-h-[85vh] overflow-y-auto rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
+              className="min-w-0 max-h-[85vh] overflow-x-hidden overflow-y-auto rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
               <div className="mb-4 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-base font-semibold text-[#0f2747]">
@@ -1657,7 +1696,7 @@ export default function PropietariosPage() {
                 {formStatus === "desvinculado" ? (
                   <div
                     ref={desvinculacionReasonRef}
-                    className={`sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
+                    className={`min-w-0 sm:col-span-2 rounded-[20px] border-2 px-4 py-4 transition-all duration-300 ${
                       highlightDesvinculacionReason &&
                       (desvinculacionReasonIsInvalid || desvinculacionDaysIsInvalid)
                         ? "animate-pulse border-red-400 bg-gradient-to-br from-red-50 to-orange-50 shadow-lg shadow-red-100 ring-2 ring-red-200/70"
@@ -1763,10 +1802,21 @@ export default function PropietariosPage() {
                 ) : null}
               </div>
 
-              <div className="mt-5 mb-3 border-b border-[#c5d8eb] pb-3">
+              <div className="mt-5 mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#c5d8eb] pb-3">
                 <h4 className="font-heading text-sm font-semibold text-[#0f2747]">
                   Datos bancarios
                 </h4>
+                <label className="flex items-center gap-2 text-xs font-semibold text-[#173b68]">
+                  <input
+                    type="checkbox"
+                    checked={propietarioForm.isProvisionalBankData}
+                    onChange={(event) =>
+                      updateFormField("isProvisionalBankData", event.target.checked)
+                    }
+                    className="h-4 w-4 accent-[#0b5cab]"
+                  />
+                  Provisorio
+                </label>
               </div>
 
               <div
@@ -1970,6 +2020,7 @@ export default function PropietariosPage() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       </section>

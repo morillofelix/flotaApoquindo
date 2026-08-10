@@ -114,6 +114,7 @@ export type PropietarioConfig = {
   bankGuaranteePdfFileName: string;
   hasBankGuaranteePdf?: boolean;
   bankGuaranteePdfData?: string;
+  isProvisionalBankData: boolean;
 };
 
 export type ParsedPropietarioRow = Omit<PropietarioConfig, "id" | "importKey"> & {
@@ -498,6 +499,7 @@ function createEmptyPropietarioFields(): Omit<ParsedPropietarioRow, "rowNumber" 
     desvinculadoUntil: "",
     bankGuaranteePdfFileName: "",
     hasBankGuaranteePdf: false,
+    isProvisionalBankData: false,
   };
 }
 
@@ -826,6 +828,7 @@ export function toPropietario(value: {
   desvinculadoUntil?: Date | null;
   bankGuaranteePdfFileName?: string | null;
   bankGuaranteePdfData?: string | null;
+  isProvisionalBankData?: boolean | null;
 }): PropietarioConfig {
   const status = resolvePropietarioStatusFromRecord(value);
 
@@ -880,6 +883,7 @@ export function toPropietario(value: {
     desvinculadoUntil: formatDateValue(value.desvinculadoUntil),
     bankGuaranteePdfFileName: value.bankGuaranteePdfFileName ?? "",
     hasBankGuaranteePdf: Boolean(value.bankGuaranteePdfData?.trim()),
+    isProvisionalBankData: value.isProvisionalBankData === true,
   };
 }
 
@@ -961,6 +965,7 @@ export function toPropietarioCreateData(
     bankGuaranteePdfData: normalizePropietarioBankGuaranteePdfData(
       row.bankGuaranteePdfData ?? "",
     ),
+    isProvisionalBankData: row.isProvisionalBankData === true,
   };
 }
 

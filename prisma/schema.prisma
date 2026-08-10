@@ -169,6 +169,7 @@ model Propietario {
   desvinculadoUntil       DateTime? @db.Date
   bankGuaranteePdfFileName String   @default("")
   bankGuaranteePdfData     String   @default("") @db.Text
+  isProvisionalBankData    Boolean  @default(false)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
