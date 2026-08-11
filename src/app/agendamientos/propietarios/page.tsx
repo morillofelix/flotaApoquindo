@@ -1980,7 +1980,7 @@ export default function PropietariosPage() {
                   ) : null}
                 </label>
 
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="flex flex-col gap-1.5">
                   <span className={labelClassName}>Nro. Cta. Banco</span>
                   <input
                     type="text"
@@ -1992,7 +1992,7 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="flex flex-col gap-1.5">
                   <span className={labelClassName}>Tipo cuenta</span>
                   <select
                     value={propietarioForm.bankAccountType}
@@ -2004,7 +2004,7 @@ export default function PropietariosPage() {
                     }
                     className={inputClassName}
                   >
-                    <option value="">—</option>
+                    <option value="">Selecciona tipo de cuenta...</option>
                     {PROPIETARIO_BANK_ACCOUNT_TYPES.map((accountType) => (
                       <option key={accountType} value={accountType}>
                         {accountType}
