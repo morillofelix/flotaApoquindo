@@ -20,10 +20,8 @@ import {
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { resolveExecutiveCreatorName } from "@/lib/executive-creator";
 import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
-import {
-  sendExecutiveAssignmentEmailsServer,
-  shouldSendExecutiveAssignmentEmails,
-} from "@/lib/appointment-emails-server";
+import { queueExecutiveAssignmentEmails } from "@/lib/appointment-email-queue";
+import { shouldSendExecutiveAssignmentEmails } from "@/lib/appointment-emails-server";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { readAdminSession } from "@/lib/driver-auth";
 import { prisma } from "@/lib/prisma";
@@ -440,25 +438,18 @@ export async function POST(request: NextRequest) {
       reason ?? undefined,
     );
 
-    let emailWarning = "";
+    const shouldQueueEmails = shouldSendExecutiveAssignmentEmails(savedAppointment);
 
-    if (shouldSendExecutiveAssignmentEmails(savedAppointment)) {
-      try {
-        await sendExecutiveAssignmentEmailsServer(savedAppointment);
-      } catch (error) {
-        console.error("Executive create email failed:", error);
-        emailWarning =
-          error instanceof Error && error.message
-            ? `La solicitud se creó, pero no se pudieron enviar los correos: ${error.message}`
-            : "La solicitud se creó, pero no se pudieron enviar los correos de la cita.";
-      }
+    if (shouldQueueEmails) {
+      queueExecutiveAssignmentEmails(savedAppointment);
     }
 
     return NextResponse.json(
       {
         appointment: savedAppointment,
-        emailsSent: emailWarning === "",
-        emailWarning,
+        emailsQueued: shouldQueueEmails,
+        emailsSent: false,
+        emailWarning: "",
       },
       { status: 201 },
     );

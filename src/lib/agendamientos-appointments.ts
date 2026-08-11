@@ -392,8 +392,10 @@ export async function sendScheduledEmailToRequester(appointment: Appointment) {
 }
 
 export async function sendExecutiveAssignmentEmails(appointment: Appointment) {
-  await sendCalendarInvite(appointment);
-  await sendScheduledEmailToRequester(appointment);
+  await Promise.all([
+    sendCalendarInvite(appointment),
+    sendScheduledEmailToRequester(appointment),
+  ]);
 }
 
 export async function sendCalendarRescheduleCancel(appointment: Appointment) {

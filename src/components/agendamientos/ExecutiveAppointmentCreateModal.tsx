@@ -33,7 +33,7 @@ type ExecutiveAppointmentCreateModalProps = {
   onClose: () => void;
   onCreated: (
     appointment: Appointment,
-    meta: { emailsSent: boolean; emailWarning: string },
+    meta: { emailsSent: boolean; emailsQueued?: boolean; emailWarning: string },
   ) => void | Promise<void>;
   executives: ExecutiveConfig[];
   appointments: Appointment[];
@@ -361,6 +361,7 @@ export default function ExecutiveAppointmentCreateModal({
         message?: string;
         appointment?: Appointment;
         emailsSent?: boolean;
+        emailsQueued?: boolean;
         emailWarning?: string;
       };
 
@@ -374,6 +375,7 @@ export default function ExecutiveAppointmentCreateModal({
 
       await onCreated(result.appointment, {
         emailsSent: result.emailsSent === true,
+        emailsQueued: result.emailsQueued === true,
         emailWarning: result.emailWarning ?? "",
       });
       onClose();

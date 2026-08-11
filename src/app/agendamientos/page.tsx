@@ -347,11 +347,15 @@ function AppointmentsPageContent() {
             status: "sending",
             message: "Enviando correos de cancelación...",
           });
-          await sendCancellationToRequester(updatedAppointment);
+          const cancellationTasks = [sendCancellationToRequester(updatedAppointment)];
 
           if (updatedAppointment.assignedExecutive) {
-            await sendCalendarCancelToExecutive(updatedAppointment);
+            cancellationTasks.push(
+              sendCalendarCancelToExecutive(updatedAppointment),
+            );
           }
+
+          await Promise.all(cancellationTasks);
 
           setEmailNotice({
             status: "sent",
@@ -1584,6 +1588,15 @@ function AppointmentsPageContent() {
 
           if (meta.emailWarning) {
             setAppointmentsError(meta.emailWarning);
+            return;
+          }
+
+          if (meta.emailsQueued) {
+            setEmailNotice({
+              status: "sending",
+              message:
+                "Solicitud creada. Enviando correos de cita al ejecutivo y al conductor...",
+            });
             return;
           }
 

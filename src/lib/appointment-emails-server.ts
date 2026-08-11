@@ -17,6 +17,13 @@ import {
 
 const calendarTimezone = "America/Santiago";
 
+let executivesSeeded = false;
+
+export type ExecutiveEmailContext = {
+  executiveEmail: string;
+  executiveLunchBreak: ExecutiveLunchBreakConfig;
+};
+
 export type CalendarInvitePayload = Pick<
   Appointment,
   | "id"
@@ -257,11 +264,22 @@ function createCalendarInvite(
   ].join("\r\n");
 }
 
-async function loadExecutiveLunchBreak(assignedExecutive: string) {
+async function ensureExecutivesSeeded() {
+  if (executivesSeeded) {
+    return;
+  }
+
   await prisma.executive.createMany({
     data: defaultExecutives,
     skipDuplicates: true,
   });
+  executivesSeeded = true;
+}
+
+export async function loadExecutiveEmailContext(
+  assignedExecutive: string,
+): Promise<ExecutiveEmailContext> {
+  await ensureExecutivesSeeded();
 
   const executive = await prisma.executive.findUnique({
     where: { name: assignedExecutive },
@@ -277,20 +295,23 @@ async function loadExecutiveLunchBreak(assignedExecutive: string) {
       lunchBreakEnabled: executive.lunchBreakEnabled,
       lunchBreakStart: executive.lunchBreakStart,
       lunchBreakEnd: executive.lunchBreakEnd,
-    } satisfies ExecutiveLunchBreakConfig,
+    },
   };
 }
 
-export async function sendCalendarInviteEmail(appointment: CalendarInvitePayload) {
+export async function sendCalendarInviteEmail(
+  appointment: CalendarInvitePayload,
+  executiveContext?: ExecutiveEmailContext,
+) {
   const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {
     throw new Error("Servicio de correo no configurado.");
   }
 
-  const { executiveEmail, executiveLunchBreak } = await loadExecutiveLunchBreak(
-    appointment.assignedExecutive,
-  );
+  const { executiveEmail, executiveLunchBreak } =
+    executiveContext ??
+    (await loadExecutiveEmailContext(appointment.assignedExecutive));
   const transporter = createNotificaTransporter();
   const calendarInvite = createCalendarInvite(
     appointment,
@@ -348,6 +369,7 @@ function createEmailText(
 
 export async function sendScheduledConfirmationEmail(
   appointment: ScheduledEmailPayload,
+  executiveContext?: ExecutiveEmailContext,
 ) {
   const smtp = getNotificaSmtpConfig();
 
@@ -355,9 +377,9 @@ export async function sendScheduledConfirmationEmail(
     throw new Error("Servicio de correo no configurado.");
   }
 
-  const { executiveLunchBreak } = await loadExecutiveLunchBreak(
-    appointment.assignedExecutive,
-  );
+  const { executiveLunchBreak } =
+    executiveContext ??
+    (await loadExecutiveEmailContext(appointment.assignedExecutive));
   const schedule = resolveAppointmentSchedule({
     appointmentDate: appointment.appointmentDate,
     reasonAllowsExecutiveAssignment: appointment.reasonAllowsExecutiveAssignment,
@@ -420,6 +442,12 @@ export async function sendExecutiveAssignmentEmailsServer(
     throw new Error("Datos de cita incompletos para enviar la confirmación.");
   }
 
-  await sendCalendarInviteEmail(appointment);
-  await sendScheduledConfirmationEmail(appointment);
+  const executiveContext = await loadExecutiveEmailContext(
+    appointment.assignedExecutive,
+  );
+
+  await Promise.all([
+    sendCalendarInviteEmail(appointment, executiveContext),
+    sendScheduledConfirmationEmail(appointment, executiveContext),
+  ]);
 }
