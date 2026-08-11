@@ -667,7 +667,55 @@ export function parsePropietariosMatrix(matrix: string[][]) {
 }
 
 export function parsePropietariosUploadBuffer(fileName: string, buffer: ArrayBuffer) {
-  if (/\.xlsx?$/i.test(fileName) || isBinarySpreadsheetBytes(new Uint8Array(buffer))) {
+  const bytes = new Uint8Array(buffer);
+  const textPreview = new TextDecoder("utf-8").decode(
+    bytes.slice(0, Math.min(bytes.length, 8000)),
+  );
+  const normalizedPreview = textPreview.replace(/^\uFEFF/, "").trimStart().toLowerCase();
+  const looksLikeHtmlExcel =
+    normalizedPreview.startsWith("<html") ||
+    normalizedPreview.startsWith("<!doctype html") ||
+    normalizedPreview.includes("xmlns:x=\"urn:schemas-microsoft-com:office:excel\"");
+
+  // Excel "página web" (.xls/.htm) se guarda como HTML; no usar XLSX en esos casos.
+  if (looksLikeHtmlExcel || /\.(html?|htm)$/i.test(fileName)) {
+    const content = new TextDecoder("utf-8").decode(bytes);
+    const matrix = parseSpreadsheetContentToMatrix(content);
+
+    if (matrix?.length) {
+      const parsedMatrix = parsePropietariosMatrix(matrix);
+
+      if (parsedMatrix.rows.length > 0) {
+        return parsedMatrix;
+      }
+    }
+
+    if (
+      /fnBuildFrameset/i.test(content) ||
+      /Excel Workbook Frameset/i.test(content) ||
+      (/id=["']shLink["']/i.test(content) && /sheet00\d\.htm/i.test(content))
+    ) {
+      return {
+        rows: [] as ParsedPropietarioRow[],
+        errors: [
+          "Este archivo es un Excel guardado como página web. Los datos reales están en la carpeta propietarios.files. Sube sheet001.htm desde esa carpeta, o abre el archivo en Excel y guárdalo como Libro de Excel (.xlsx).",
+        ],
+      };
+    }
+
+    if (matrix?.length) {
+      return parsePropietariosMatrix(matrix);
+    }
+
+    return {
+      rows: [] as ParsedPropietarioRow[],
+      errors: [
+        `No se encontró la fila de encabezados de la plantilla (${PROPIETARIO_TEMPLATE_HEADERS.join(", ")}).`,
+      ],
+    };
+  }
+
+  if (/\.xlsx?$/i.test(fileName) || isBinarySpreadsheetBytes(bytes)) {
     const workbook = XLSX.read(buffer, {
       type: "array",
       cellDates: false,

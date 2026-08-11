@@ -1212,9 +1212,10 @@ export default function PropietariosPage() {
                         Cargador masivo
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Sube la plantilla CUENTAS BANCARIAS (12 columnas) en XLS, CSV o
-                        SLK. La carga reemplaza por completo la base de propietarios e
-                        importa todas las filas del archivo.
+                        Sube la plantilla CUENTAS BANCARIAS (12 columnas) en XLS, XLSX,
+                        CSV, SLK o HTM. Si Excel lo guardó como página web, elige
+                        sheet001.htm dentro de propietarios.files. La carga reemplaza
+                        por completo la base de propietarios.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1236,7 +1237,7 @@ export default function PropietariosPage() {
                           : "Seleccionar archivo"}
                         <input
                           type="file"
-                          accept=".csv,.txt,.slk,.xls,.xlsx,text/csv,application/vnd.ms-excel"
+                          accept=".csv,.txt,.slk,.xls,.xlsx,.htm,.html,text/csv,text/html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                           onChange={handleBulkFileSelect}
                           disabled={
                             bulkUpload.phase === "reading" ||
