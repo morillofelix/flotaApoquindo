@@ -1898,8 +1898,8 @@ export default function PropietariosPage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
                   <span className={labelClassName}>Cta Depósito</span>
                   <select
                     value={propietarioForm.paymentMethod}
@@ -1917,7 +1917,7 @@ export default function PropietariosPage() {
                   </select>
                 </label>
 
-                <label className="flex flex-col gap-1.5">
+                <label className="flex flex-col gap-1">
                   <span className={labelClassName}>RUT BANCO</span>
                   <input
                     type="text"
@@ -1931,7 +1931,7 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="flex flex-col gap-1 sm:col-span-2">
                   <span className={labelClassName}>NOMBRE CUENTA BANCARIA</span>
                   <input
                     type="text"
@@ -1944,7 +1944,7 @@ export default function PropietariosPage() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="flex flex-col gap-1 sm:col-span-2">
                   <span className={labelClassName}>Banco</span>
                   <select
                     value={selectedBankId}
@@ -1980,19 +1980,7 @@ export default function PropietariosPage() {
                   ) : null}
                 </label>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className={labelClassName}>Nro. Cta. Banco</span>
-                  <input
-                    type="text"
-                    value={propietarioForm.bankAccount}
-                    onChange={(event) =>
-                      updateFormField("bankAccount", event.target.value)
-                    }
-                    className={inputClassName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
+                <label className="flex flex-col gap-1">
                   <span className={labelClassName}>Tipo cuenta</span>
                   <select
                     value={propietarioForm.bankAccountType}
@@ -2004,7 +1992,7 @@ export default function PropietariosPage() {
                     }
                     className={inputClassName}
                   >
-                    <option value="">Selecciona tipo de cuenta...</option>
+                    <option value="">Selecciona...</option>
                     {PROPIETARIO_BANK_ACCOUNT_TYPES.map((accountType) => (
                       <option key={accountType} value={accountType}>
                         {accountType}
@@ -2019,6 +2007,18 @@ export default function PropietariosPage() {
                       </option>
                     ) : null}
                   </select>
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className={labelClassName}>Nro. Cta. Banco</span>
+                  <input
+                    type="text"
+                    value={propietarioForm.bankAccount}
+                    onChange={(event) =>
+                      updateFormField("bankAccount", event.target.value)
+                    }
+                    className={inputClassName}
+                  />
                 </label>
               </div>
 
