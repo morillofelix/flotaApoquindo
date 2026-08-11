@@ -101,10 +101,6 @@ export default function AppointmentRowActions({
 
   return (
     <div ref={containerRef} className="relative inline-flex flex-col items-center">
-      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#173b68]">
-        Acciones
-      </p>
-
       <button
         type="button"
         title="Ver acciones"
