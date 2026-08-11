@@ -38,7 +38,7 @@ import {
   getActivePropietarioBanks,
   type PropietarioBankConfig,
 } from "@/lib/propietarios-banks";
-import { PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, formatBankRutForDisplay, formatCompanyRutForDisplay, normalizeDepositAccountType } from "@/lib/propietarios-template";
+import { PROPIETARIO_BANK_ACCOUNT_TYPES, PROPIETARIO_DEPOSIT_ACCOUNT_TYPES, formatBankRutForDisplay, formatCompanyRutForDisplay, normalizeBankAccountType, normalizeDepositAccountType } from "@/lib/propietarios-template";
 import {
   isDigitOnlySearch,
   matchesTextSearch,
@@ -104,6 +104,7 @@ const emptyPropietarioForm: PropietarioForm = {
   province: "",
   bankName: "",
   bankAccount: "",
+  bankAccountType: "",
   accountHolder: "",
   titularRut: "",
   titularEmail: "",
@@ -1211,7 +1212,7 @@ export default function PropietariosPage() {
                         Cargador masivo
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Sube la plantilla CUENTAS BANCARIAS (11 columnas) en XLS, CSV o
+                        Sube la plantilla CUENTAS BANCARIAS (12 columnas) en XLS, CSV o
                         SLK. La carga reemplaza por completo la base de propietarios e
                         importa todas las filas del archivo.
                       </p>
@@ -1989,6 +1990,35 @@ export default function PropietariosPage() {
                     }
                     className={inputClassName}
                   />
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className={labelClassName}>Tipo cuenta</span>
+                  <select
+                    value={propietarioForm.bankAccountType}
+                    onChange={(event) =>
+                      updateFormField(
+                        "bankAccountType",
+                        normalizeBankAccountType(event.target.value),
+                      )
+                    }
+                    className={inputClassName}
+                  >
+                    <option value="">—</option>
+                    {PROPIETARIO_BANK_ACCOUNT_TYPES.map((accountType) => (
+                      <option key={accountType} value={accountType}>
+                        {accountType}
+                      </option>
+                    ))}
+                    {propietarioForm.bankAccountType &&
+                    !PROPIETARIO_BANK_ACCOUNT_TYPES.includes(
+                      propietarioForm.bankAccountType as (typeof PROPIETARIO_BANK_ACCOUNT_TYPES)[number],
+                    ) ? (
+                      <option value={propietarioForm.bankAccountType}>
+                        {propietarioForm.bankAccountType}
+                      </option>
+                    ) : null}
+                  </select>
                 </label>
               </div>
 

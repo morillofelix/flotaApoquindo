@@ -8,6 +8,7 @@ export const PROPIETARIO_TEMPLATE_HEADERS = [
   "CODIGO BANCO",
   "Nombre Banco",
   "Nro. Cta. Banco",
+  "Tipo cuenta",
   "Correo",
   "POST",
 ] as const;
@@ -16,6 +17,16 @@ export const PROPIETARIO_DEPOSIT_ACCOUNT_TYPES = ["Jurídica", "Personal"] as co
 
 export type PropietarioDepositAccountType =
   (typeof PROPIETARIO_DEPOSIT_ACCOUNT_TYPES)[number];
+
+/** Valores frecuentes de Tipo cuenta en la plantilla Aquivoy. */
+export const PROPIETARIO_BANK_ACCOUNT_TYPES = [
+  "Cta. Cte. Otro Banco",
+  "Cta.Cte. Scotiabank",
+  "Cta Vista Scotiabank",
+] as const;
+
+export type PropietarioBankAccountType =
+  (typeof PROPIETARIO_BANK_ACCOUNT_TYPES)[number];
 
 export function normalizeTemplateHeader(value: string) {
   return value
@@ -111,4 +122,34 @@ export function normalizeDepositAccountType(value: string) {
   }
 
   return value.trim();
+}
+
+export function normalizeBankAccountType(value: string) {
+  const trimmed = value.replace(/\s+/g, " ").trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const normalized = trimmed
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ");
+
+  for (const option of PROPIETARIO_BANK_ACCOUNT_TYPES) {
+    const optionNormalized = option
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\./g, "")
+      .replace(/\s+/g, " ");
+
+    if (normalized === optionNormalized) {
+      return option;
+    }
+  }
+
+  return trimmed;
 }

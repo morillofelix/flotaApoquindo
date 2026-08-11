@@ -142,6 +142,7 @@ model Propietario {
   province              String    @default("")
   bankName              String    @default("")
   bankAccount           String    @default("")
+  bankAccountType       String    @default("")
   accountHolder         String    @default("")
   titularRut            String    @default("")
   titularEmail          String    @default("")

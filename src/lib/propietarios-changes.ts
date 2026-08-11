@@ -16,6 +16,7 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   bankBic: "CODIGO BANCO",
   bankName: "Nombre Banco",
   bankAccount: "Nro. Cta. Banco",
+  bankAccountType: "Tipo cuenta",
   status: "Estado",
   bankGuaranteePdfFileName: "Certificado bancario (PDF)",
   isProvisionalBankData: "Datos bancarios provisorios",

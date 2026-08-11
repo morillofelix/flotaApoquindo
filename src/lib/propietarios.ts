@@ -14,6 +14,7 @@ import {
   formatCompanyRutForDisplay,
   formatMovilForTemplateExport,
   isPropietarioTemplateHeaderRow,
+  normalizeBankAccountType,
   normalizeDepositAccountType,
   normalizeTemplateHeader,
   PROPIETARIO_TEMPLATE_HEADERS,
@@ -81,6 +82,7 @@ export type PropietarioConfig = {
   province: string;
   bankName: string;
   bankAccount: string;
+  bankAccountType: string;
   accountHolder: string;
   titularRut: string;
   titularEmail: string;
@@ -145,6 +147,8 @@ const headerAliases: Record<string, string> = {
   nombre_banco: "bankName",
   nro_cta_banco: "bankAccount",
   nro_cta: "bankAccount",
+  tipo_cuenta: "bankAccountType",
+  tipo_de_cuenta: "bankAccountType",
   post: "post",
   codigo_post: "post",
   equipo_post: "post",
@@ -223,6 +227,8 @@ const propietarioTemplateHeaderAliases: Record<string, string> = {
   numero_de_movil: "vehicleNumber",
   n_movil: "vehicleNumber",
   nro_de_movil: "vehicleNumber",
+  tipo_cuenta: "bankAccountType",
+  tipo_de_cuenta: "bankAccountType",
   post: "post",
   pos: "post",
   codigo_post: "post",
@@ -467,6 +473,7 @@ function createEmptyPropietarioFields(): Omit<ParsedPropietarioRow, "rowNumber" 
     province: "",
     bankName: "",
     bankAccount: "",
+    bankAccountType: "",
     accountHolder: "",
     titularRut: "",
     titularEmail: "",
@@ -560,6 +567,7 @@ function buildParsedPropietarioRow(
     rut,
     bankName: (record.bankName ?? "").trim(),
     bankAccount: (record.bankAccount ?? "").trim(),
+    bankAccountType: normalizeBankAccountType(record.bankAccountType ?? ""),
     accountHolder: (record.accountHolder ?? "").trim(),
     titularRut,
     bankBic: (record.bankBic ?? "").trim(),
@@ -796,6 +804,7 @@ export function toPropietario(value: {
   province: string;
   bankName: string;
   bankAccount: string;
+  bankAccountType?: string | null;
   accountHolder: string;
   titularRut: string;
   titularEmail: string;
@@ -851,6 +860,7 @@ export function toPropietario(value: {
     province: value.province,
     bankName: value.bankName,
     bankAccount: value.bankAccount,
+    bankAccountType: value.bankAccountType ?? "",
     accountHolder: value.accountHolder,
     titularRut: value.titularRut,
     titularEmail: value.titularEmail,
@@ -926,6 +936,7 @@ export function toPropietarioCreateData(
     province: row.province,
     bankName: row.bankName,
     bankAccount: row.bankAccount,
+    bankAccountType: normalizeBankAccountType(row.bankAccountType ?? ""),
     accountHolder: row.accountHolder,
     titularRut: row.titularRut,
     titularEmail: row.titularEmail,
@@ -998,6 +1009,7 @@ export function downloadPropietariosExcel(
           <td>${escapeExcelHtml(row.bankBic)}</td>
           <td>${escapeExcelHtml(row.bankName)}</td>
           <td>${escapeExcelHtml(row.bankAccount)}</td>
+          <td>${escapeExcelHtml(normalizeBankAccountType(row.bankAccountType ?? ""))}</td>
           <td>${escapeExcelHtml(row.email)}</td>
           <td>${escapeExcelHtml(normalizePropietarioPost(row.post ?? ""))}</td>
         </tr>`,
