@@ -63,7 +63,7 @@ export function buildTemporaryPasswordEmailContent(
         Ingresa con tu correo y esta clave. Corresponde a los 4 primeros dígitos de tu RUT y será tu clave definitiva.
       </p>
       <p style="font-size:14px;color:#607086;margin-top:18px;">
-        Al agregar a inicio, el acceso directo se llamará <strong>Flota TNA</strong>.
+        Al agregar a inicio, el acceso directo se llamará <strong>Gestión Flota TNA</strong>.
         En iPhone usa Safari → Compartir → Agregar a inicio. En Android, toca instalar acceso directo cuando aparezca en pantalla.
       </p>
       <p style="font-size:14px;color:#607086;">También puedes ingresar desde: <a href="${appUrl}">${appUrl}</a></p>

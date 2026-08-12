@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-08-12-v4";
+const SW_VERSION = "2026-08-12-v5";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
