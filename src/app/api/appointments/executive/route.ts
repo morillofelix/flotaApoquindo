@@ -34,6 +34,7 @@ type AppointmentCreateBody = {
   vehicleNumber?: unknown;
   appointmentDate?: unknown;
   scheduledStartTime?: unknown;
+  scheduledEndTime?: unknown;
   assignedExecutive?: unknown;
   appointmentReason?: unknown;
   vacationStartDate?: unknown;
@@ -121,13 +122,16 @@ function validateExecutiveCreateBody(
   const requiresExecutiveAssignment = Boolean(
     reasonConfig?.allowsExecutiveAssignment,
   );
-  const requiresManualStartTime = Boolean(
-    reasonConfig?.allowsExecutiveAssignment &&
-      !reasonConfig.usesServiceStartTime,
+  const requiresScheduledTimeRange = Boolean(
+    reasonConfig?.allowsExecutiveAssignment,
   );
   const scheduledStartTime =
     typeof body.scheduledStartTime === "string"
       ? body.scheduledStartTime.trim()
+      : "";
+  const scheduledEndTime =
+    typeof body.scheduledEndTime === "string"
+      ? body.scheduledEndTime.trim()
       : "";
 
   if (
@@ -140,7 +144,10 @@ function validateExecutiveCreateBody(
     !driverOwner.phone ||
     (requiresExecutiveAssignment &&
       (!assignedExecutive || assignedExecutive.length > 120)) ||
-    (requiresManualStartTime && !isValidTime(scheduledStartTime))
+    (requiresScheduledTimeRange &&
+      (!isValidTime(scheduledStartTime) ||
+        !isValidTime(scheduledEndTime) ||
+        scheduledEndTime <= scheduledStartTime))
   ) {
     return null;
   }
@@ -195,7 +202,8 @@ function validateExecutiveCreateBody(
     permitEndTime: usesPermitDetails && permitType === "horas" ? permitEndTime : "",
     appointmentReason,
     assignedExecutive: requiresExecutiveAssignment ? assignedExecutive : "",
-    scheduledStartTime: requiresManualStartTime ? scheduledStartTime : "",
+    scheduledStartTime: requiresScheduledTimeRange ? scheduledStartTime : "",
+    scheduledEndTime: requiresScheduledTimeRange ? scheduledEndTime : "",
     email: driverOwner.email,
     phone: driverOwner.phone,
   };
@@ -326,9 +334,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: reason?.allowsExecutiveAssignment
-          ? reason.usesServiceStartTime
-            ? "Completa móvil, motivo, fecha y ejecutivo para derivar la solicitud."
-            : "Completa móvil, motivo, fecha, hora y ejecutivo para derivar la solicitud."
+          ? "Completa móvil, motivo, fecha, ejecutivo y un horario válido para derivar la solicitud."
           : "Datos de solicitud incompletos.",
       },
       { status: 400 },
@@ -344,6 +350,7 @@ export async function POST(request: NextRequest) {
       reason,
       undefined,
       appointment.scheduledStartTime || undefined,
+      appointment.scheduledEndTime || undefined,
     );
 
     if (!assignmentValidation.ok) {

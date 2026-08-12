@@ -5,7 +5,6 @@ import {
   type AppointmentReasonConfig,
   type ExecutiveConfig,
   appointmentReasonAllowsExecutive,
-  appointmentReasonAllowsManualStartTime,
   appointmentReasonUsesDateRange,
   appointmentReasonUsesPermitDetails,
   defaultAppointmentReasons,
@@ -16,6 +15,10 @@ import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
   buildExecutiveDayAvailability,
   getExistingSlotsForExecutiveDay,
+  suggestRangeFromFreeBlock,
+  validateAppointmentTimeRange,
+  type FreeInterval,
+  type SelectedTimeRange,
 } from "@/lib/executive-day-availability";
 import {
   type HolidayConfig,
@@ -24,7 +27,11 @@ import {
 } from "@/lib/holidays";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { displayVehicleNumber } from "@/lib/driver-owners";
-import { formatDisplayDate } from "@/lib/appointment-scheduling";
+import {
+  FALLBACK_APPOINTMENT_DURATION_MINUTES,
+  formatDisplayDate,
+  getReasonAppointmentDurationMinutes,
+} from "@/lib/appointment-scheduling";
 import ExecutiveAvailabilityPanel from "@/components/agendamientos/ExecutiveAvailabilityPanel";
 import { useEffect, useId, useMemo, useState } from "react";
 
@@ -51,6 +58,7 @@ type FormValues = {
   appointmentReason: string;
   appointmentDate: string;
   scheduledStartTime: string;
+  scheduledEndTime: string;
   assignedExecutive: string;
   vacationStartDate: string;
   vacationEndDate: string;
@@ -67,6 +75,7 @@ const initialValues: FormValues = {
   appointmentReason: "",
   appointmentDate: "",
   scheduledStartTime: "",
+  scheduledEndTime: "",
   assignedExecutive: "",
   vacationStartDate: "",
   vacationEndDate: "",
@@ -77,6 +86,23 @@ const initialValues: FormValues = {
   permitStartTime: "",
   permitEndTime: "",
 };
+
+function freeBlockKey(block: FreeInterval) {
+  return `${block.startTime}-${block.endTime}`;
+}
+
+function addMinutesToTime(startTime: string, minutes: number) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(startTime);
+  if (!match) {
+    return "";
+  }
+
+  const total = Number(match[1]) * 60 + Number(match[2]) + minutes;
+  const normalized = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
 
 export default function ExecutiveAppointmentCreateModal({
   isOpen,
@@ -93,6 +119,9 @@ export default function ExecutiveAppointmentCreateModal({
   );
   const [holidays, setHolidays] = useState<HolidayConfig[]>([]);
   const [values, setValues] = useState<FormValues>(initialValues);
+  const [selectedFreeBlockKey, setSelectedFreeBlockKey] = useState<string | null>(
+    null,
+  );
   const [selectedDriver, setSelectedDriver] = useState<VehicleLookupResult | null>(
     null,
   );
@@ -115,10 +144,6 @@ export default function ExecutiveAppointmentCreateModal({
     reasons,
   );
   const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
-    values.appointmentReason,
-    reasons,
-  );
-  const allowsManualStartTime = appointmentReasonAllowsManualStartTime(
     values.appointmentReason,
     reasons,
   );
@@ -231,12 +256,50 @@ export default function ExecutiveAppointmentCreateModal({
     values.assignedExecutive,
   ]);
 
+  const selectedRange: SelectedTimeRange = {
+    startTime: values.scheduledStartTime,
+    endTime: values.scheduledEndTime,
+  };
+
+  const timeRangeValidation = useMemo(() => {
+    if (!allowsExecutiveAssignment) {
+      return { ok: true as const };
+    }
+
+    if (!values.scheduledStartTime && !values.scheduledEndTime) {
+      return {
+        ok: false as const,
+        message:
+          "Selecciona un bloque disponible o ajusta manualmente la hora de atención.",
+      };
+    }
+
+    if (!executiveDayAvailability) {
+      return {
+        ok: false as const,
+        message: "Selecciona fecha y ejecutivo para validar el horario.",
+      };
+    }
+
+    return validateAppointmentTimeRange({
+      startTime: values.scheduledStartTime,
+      endTime: values.scheduledEndTime,
+      availability: executiveDayAvailability,
+    });
+  }, [
+    allowsExecutiveAssignment,
+    executiveDayAvailability,
+    values.scheduledEndTime,
+    values.scheduledStartTime,
+  ]);
+
   useEffect(() => {
     if (!isOpen) {
       return;
     }
 
     setValues(initialValues);
+    setSelectedFreeBlockKey(null);
     setSelectedDriver(null);
     setLookupError("");
     setSubmitError("");
@@ -349,67 +412,119 @@ export default function ExecutiveAppointmentCreateModal({
     return () => window.clearTimeout(timeoutId);
   }, [isOpen, values.vehicleNumber]);
 
-  function updateField<K extends keyof FormValues>(name: K, value: FormValues[K]) {
+  function clearScheduledTime() {
+    setSelectedFreeBlockKey(null);
     setValues((currentValues) => ({
       ...currentValues,
-      [name]: value,
-      ...(name === "appointmentReason" &&
-      !appointmentReasonUsesDateRange(value, reasons)
-        ? { vacationStartDate: "", vacationEndDate: "" }
-        : {}),
-      ...(name === "appointmentReason" &&
-      !appointmentReasonUsesPermitDetails(value, reasons)
-        ? {
-            permitType: "",
-            permitStartDate: "",
-            permitEndDate: "",
-            permitDate: "",
-            permitStartTime: "",
-            permitEndTime: "",
-          }
-        : {}),
-      ...(name === "appointmentReason" &&
-      !appointmentReasonAllowsExecutive(value, reasons)
-        ? {
-            appointmentDate: "",
-            scheduledStartTime: "",
-            assignedExecutive: "",
-          }
-        : {}),
-      ...(name === "appointmentReason" &&
-      appointmentReasonAllowsExecutive(value, reasons) &&
-      !appointmentReasonAllowsManualStartTime(value, reasons)
-        ? { scheduledStartTime: "" }
-        : {}),
-      ...(name === "permitType" && value === "dias"
-        ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
-        : {}),
-      ...(name === "permitType" && value === "horas"
-        ? { permitStartDate: "", permitEndDate: "" }
-        : {}),
+      scheduledStartTime: "",
+      scheduledEndTime: "",
+    }));
+  }
+
+  function applySelectedRange(range: SelectedTimeRange, freeKey?: string | null) {
+    setSelectedFreeBlockKey(freeKey ?? null);
+    setValues((currentValues) => ({
+      ...currentValues,
+      scheduledStartTime: range.startTime,
+      scheduledEndTime: range.endTime,
     }));
     setSubmitError("");
   }
 
-  const selectedTimeConflicts = Boolean(
-    allowsManualStartTime &&
-      values.scheduledStartTime &&
-      executiveDayAvailability &&
-      !executiveDayAvailability.suggestedStarts.some(
-        (slot) => slot.startTime === values.scheduledStartTime,
-      ),
-  );
+  function updateField<K extends keyof FormValues>(name: K, value: FormValues[K]) {
+    setValues((currentValues) => {
+      const nextValues: FormValues = {
+        ...currentValues,
+        [name]: value,
+      };
+
+      if (name === "appointmentReason") {
+        if (!appointmentReasonUsesDateRange(value, reasons)) {
+          nextValues.vacationStartDate = "";
+          nextValues.vacationEndDate = "";
+        }
+
+        if (!appointmentReasonUsesPermitDetails(value, reasons)) {
+          nextValues.permitType = "";
+          nextValues.permitStartDate = "";
+          nextValues.permitEndDate = "";
+          nextValues.permitDate = "";
+          nextValues.permitStartTime = "";
+          nextValues.permitEndTime = "";
+        }
+
+        if (!appointmentReasonAllowsExecutive(value, reasons)) {
+          nextValues.appointmentDate = "";
+          nextValues.assignedExecutive = "";
+          nextValues.scheduledStartTime = "";
+          nextValues.scheduledEndTime = "";
+        } else {
+          nextValues.scheduledStartTime = "";
+          nextValues.scheduledEndTime = "";
+        }
+      }
+
+      if (name === "appointmentDate" || name === "assignedExecutive") {
+        nextValues.scheduledStartTime = "";
+        nextValues.scheduledEndTime = "";
+      }
+
+      if (name === "permitType" && value === "dias") {
+        nextValues.permitDate = "";
+        nextValues.permitStartTime = "";
+        nextValues.permitEndTime = "";
+      }
+
+      if (name === "permitType" && value === "horas") {
+        nextValues.permitStartDate = "";
+        nextValues.permitEndDate = "";
+      }
+
+      if (name === "scheduledStartTime" && typeof value === "string") {
+        const duration = selectedReasonConfig
+          ? getReasonAppointmentDurationMinutes(selectedReasonConfig)
+          : FALLBACK_APPOINTMENT_DURATION_MINUTES;
+        const previousExpectedEnd = currentValues.scheduledStartTime
+          ? addMinutesToTime(currentValues.scheduledStartTime, duration)
+          : "";
+
+        if (
+          !currentValues.scheduledEndTime ||
+          currentValues.scheduledEndTime === previousExpectedEnd
+        ) {
+          nextValues.scheduledEndTime = value
+            ? addMinutesToTime(value, duration)
+            : "";
+        }
+      }
+
+      return nextValues;
+    });
+
+    if (
+      name === "appointmentReason" ||
+      name === "appointmentDate" ||
+      name === "assignedExecutive"
+    ) {
+      setSelectedFreeBlockKey(null);
+    } else if (name === "scheduledStartTime" || name === "scheduledEndTime") {
+      setSelectedFreeBlockKey(null);
+    }
+
+    setSubmitError("");
+  }
 
   const canSubmit =
     Boolean(selectedDriver) &&
     Boolean(values.appointmentReason) &&
     !reasonDateCheck.blocked &&
     !executiveLimitStatus.blocked &&
-    !selectedTimeConflicts &&
+    timeRangeValidation.ok &&
     (!allowsExecutiveAssignment ||
       (Boolean(values.appointmentDate) &&
         Boolean(values.assignedExecutive) &&
-        (!allowsManualStartTime || Boolean(values.scheduledStartTime)))) &&
+        Boolean(values.scheduledStartTime) &&
+        Boolean(values.scheduledEndTime))) &&
     !isSubmitting &&
     !isLoadingContext;
 
@@ -591,22 +706,6 @@ export default function ExecutiveAppointmentCreateModal({
                   />
                 </label>
 
-                {allowsManualStartTime ? (
-                  <label className="flex flex-col gap-2">
-                    <span className="text-xs font-semibold text-[#173b68]">
-                      Hora de atención
-                    </span>
-                    <input
-                      type="time"
-                      value={values.scheduledStartTime}
-                      onChange={(event) =>
-                        updateField("scheduledStartTime", event.target.value)
-                      }
-                      className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                    />
-                  </label>
-                ) : null}
-
                 <label className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Ejecutivo que atenderá
@@ -642,29 +741,84 @@ export default function ExecutiveAppointmentCreateModal({
                       executiveName={values.assignedExecutive}
                       appointmentDateLabel={formatDisplayDate(values.appointmentDate)}
                       availability={executiveDayAvailability}
-                      selectedStartTime={values.scheduledStartTime}
-                      allowSelect={allowsManualStartTime}
-                      onSelectStartTime={(startTime) =>
-                        updateField("scheduledStartTime", startTime)
+                      selectedRange={selectedRange}
+                      selectedFreeBlockKey={selectedFreeBlockKey}
+                      onSelectFreeBlock={(block, range) =>
+                        applySelectedRange(range, freeBlockKey(block))
                       }
+                      onSelectSuggestedRange={(range) => {
+                        const matchingFree = executiveDayAvailability.free.find(
+                          (block) =>
+                            suggestRangeFromFreeBlock(
+                              block,
+                              executiveDayAvailability.durationMinutes,
+                            ) &&
+                            range.startTime >= block.startTime &&
+                            range.endTime <= block.endTime,
+                        );
+                        applySelectedRange(
+                          range,
+                          matchingFree ? freeBlockKey(matchingFree) : null,
+                        );
+                      }}
                     />
-                    {allowsManualStartTime &&
-                    values.scheduledStartTime &&
-                    !executiveDayAvailability.suggestedStarts.some(
-                      (slot) => slot.startTime === values.scheduledStartTime,
-                    ) ? (
+
+                    <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                      <label className="flex flex-col gap-2">
+                        <span className="text-xs font-semibold text-[#173b68]">
+                          Hora de inicio
+                        </span>
+                        <input
+                          type="time"
+                          value={values.scheduledStartTime}
+                          onChange={(event) =>
+                            updateField("scheduledStartTime", event.target.value)
+                          }
+                          className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-xs font-semibold text-[#173b68]">
+                          Hora de término
+                        </span>
+                        <input
+                          type="time"
+                          value={values.scheduledEndTime}
+                          onChange={(event) =>
+                            updateField("scheduledEndTime", event.target.value)
+                          }
+                          className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                        />
+                      </label>
+                    </div>
+
+                    {!timeRangeValidation.ok &&
+                    (values.scheduledStartTime || values.scheduledEndTime) ? (
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950 sm:col-span-2">
-                        La hora {values.scheduledStartTime} choca con una cita o
-                        con la colación, o no deja espacio completo para la
-                        duración de la cita. Elige otra hora disponible.
+                        {timeRangeValidation.message}
                       </div>
+                    ) : null}
+
+                    {values.scheduledStartTime || values.scheduledEndTime ? (
+                      <button
+                        type="button"
+                        onClick={clearScheduledTime}
+                        className="justify-self-start text-xs font-semibold text-[#0b5cab] underline-offset-2 hover:underline sm:col-span-2"
+                      >
+                        Limpiar horario seleccionado
+                      </button>
                     ) : null}
                   </>
                 ) : values.assignedExecutive || values.appointmentDate ? (
                   <p className="text-xs text-slate-500 sm:col-span-2">
                     Selecciona fecha y ejecutivo para ver la disponibilidad del día.
                   </p>
-                ) : null}
+                ) : (
+                  <p className="text-xs text-slate-500 sm:col-span-2">
+                    Tras elegir motivo, fecha y ejecutivo se mostrará la
+                    disponibilidad del día.
+                  </p>
+                )}
               </div>
             ) : null}
 

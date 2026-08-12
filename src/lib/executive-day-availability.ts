@@ -4,14 +4,19 @@ import {
   type ExistingExecutiveSlot,
 } from "@/lib/executive-appointment-slot";
 import {
+  DEFAULT_APPOINTMENT_START_HOUR,
+  DEFAULT_APPOINTMENT_START_MINUTE,
+  FALLBACK_APPOINTMENT_DURATION_MINUTES,
   formatClockTime,
   getReasonAppointmentDurationMinutes,
   type ExecutiveLunchBreakConfig,
 } from "@/lib/appointment-scheduling";
 import { type Appointment, type AppointmentReasonConfig } from "@/lib/appointments";
 
-export const EXECUTIVE_DAY_START_MINUTES = 9 * 60;
-export const EXECUTIVE_DAY_END_MINUTES = 18 * 60;
+/** Configuración base del sistema cuando el motivo no fija ventana horaria. */
+export const DEFAULT_DAY_START_MINUTES =
+  DEFAULT_APPOINTMENT_START_HOUR * 60 + DEFAULT_APPOINTMENT_START_MINUTE;
+export const DEFAULT_DAY_END_MINUTES = 18 * 60;
 export const AVAILABILITY_SLOT_STEP_MINUTES = 15;
 
 export type BusyInterval = {
@@ -35,12 +40,25 @@ export type SuggestedStartSlot = {
   endTime: string;
 };
 
+export type SelectedTimeRange = {
+  startTime: string;
+  endTime: string;
+};
+
+export type TimeRangeValidation =
+  | { ok: true }
+  | { ok: false; message: string };
+
 export type ExecutiveDayAvailability = {
   busy: BusyInterval[];
   free: FreeInterval[];
   suggestedStarts: SuggestedStartSlot[];
   durationMinutes: number;
   hasLunchBreak: boolean;
+  dayStartTime: string;
+  dayEndTime: string;
+  dayStartMinutes: number;
+  dayEndMinutes: number;
 };
 
 function toMinutes(hour: number, minute: number) {
@@ -92,6 +110,31 @@ function mergeIntervals(intervals: BusyInterval[]) {
   return merged;
 }
 
+export function resolveAvailabilityDayWindow(
+  reason: Pick<
+    AppointmentReasonConfig,
+    "usesServiceStartTime" | "serviceStartTime"
+  >,
+) {
+  let dayStartMinutes = DEFAULT_DAY_START_MINUTES;
+
+  if (reason.usesServiceStartTime && reason.serviceStartTime) {
+    const configured = parseMinutes(reason.serviceStartTime);
+    if (configured !== null) {
+      dayStartMinutes = configured;
+    }
+  }
+
+  const dayEndMinutes = Math.max(dayStartMinutes + 60, DEFAULT_DAY_END_MINUTES);
+
+  return {
+    dayStartMinutes,
+    dayEndMinutes,
+    dayStartTime: minutesToTime(dayStartMinutes),
+    dayEndTime: minutesToTime(dayEndMinutes),
+  };
+}
+
 export function getExistingSlotsForExecutiveDay(
   appointments: Appointment[],
   executiveName: string,
@@ -116,23 +159,10 @@ export function getExistingSlotsForExecutiveDay(
     }));
 }
 
-export function buildExecutiveDayAvailability(input: {
+export function buildBusyIntervals(input: {
   existingSlots: Array<ExistingExecutiveSlot & { ticketLabel?: string }>;
   lunchBreak?: ExecutiveLunchBreakConfig | null;
-  reason: Pick<
-    AppointmentReasonConfig,
-    | "allowsExecutiveAssignment"
-    | "usesAppointmentDuration"
-    | "appointmentDurationMinutes"
-  >;
-  dayStartMinutes?: number;
-  dayEndMinutes?: number;
-  slotStepMinutes?: number;
-}): ExecutiveDayAvailability {
-  const durationMinutes = getReasonAppointmentDurationMinutes(input.reason);
-  const dayStart = input.dayStartMinutes ?? EXECUTIVE_DAY_START_MINUTES;
-  const dayEnd = input.dayEndMinutes ?? EXECUTIVE_DAY_END_MINUTES;
-  const step = input.slotStepMinutes ?? AVAILABILITY_SLOT_STEP_MINUTES;
+}) {
   const busyRaw: BusyInterval[] = [];
 
   for (const slot of input.existingSlots) {
@@ -159,11 +189,7 @@ export function buildExecutiveDayAvailability(input: {
     const lunchStart = parseMinutes(input.lunchBreak.lunchBreakStart);
     const lunchEnd = parseMinutes(input.lunchBreak.lunchBreakEnd);
 
-    if (
-      lunchStart !== null &&
-      lunchEnd !== null &&
-      lunchEnd > lunchStart
-    ) {
+    if (lunchStart !== null && lunchEnd !== null && lunchEnd > lunchStart) {
       hasLunchBreak = true;
       busyRaw.push({
         startMinutes: lunchStart,
@@ -176,7 +202,34 @@ export function buildExecutiveDayAvailability(input: {
     }
   }
 
-  const busy = mergeIntervals(busyRaw);
+  return {
+    busy: mergeIntervals(busyRaw),
+    hasLunchBreak,
+  };
+}
+
+export function buildExecutiveDayAvailability(input: {
+  existingSlots: Array<ExistingExecutiveSlot & { ticketLabel?: string }>;
+  lunchBreak?: ExecutiveLunchBreakConfig | null;
+  reason: Pick<
+    AppointmentReasonConfig,
+    | "allowsExecutiveAssignment"
+    | "usesAppointmentDuration"
+    | "appointmentDurationMinutes"
+    | "usesServiceStartTime"
+    | "serviceStartTime"
+  >;
+  dayStartMinutes?: number;
+  dayEndMinutes?: number;
+  slotStepMinutes?: number;
+}): ExecutiveDayAvailability {
+  const durationMinutes = getReasonAppointmentDurationMinutes(input.reason);
+  const window = resolveAvailabilityDayWindow(input.reason);
+  const dayStart = input.dayStartMinutes ?? window.dayStartMinutes;
+  const dayEnd = input.dayEndMinutes ?? window.dayEndMinutes;
+  const step = input.slotStepMinutes ?? AVAILABILITY_SLOT_STEP_MINUTES;
+  const { busy, hasLunchBreak } = buildBusyIntervals(input);
+
   const free: FreeInterval[] = [];
   let cursor = dayStart;
 
@@ -225,7 +278,6 @@ export function buildExecutiveDayAvailability(input: {
       continue;
     }
 
-    // Buffer against previous appointment end (same rule as slot engine)
     const tooCloseToPrevious = busy.some((block) => {
       if (block.kind !== "cita") {
         return false;
@@ -253,5 +305,98 @@ export function buildExecutiveDayAvailability(input: {
     suggestedStarts,
     durationMinutes,
     hasLunchBreak,
+    dayStartTime: minutesToTime(dayStart),
+    dayEndTime: minutesToTime(dayEnd),
+    dayStartMinutes: dayStart,
+    dayEndMinutes: dayEnd,
   };
+}
+
+export function suggestRangeFromFreeBlock(
+  free: FreeInterval,
+  durationMinutes: number,
+): SelectedTimeRange | null {
+  const usableDuration = Math.max(
+    durationMinutes || FALLBACK_APPOINTMENT_DURATION_MINUTES,
+    5,
+  );
+
+  if (free.endMinutes - free.startMinutes < usableDuration) {
+    return null;
+  }
+
+  return {
+    startTime: free.startTime,
+    endTime: minutesToTime(free.startMinutes + usableDuration),
+  };
+}
+
+export function validateAppointmentTimeRange(input: {
+  startTime: string;
+  endTime: string;
+  availability: ExecutiveDayAvailability;
+  enforceMinimumDuration?: boolean;
+}): TimeRangeValidation {
+  const start = parseMinutes(input.startTime);
+  const end = parseMinutes(input.endTime);
+
+  if (start === null || end === null) {
+    return {
+      ok: false,
+      message: "Ingresa una hora de inicio y término válidas.",
+    };
+  }
+
+  if (end <= start) {
+    return {
+      ok: false,
+      message: "La hora de inicio debe ser anterior a la hora de término.",
+    };
+  }
+
+  if (
+    start < input.availability.dayStartMinutes ||
+    end > input.availability.dayEndMinutes
+  ) {
+    return {
+      ok: false,
+      message: `El horario seleccionado está fuera del horario de atención (${input.availability.dayStartTime} – ${input.availability.dayEndTime}).`,
+    };
+  }
+
+  if (
+    input.enforceMinimumDuration !== false &&
+    end - start < input.availability.durationMinutes
+  ) {
+    return {
+      ok: false,
+      message: `El horario seleccionado no cumple con la configuración del motivo (${input.availability.durationMinutes} min mínimo).`,
+    };
+  }
+
+  const overlapsBusy = input.availability.busy.find(
+    (block) => start < block.endMinutes && end > block.startMinutes,
+  );
+
+  if (overlapsBusy) {
+    return {
+      ok: false,
+      message:
+        "El horario seleccionado se cruza con un bloque no disponible. Selecciona otro rango.",
+    };
+  }
+
+  const fitsInFree = input.availability.free.some(
+    (block) => start >= block.startMinutes && end <= block.endMinutes,
+  );
+
+  if (!fitsInFree) {
+    return {
+      ok: false,
+      message:
+        "El horario seleccionado no está disponible. Selecciona otro rango.",
+    };
+  }
+
+  return { ok: true };
 }
