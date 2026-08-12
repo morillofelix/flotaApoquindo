@@ -17,7 +17,6 @@ import {
 import Link from "next/link";
 import {
   clearInstallQueryParam,
-  shouldShowPwaInstallLanding,
 } from "@/lib/pwa-utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -130,6 +129,8 @@ function AdminShellInner({
   const router = useRouter();
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
+  const installRequested = searchParams.get("instalar") === "1";
+  const [isStandalone, setIsStandalone] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [sessionState, setSessionState] = useState<AdminSessionState | null>(
@@ -171,6 +172,10 @@ function AdminShellInner({
     refreshSession().finally(() => setAuthChecked(true));
   }, []);
 
+  useEffect(() => {
+    setIsStandalone(isStandaloneMode());
+  }, []);
+
   const currentNavItem = useMemo(
     () => findActiveAdminNavItem(pathname, vista),
     [pathname, vista],
@@ -196,11 +201,7 @@ function AdminShellInner({
     window.location.assign("/agendamientos");
   }
 
-  if (!authChecked) {
-    return null;
-  }
-
-  if (shouldShowPwaInstallLanding() && !skipInstallLanding) {
+  if (installRequested && !skipInstallLanding && !isStandalone) {
     return (
       <PwaInstallLanding
         variant="admin"
@@ -210,6 +211,10 @@ function AdminShellInner({
         }}
       />
     );
+  }
+
+  if (!authChecked) {
+    return null;
   }
 
   if (pendingPasswordChange) {
@@ -249,6 +254,7 @@ function AdminShellInner({
         title="Administración de citas"
         description="Ingresa usuario o correo y clave para revisar las solicitudes enviadas."
         showCredentialHint
+        showInstallPanel={installRequested && skipInstallLanding}
         onAuthenticated={async () => {
           const authenticated = await refreshSession();
 

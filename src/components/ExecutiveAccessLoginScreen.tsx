@@ -1,6 +1,7 @@
 "use client";
 
 import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
+import PwaInstallPanel from "@/components/PwaInstallPanel";
 import { PERMANENT_PASSWORD_REQUIREMENTS_HINT } from "@/lib/password-policy";
 import { UI_FIELD_FOCUS, UI_FIELD_SHADOW } from "@/lib/ui-borders";
 import Image from "next/image";
@@ -21,6 +22,7 @@ type ExecutiveAccessLoginScreenProps = {
   title: string;
   description: string;
   showCredentialHint?: boolean;
+  showInstallPanel?: boolean;
   userLabel?: string;
   userPlaceholder?: string;
   onAuthenticated: () => void;
@@ -36,6 +38,7 @@ export default function ExecutiveAccessLoginScreen({
   title,
   description,
   showCredentialHint = false,
+  showInstallPanel = false,
   userLabel = "Usuario o correo",
   userPlaceholder = "Usuario ejecutivo o correo",
   onAuthenticated,
@@ -192,6 +195,10 @@ export default function ExecutiveAccessLoginScreen({
 
         {mode === "login" ? (
         <form noValidate onSubmit={handleLogin} className="grid gap-5">
+          {showInstallPanel ? (
+            <PwaInstallPanel variant="admin" compact />
+          ) : null}
+
           <label className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-[#173b68]">{userLabel}</span>
             <input

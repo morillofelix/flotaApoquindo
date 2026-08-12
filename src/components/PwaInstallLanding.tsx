@@ -1,5 +1,6 @@
 "use client";
 
+import PwaInstallPanel from "@/components/PwaInstallPanel";
 import { isDesktopDevice } from "@/lib/pwa-utils";
 import { usePwaInstall } from "@/lib/usePwaInstall";
 import Image from "next/image";
@@ -23,19 +24,12 @@ export default function PwaInstallLanding({
   onContinueInBrowser,
   variant = "driver",
 }: PwaInstallLandingProps) {
-  const { canNativeInstall, isIOS, isAndroid, isInstalled, promptInstall } =
-    usePwaInstall();
+  const { isInstalled } = usePwaInstall();
   const [isDesktop, setIsDesktop] = useState(false);
-  const [installAttempted, setInstallAttempted] = useState(false);
 
   useEffect(() => {
     setIsDesktop(isDesktopDevice());
   }, []);
-
-  async function handleInstallClick() {
-    setInstallAttempted(true);
-    await promptInstall();
-  }
 
   const deviceLabel = getDeviceLabel(isDesktop);
   const isAdmin = variant === "admin";
@@ -60,30 +54,6 @@ export default function PwaInstallLanding({
     return isDesktop
       ? "Instala Gestión Flota TNA como aplicación en tu computador para solicitar citas desde el escritorio o el menú inicio."
       : "Antes de ingresar, crea el acceso directo Gestión Flota TNA en tu pantalla de inicio. Después podrás entrar con tu correo y la clave de acceso que recibiste.";
-  })();
-
-  const installHint = (() => {
-    if (canNativeInstall) {
-      return isDesktop
-        ? "Haz clic en el botón para instalar la aplicación en tu computador."
-        : "Toca el botón para instalar el icono en tu teléfono.";
-    }
-
-    if (isIOS) {
-      return isDesktop
-        ? "En Safari, usa Compartir y luego Agregar al Dock."
-        : "En Safari, usa Compartir y luego Agregar a inicio.";
-    }
-
-    if (isAndroid) {
-      return "En Chrome, abre el menú ⋮ y elige Instalar aplicación o Agregar a pantalla de inicio.";
-    }
-
-    if (isDesktop) {
-      return "En Chrome o Edge, abre el menú del navegador (⋮) y elige Instalar aplicación o Instalar Gestión Flota TNA.";
-    }
-
-    return "Sigue los pasos de tu navegador para agregar el acceso directo.";
   })();
 
   return (
@@ -115,69 +85,8 @@ export default function PwaInstallLanding({
         </div>
 
         {!isInstalled ? (
-          <div className="mb-6 rounded-2xl border-2 border-[#9fb8d9] bg-[#f8fbff] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#173b68]">
-              {isDesktop ? "Instalar aplicación" : "Acceso directo"}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{installHint}</p>
-
-            <div className="mt-4">
-              {canNativeInstall ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleInstallClick();
-                  }}
-                  className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-sm font-semibold text-white transition hover:bg-[#084a8c]"
-                >
-                  {isDesktop ? "Instalar en el computador" : "Instalar acceso directo"}
-                </button>
-              ) : isIOS ? (
-                <p className="text-sm leading-7 text-slate-600">
-                  1. Toca <strong>Compartir</strong> {isDesktop ? "en Safari" : "abajo en Safari"}
-                  <br />
-                  2. Elige{" "}
-                  <strong>{isDesktop ? "Agregar al Dock" : "Agregar a inicio"}</strong>
-                  <br />
-                  3. Confirma con <strong>{isDesktop ? "Agregar" : "Agregar"}</strong>
-                </p>
-              ) : isAndroid ? (
-                <p className="text-sm leading-7 text-slate-600">
-                  1. Toca el menú <strong>⋮</strong> arriba a la derecha en Chrome
-                  <br />
-                  2. Elige <strong>Instalar aplicación</strong> o{" "}
-                  <strong>Agregar a pantalla de inicio</strong>
-                  <br />
-                  3. Confirma la instalación
-                </p>
-              ) : (
-                <p className="text-sm leading-7 text-slate-600">
-                  {isDesktop ? (
-                    <>
-                      1. Busca el icono de instalación en la barra de direcciones
-                      <br />
-                      2. O abre el menú <strong>⋮</strong> y elige{" "}
-                      <strong>Instalar aplicación</strong>
-                      <br />
-                      3. Confirma la instalación
-                    </>
-                  ) : (
-                    <>
-                      Usa el menú del navegador y elige{" "}
-                      <strong>Instalar aplicación</strong> o{" "}
-                      <strong>Agregar a pantalla de inicio</strong>.
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-
-            {installAttempted && !canNativeInstall && !isInstalled ? (
-              <p className="mt-4 text-xs leading-5 text-slate-500">
-                Si no aparece el botón de instalación, recarga la página o usa el
-                menú del navegador como se indica arriba.
-              </p>
-            ) : null}
+          <div className="mb-6">
+            <PwaInstallPanel variant={variant} />
           </div>
         ) : (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">

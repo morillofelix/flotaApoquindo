@@ -17,6 +17,7 @@ export function usePwaInstall() {
     useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [isServiceWorkerReady, setIsServiceWorkerReady] = useState(false);
   const [isIOS] = useState(isIosDevice);
   const [isAndroid] = useState(isAndroidDevice);
   const [isMobile] = useState(isIosDevice() || isAndroidDevice());
@@ -25,6 +26,28 @@ export function usePwaInstall() {
     setIsInstalled(isStandaloneMode());
     setIsDismissed(window.localStorage.getItem(DISMISS_KEY) === "1");
 
+    if ("serviceWorker" in navigator) {
+      const markReady = () => {
+        setIsServiceWorkerReady(Boolean(navigator.serviceWorker.controller));
+      };
+
+      markReady();
+
+      void navigator.serviceWorker.ready.then(() => {
+        setIsServiceWorkerReady(true);
+      });
+
+      navigator.serviceWorker.addEventListener("controllerchange", markReady);
+      window.addEventListener("pwa-service-worker-ready", markReady);
+
+      return () => {
+        navigator.serviceWorker.removeEventListener("controllerchange", markReady);
+        window.removeEventListener("pwa-service-worker-ready", markReady);
+      };
+    }
+  }, []);
+
+  useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEvent);
@@ -78,6 +101,7 @@ export function usePwaInstall() {
     isIOS,
     isInstalled,
     isMobile,
+    isServiceWorkerReady,
     promptInstall,
     shouldSuggestInstall,
   };

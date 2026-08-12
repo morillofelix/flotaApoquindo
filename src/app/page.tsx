@@ -285,6 +285,11 @@ export default function HomePage() {
     let cancelled = false;
 
     async function bootstrap() {
+      if (shouldShowPwaInstallLanding()) {
+        setAuthView("pwa-install");
+        return;
+      }
+
       const restored = await restoreDriverSession();
 
       if (cancelled) {
@@ -304,9 +309,7 @@ export default function HomePage() {
 
       setDriverOwner(null);
       setPendingPasswordChange(null);
-      setAuthView(
-        shouldShowPwaInstallLanding() ? "pwa-install" : "login",
-      );
+      setAuthView("login");
     }
 
     void bootstrap();
