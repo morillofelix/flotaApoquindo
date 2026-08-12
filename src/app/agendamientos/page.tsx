@@ -41,6 +41,7 @@ import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalenda
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import ExecutiveAppointmentCreateModal from "@/components/agendamientos/ExecutiveAppointmentCreateModal";
 import ExecutiveAppointmentEditModal from "@/components/agendamientos/ExecutiveAppointmentEditModal";
+import ExecutiveAssignmentConfirmModal from "@/components/agendamientos/ExecutiveAssignmentConfirmModal";
 import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
 import AppointmentRowActions, {
   canResendAppointmentReminder,
@@ -50,6 +51,7 @@ import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyL
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
   getVehicleShiftLabel,
   getVehicleShifts,
@@ -93,6 +95,13 @@ function AppointmentsPageContent() {
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   const [appointmentsError, setAppointmentsError] = useState("");
   const [emailNotice, setEmailNotice] = useState<EmailNotice>(null);
+  const [firstAssignmentPrompt, setFirstAssignmentPrompt] = useState<{
+    appointmentId: string;
+    assignedExecutive: string;
+    willSendEmail: boolean;
+  } | null>(null);
+  const [isConfirmingFirstAssignment, setIsConfirmingFirstAssignment] =
+    useState(false);
   const [dailyLimitAlert, setDailyLimitAlert] = useState<{
     executiveName: string;
     appointmentDate: string;
@@ -125,6 +134,8 @@ function AppointmentsPageContent() {
     isLoadingAppointments ||
     isCreateModalOpen ||
     editingAppointment !== null ||
+    firstAssignmentPrompt !== null ||
+    isConfirmingFirstAssignment ||
     resendingAppointmentId !== "";
 
   const {
@@ -444,6 +455,191 @@ function AppointmentsPageContent() {
     }
 
     await updateStatus(appointment.id, nextStatus);
+  }
+
+  function getReasonForAppointment(appointment: Appointment) {
+    return reasons.find((reason) => reason.value === appointment.appointmentReason);
+  }
+
+  function requestFirstExecutiveAssignment(
+    id: string,
+    assignedExecutive: string,
+  ) {
+    const currentAppointment = appointments.find(
+      (appointment) => appointment.id === id,
+    );
+
+    if (!currentAppointment || currentAppointment.assignedExecutive) {
+      return;
+    }
+
+    if (!assignedExecutive) {
+      setFirstAssignmentPrompt(null);
+      return;
+    }
+
+    const executive = executiveOptions.find(
+      (option) => option.name === assignedExecutive,
+    );
+    const limitStatus = getExecutiveDailyLimitStatus(
+      executive,
+      appointments,
+      currentAppointment,
+      assignedExecutive,
+    );
+
+    if (limitStatus.blocked) {
+      setFirstAssignmentPrompt(null);
+      setDailyLimitAlert({
+        executiveName: limitStatus.executiveName,
+        appointmentDate: limitStatus.appointmentDate,
+        currentCount: limitStatus.currentCount,
+        max: limitStatus.max,
+      });
+      return;
+    }
+
+    const previewAppointment: Appointment = {
+      ...currentAppointment,
+      assignedExecutive,
+      status: "revisado",
+    };
+
+    setFirstAssignmentPrompt({
+      appointmentId: id,
+      assignedExecutive,
+      willSendEmail: shouldSendCalendarInvite(previewAppointment),
+    });
+  }
+
+  function cancelFirstExecutiveAssignment() {
+    if (isConfirmingFirstAssignment) {
+      return;
+    }
+
+    setFirstAssignmentPrompt(null);
+  }
+
+  async function confirmFirstExecutiveAssignment(selection: {
+    assignedExecutive: string;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
+  }) {
+    if (!firstAssignmentPrompt) {
+      return;
+    }
+
+    const id = firstAssignmentPrompt.appointmentId;
+    const previousAppointments = appointments;
+    const currentAppointment = appointments.find(
+      (appointment) => appointment.id === id,
+    );
+
+    if (!currentAppointment || currentAppointment.assignedExecutive) {
+      setFirstAssignmentPrompt(null);
+      return;
+    }
+
+    if (!selection.assignedExecutive || !selection.scheduledStartTime) {
+      return;
+    }
+
+    const executive = executiveOptions.find(
+      (option) => option.name === selection.assignedExecutive,
+    );
+    const limitStatus = getExecutiveDailyLimitStatus(
+      executive,
+      appointments,
+      currentAppointment,
+      selection.assignedExecutive,
+    );
+
+    if (limitStatus.blocked) {
+      setFirstAssignmentPrompt(null);
+      setDailyLimitAlert({
+        executiveName: limitStatus.executiveName,
+        appointmentDate: limitStatus.appointmentDate,
+        currentCount: limitStatus.currentCount,
+        max: limitStatus.max,
+      });
+      return;
+    }
+
+    const appointmentToInvite: Appointment = {
+      ...currentAppointment,
+      assignedExecutive: selection.assignedExecutive,
+      scheduledStartTime: selection.scheduledStartTime,
+      scheduledEndTime: selection.scheduledEndTime ?? "",
+      status: "revisado",
+    };
+
+    setIsConfirmingFirstAssignment(true);
+    setAppointments((current) =>
+      current.map((item) => (item.id === id ? appointmentToInvite : item)),
+    );
+    setAppointmentsError("");
+    setEmailNotice(null);
+
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        ...adminFetchInit,
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          assignedExecutive: selection.assignedExecutive,
+          scheduledStartTime: selection.scheduledStartTime,
+          scheduledEndTime: selection.scheduledEndTime,
+          status: "revisado",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(
+          errorData.message || "No se pudo asignar el ejecutivo.",
+        );
+      }
+
+      const patchData = (await response.json()) as { appointment?: Appointment };
+      const savedAppointment = patchData.appointment ?? appointmentToInvite;
+
+      setAppointments((current) =>
+        current.map((item) => (item.id === id ? savedAppointment : item)),
+      );
+      setFirstAssignmentPrompt(null);
+
+      if (shouldSendCalendarInvite(savedAppointment)) {
+        try {
+          setEmailNotice({
+            status: "sending",
+            message: "Enviando cita y confirmación...",
+          });
+          await sendExecutiveAssignmentEmails(savedAppointment);
+          setEmailNotice({
+            status: "sent",
+            message: "Correos enviados.",
+          });
+        } catch {
+          setEmailNotice(null);
+          setAppointmentsError(
+            "El ejecutivo quedó asignado, pero no se pudieron enviar todos los correos.",
+          );
+        }
+      }
+    } catch (error) {
+      setAppointments(previousAppointments);
+      setAppointmentsError(
+        error instanceof Error && error.message
+          ? error.message
+          : "No se pudo asignar el ejecutivo.",
+      );
+    } finally {
+      setIsConfirmingFirstAssignment(false);
+    }
   }
 
   async function handleAppointmentEdited(
@@ -1103,11 +1299,39 @@ function AppointmentsPageContent() {
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.phone}
                         </td>
-                                                <td className="px-2.5 py-2 align-top">
+                        <td className="px-2.5 py-2 align-top">
                           {appointmentAllowsExecutive(appointment) ? (
-                            <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-[#173b68]">
-                              {appointment.assignedExecutive || "Sin asignar"}
-                            </span>
+                            appointment.assignedExecutive ? (
+                              <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-[#173b68]">
+                                {appointment.assignedExecutive}
+                              </span>
+                            ) : (
+                              <select
+                                value={
+                                  firstAssignmentPrompt?.appointmentId ===
+                                  appointment.id
+                                    ? firstAssignmentPrompt.assignedExecutive
+                                    : ""
+                                }
+                                onChange={(event) =>
+                                  requestFirstExecutiveAssignment(
+                                    appointment.id,
+                                    event.target.value,
+                                  )
+                                }
+                                className="h-8 w-full min-w-32 rounded-2xl border border-[#9fb8d9] bg-white px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                              >
+                                <option value="">Selecciona ejecutivo</option>
+                                {activeExecutives.map((executive) => (
+                                  <option
+                                    key={executive.name}
+                                    value={executive.name}
+                                  >
+                                    {executive.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )
                           ) : (
                             <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-slate-400">
                               No aplica
@@ -1209,6 +1433,34 @@ function AppointmentsPageContent() {
         appointments={appointments}
         reasons={reasons}
       />
+      {firstAssignmentPrompt
+        ? (() => {
+            const promptAppointment = appointments.find(
+              (appointment) =>
+                appointment.id === firstAssignmentPrompt.appointmentId,
+            );
+
+            if (!promptAppointment || promptAppointment.assignedExecutive) {
+              return null;
+            }
+
+            return (
+              <ExecutiveAssignmentConfirmModal
+                appointment={promptAppointment}
+                assignedExecutive={firstAssignmentPrompt.assignedExecutive}
+                executives={activeExecutives}
+                appointments={appointments}
+                reason={getReasonForAppointment(promptAppointment)}
+                willSendEmail={firstAssignmentPrompt.willSendEmail}
+                isConfirming={isConfirmingFirstAssignment}
+                onCancel={cancelFirstExecutiveAssignment}
+                onConfirm={(selection) => {
+                  void confirmFirstExecutiveAssignment(selection);
+                }}
+              />
+            );
+          })()
+        : null}
       {dialog}
     </main>
   );
