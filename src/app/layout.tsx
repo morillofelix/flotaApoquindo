@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { inter, outfit } from "@/lib/fonts";
 import { SITE_CONFIG } from "@/lib/constants";
+import { PWA_BRAND } from "@/lib/pwa-brand";
 import { cn } from "@/utils/cn";
 import PwaServiceWorkerRegister from "@/components/PwaServiceWorkerRegister";
 import "./globals.css";
@@ -11,15 +12,15 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Agendamiento Apoquindo",
-    template: "%s | Agendamiento Apoquindo",
+    default: PWA_BRAND.name,
+    template: `%s | ${PWA_BRAND.shortName}`,
   },
-  description:
-    "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
-  applicationName: "Agendamiento Apoquindo",
+  description: PWA_BRAND.description,
+  applicationName: PWA_BRAND.shortName,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/pwa-192.png", sizes: "192x192", type: "image/png" },
       { url: "/pwa-512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Agendamiento Apoquindo",
+    title: PWA_BRAND.shortName,
     statusBarStyle: "default",
   },
   metadataBase: new URL(SITE_CONFIG.url),
@@ -35,16 +36,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_CL",
     url: SITE_CONFIG.url,
-    siteName: "Agendamiento Apoquindo",
-    title: "Agendamiento Apoquindo",
-    description:
-      "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
+    siteName: PWA_BRAND.name,
+    title: PWA_BRAND.name,
+    description: PWA_BRAND.description,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Agendamiento Apoquindo",
-    description:
-      "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
+    title: PWA_BRAND.name,
+    description: PWA_BRAND.description,
   },
   robots: {
     index: true,

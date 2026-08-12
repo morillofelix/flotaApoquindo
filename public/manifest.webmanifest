@@ -1,13 +1,13 @@
 {
-  "id": "/agendamiento-apoquindo",
-  "name": "Agendamiento Apoquindo",
-  "short_name": "Agendamiento Apoquindo",
-  "description": "Portal de solicitud de citas para conductores de Transportes Apoquindo.",
+  "id": "/gestion-flota-tna",
+  "name": "Gestión Flota TNA",
+  "short_name": "Flota TNA",
+  "description": "Sistema de gestión de flota y agendamiento de Transportes Apoquindo.",
   "scope": "/",
   "start_url": "/?source=pwa",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#eef3f9",
+  "background_color": "#ffffff",
   "theme_color": "#0b5cab",
   "lang": "es-CL",
   "icons": [
@@ -24,7 +24,7 @@
       "purpose": "any"
     },
     {
-      "src": "/pwa-512.png",
+      "src": "/pwa-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

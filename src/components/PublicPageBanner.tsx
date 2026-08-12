@@ -13,9 +13,9 @@ export default function PublicPageBanner({
         <div className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#0b5cab] via-[#084a8c] to-[#062b5f] px-3 py-2.5 shadow-[0_8px_22px_-12px_rgba(6,43,95,0.55)] sm:gap-3 sm:px-4 sm:py-3">
           <div className="flex shrink-0 items-center justify-center rounded-lg bg-white px-2 py-1.5 shadow-sm">
             <img
-              src="/logo-apoquindo.png"
-              alt="Transportes Apoquindo"
-              className="h-7 w-auto object-contain sm:h-8"
+              src="/logo-gestion-flota-tna.png"
+              alt="Gestión Flota TNA - Transportes Apoquindo"
+              className="h-8 w-auto object-contain sm:h-9"
             />
           </div>
 

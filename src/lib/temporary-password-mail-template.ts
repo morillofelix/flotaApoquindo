@@ -30,7 +30,7 @@ export function buildTemporaryPasswordEmailContent(
     "PASO 1 — Accede e instala la plataforma en tu teléfono:",
     installUrl,
     "",
-    "Abre ese enlace desde tu celular para ingresar y crear el acceso directo Agendamiento Apoquindo en tu pantalla de inicio.",
+    "Abre ese enlace desde tu celular para ingresar y crear el acceso directo Flota TNA en tu pantalla de inicio.",
     "",
     "PASO 2 — Usa esta clave de acceso para ingresar:",
     input.temporaryPassword,
@@ -63,7 +63,7 @@ export function buildTemporaryPasswordEmailContent(
         Ingresa con tu correo y esta clave. Corresponde a los 4 primeros dígitos de tu RUT y será tu clave definitiva.
       </p>
       <p style="font-size:14px;color:#607086;margin-top:18px;">
-        Al agregar a inicio, el acceso directo se llamará <strong>Agendamiento Apoquindo</strong>.
+        Al agregar a inicio, el acceso directo se llamará <strong>Flota TNA</strong>.
         En iPhone usa Safari → Compartir → Agregar a inicio. En Android, toca instalar acceso directo cuando aparezca en pantalla.
       </p>
       <p style="font-size:14px;color:#607086;">También puedes ingresar desde: <a href="${appUrl}">${appUrl}</a></p>
