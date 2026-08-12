@@ -79,13 +79,3 @@ export function getDriverLoginUrl() {
 
   return DRIVER_APP_URL;
 }
-
-/** Enlace para instalar el portal de conductores como acceso directo (PWA). */
-export function getDriverInstallUrl() {
-  return `${getDriverLoginUrl()}/?instalar=1`;
-}
-
-/** Enlace para instalar agendamientos como aplicación (PWA) en computador o celular. */
-export function getAdminInstallUrl() {
-  return `${getAdminLoginUrl()}?instalar=1`;
-}

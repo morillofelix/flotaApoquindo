@@ -1,7 +1,6 @@
 "use client";
 
 import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
-import PwaInstallPanel from "@/components/PwaInstallPanel";
 import { PERMANENT_PASSWORD_REQUIREMENTS_HINT } from "@/lib/password-policy";
 import { UI_FIELD_FOCUS, UI_FIELD_SHADOW } from "@/lib/ui-borders";
 import Image from "next/image";
@@ -22,7 +21,6 @@ type ExecutiveAccessLoginScreenProps = {
   title: string;
   description: string;
   showCredentialHint?: boolean;
-  showInstallPanel?: boolean;
   userLabel?: string;
   userPlaceholder?: string;
   onAuthenticated: () => void;
@@ -38,7 +36,6 @@ export default function ExecutiveAccessLoginScreen({
   title,
   description,
   showCredentialHint = false,
-  showInstallPanel = false,
   userLabel = "Usuario o correo",
   userPlaceholder = "Usuario ejecutivo o correo",
   onAuthenticated,
@@ -195,10 +192,6 @@ export default function ExecutiveAccessLoginScreen({
 
         {mode === "login" ? (
         <form noValidate onSubmit={handleLogin} className="grid gap-5">
-          {showInstallPanel ? (
-            <PwaInstallPanel variant="admin" compact />
-          ) : null}
-
           <label className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-[#173b68]">{userLabel}</span>
             <input
@@ -267,18 +260,6 @@ export default function ExecutiveAccessLoginScreen({
             className="text-sm font-semibold text-[#0b5cab] underline-offset-2 transition hover:text-[#084a8c] hover:underline"
           >
             Recuperar clave
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const url = new URL(window.location.href);
-              url.searchParams.set("instalar", "1");
-              window.location.assign(url.toString());
-            }}
-            className="text-sm font-semibold text-[#173b68] underline-offset-2 transition hover:text-[#0b5cab] hover:underline"
-          >
-            Instalar como aplicación
           </button>
         </form>
         ) : (

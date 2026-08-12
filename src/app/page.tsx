@@ -22,14 +22,9 @@ import DriverAccessLoginScreen, {
   type PublicDriverOwner,
 } from "@/components/DriverAccessLoginScreen";
 import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
-import PwaInstallLanding from "@/components/PwaInstallLanding";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
 import { sessionFetchInit } from "@/lib/admin-fetch";
-import {
-  clearInstallQueryParam,
-  shouldShowPwaInstallLanding,
-} from "@/lib/pwa-utils";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
@@ -268,7 +263,7 @@ async function sendTicketEmail(newAppointment: Appointment) {
   }
 }
 
-type AuthView = "bootstrapping" | "pwa-install" | "login" | "change-password" | "form";
+type AuthView = "bootstrapping" | "login" | "change-password" | "form";
 
 type PendingPasswordChange = {
   driverOwner: PublicDriverOwner;
@@ -285,11 +280,6 @@ export default function HomePage() {
     let cancelled = false;
 
     async function bootstrap() {
-      if (shouldShowPwaInstallLanding()) {
-        setAuthView("pwa-install");
-        return;
-      }
-
       const restored = await restoreDriverSession();
 
       if (cancelled) {
@@ -321,17 +311,6 @@ export default function HomePage() {
 
   if (authView === "bootstrapping") {
     return null;
-  }
-
-  if (authView === "pwa-install") {
-    return (
-      <PwaInstallLanding
-        onContinueInBrowser={() => {
-          clearInstallQueryParam();
-          setAuthView("login");
-        }}
-      />
-    );
   }
 
   if (authView === "login") {

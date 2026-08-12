@@ -234,18 +234,6 @@ export default function DriverAccessLoginScreen({
             >
               Recuperar clave
             </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const url = new URL(window.location.href);
-                url.searchParams.set("instalar", "1");
-                window.location.assign(url.toString());
-              }}
-              className="text-sm font-semibold text-[#173b68] underline-offset-2 transition hover:text-[#0b5cab] hover:underline"
-            >
-              Instalar como aplicación
-            </button>
           </form>
         ) : (
           <form

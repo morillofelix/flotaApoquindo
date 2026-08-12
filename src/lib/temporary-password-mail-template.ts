@@ -1,7 +1,4 @@
-import {
-  getDriverInstallUrl,
-  getDriverLoginUrl,
-} from "@/lib/admin-platform-url";
+import { getDriverLoginUrl } from "@/lib/admin-platform-url";
 
 type TemporaryPasswordEmailContentInput = {
   fullName: string;
@@ -20,24 +17,19 @@ export function buildTemporaryPasswordEmailContent(
   input: TemporaryPasswordEmailContentInput,
 ) {
   const appUrl = getDriverLoginUrl();
-  const installUrl = getDriverInstallUrl();
 
   const text = [
     `Hola ${input.fullName},`,
     "",
     "Te damos la bienvenida al portal de solicitud de citas de Transportes Apoquindo.",
     "",
-    "PASO 1 — Accede e instala la plataforma en tu teléfono:",
-    installUrl,
+    "Ingresa al portal con este enlace:",
+    appUrl,
     "",
-    "Abre ese enlace desde tu celular o computador para instalar Gestión Flota TNA como aplicación.",
-    "",
-    "PASO 2 — Usa esta clave de acceso para ingresar:",
+    "Tu clave de acceso:",
     input.temporaryPassword,
     "",
     "Ingresa con tu correo y esta clave. Corresponde a los 4 primeros dígitos de tu RUT y será tu clave definitiva.",
-    "",
-    `Si prefieres entrar sin instalar: ${appUrl}`,
     "",
     "Si no solicitaste esta clave, ignora este mensaje.",
     "",
@@ -48,13 +40,10 @@ export function buildTemporaryPasswordEmailContent(
     <div style="font-family:Arial,sans-serif;color:#102033;line-height:1.55;max-width:560px;">
       <p>Hola <strong>${escapeHtml(input.fullName)}</strong>,</p>
       <p>Te damos la bienvenida al <strong>portal de solicitud de citas</strong> de Transportes Apoquindo.</p>
-      <p style="margin:24px 0 12px;font-size:15px;font-weight:700;color:#071c35;">Accede e instala la plataforma en tu teléfono</p>
-      <p style="margin:0 0 18px;font-size:14px;color:#607086;">
-        Abre el siguiente enlace <strong>desde tu celular o computador</strong> para instalar Gestión Flota TNA como aplicación.
-      </p>
+      <p style="margin:24px 0 12px;font-size:15px;font-weight:700;color:#071c35;">Accede al portal</p>
       <p style="margin:0 0 24px;">
-        <a href="${installUrl}" style="display:inline-block;background:#0b5cab;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
-          Accede e instala la plataforma
+        <a href="${appUrl}" style="display:inline-block;background:#0b5cab;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
+          Abrir portal de citas
         </a>
       </p>
       <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#071c35;">Tu clave de acceso</p>
@@ -62,11 +51,7 @@ export function buildTemporaryPasswordEmailContent(
       <p style="font-size:14px;color:#607086;">
         Ingresa con tu correo y esta clave. Corresponde a los 4 primeros dígitos de tu RUT y será tu clave definitiva.
       </p>
-      <p style="font-size:14px;color:#607086;margin-top:18px;">
-        Al agregar a inicio, el acceso directo se llamará <strong>Gestión Flota TNA</strong>.
-        En iPhone usa Safari → Compartir → Agregar a inicio. En Android, toca instalar acceso directo cuando aparezca en pantalla. En computador, usa Chrome o Edge → menú ⋮ → Instalar aplicación.
-      </p>
-      <p style="font-size:14px;color:#607086;">También puedes ingresar desde: <a href="${appUrl}">${appUrl}</a></p>
+      <p style="font-size:14px;color:#607086;margin-top:18px;">También puedes ingresar desde: <a href="${appUrl}">${appUrl}</a></p>
       <p style="font-size:14px;color:#607086;">Si no solicitaste esta clave, ignora este mensaje.</p>
       <p style="margin-top:24px;font-weight:700;">Transportes Apoquindo</p>
     </div>

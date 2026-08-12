@@ -35,25 +35,3 @@ export function isDesktopDevice() {
 
   return !isIosDevice() && !isAndroidDevice();
 }
-
-export function hasInstallQueryParam() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return new URLSearchParams(window.location.search).get("instalar") === "1";
-}
-
-export function clearInstallQueryParam() {
-  if (typeof window === "undefined" || !hasInstallQueryParam()) {
-    return;
-  }
-
-  const url = new URL(window.location.href);
-  url.searchParams.delete("instalar");
-  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-export function shouldShowPwaInstallLanding() {
-  return hasInstallQueryParam() && !isStandaloneMode();
-}

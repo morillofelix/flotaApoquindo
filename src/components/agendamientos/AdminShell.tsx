@@ -4,7 +4,6 @@ import AccessChangePasswordScreen from "@/components/AccessChangePasswordScreen"
 import ExecutiveAccessLoginScreen, {
   type LoginAccessUser,
 } from "@/components/ExecutiveAccessLoginScreen";
-import PwaInstallLanding from "@/components/PwaInstallLanding";
 import type { AccessPermissions } from "@/lib/access-users";
 import {
   ADMIN_NAV_ITEMS,
@@ -15,9 +14,6 @@ import {
   getFirstPermittedAdminRoute,
 } from "@/lib/admin-auth-client";
 import Link from "next/link";
-import {
-  clearInstallQueryParam,
-} from "@/lib/pwa-utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
@@ -129,8 +125,6 @@ function AdminShellInner({
   const router = useRouter();
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
-  const installRequested = searchParams.get("instalar") === "1";
-  const [isStandalone, setIsStandalone] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [sessionState, setSessionState] = useState<AdminSessionState | null>(
@@ -140,7 +134,6 @@ function AdminShellInner({
     accessUser: LoginAccessUser;
     currentPassword: string;
   } | null>(null);
-  const [skipInstallLanding, setSkipInstallLanding] = useState(false);
 
   async function refreshSession() {
     const data = await fetchAdminSessionClient();
@@ -172,10 +165,6 @@ function AdminShellInner({
     refreshSession().finally(() => setAuthChecked(true));
   }, []);
 
-  useEffect(() => {
-    setIsStandalone(isStandaloneMode());
-  }, []);
-
   const currentNavItem = useMemo(
     () => findActiveAdminNavItem(pathname, vista),
     [pathname, vista],
@@ -199,18 +188,6 @@ function AdminShellInner({
     setSessionState(null);
     setPendingPasswordChange(null);
     window.location.assign("/agendamientos");
-  }
-
-  if (installRequested && !skipInstallLanding && !isStandalone) {
-    return (
-      <PwaInstallLanding
-        variant="admin"
-        onContinueInBrowser={() => {
-          clearInstallQueryParam();
-          setSkipInstallLanding(true);
-        }}
-      />
-    );
   }
 
   if (!authChecked) {
@@ -254,7 +231,6 @@ function AdminShellInner({
         title="Administración de citas"
         description="Ingresa usuario o correo y clave para revisar las solicitudes enviadas."
         showCredentialHint
-        showInstallPanel={installRequested && skipInstallLanding}
         onAuthenticated={async () => {
           const authenticated = await refreshSession();
 
