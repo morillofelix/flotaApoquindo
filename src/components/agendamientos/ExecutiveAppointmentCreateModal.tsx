@@ -14,12 +14,18 @@ import {
 } from "@/lib/appointments";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
+  buildExecutiveDayAvailability,
+  getExistingSlotsForExecutiveDay,
+} from "@/lib/executive-day-availability";
+import {
   type HolidayConfig,
   checkHolidayRestrictedDates,
   getActiveHolidayDateSet,
 } from "@/lib/holidays";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { displayVehicleNumber } from "@/lib/driver-owners";
+import { formatDisplayDate } from "@/lib/appointment-scheduling";
+import ExecutiveAvailabilityPanel from "@/components/agendamientos/ExecutiveAvailabilityPanel";
 import { useEffect, useId, useMemo, useState } from "react";
 
 type VehicleLookupResult = {
@@ -185,6 +191,46 @@ export default function ExecutiveAppointmentCreateModal({
     values.assignedExecutive,
   ]);
 
+  const executiveDayAvailability = useMemo(() => {
+    if (
+      !allowsExecutiveAssignment ||
+      !values.assignedExecutive ||
+      !values.appointmentDate ||
+      !selectedReasonConfig
+    ) {
+      return null;
+    }
+
+    const executive = executives.find(
+      (option) => option.name === values.assignedExecutive,
+    );
+
+    if (!executive) {
+      return null;
+    }
+
+    return buildExecutiveDayAvailability({
+      existingSlots: getExistingSlotsForExecutiveDay(
+        appointments,
+        values.assignedExecutive,
+        values.appointmentDate,
+      ),
+      lunchBreak: {
+        lunchBreakEnabled: executive.lunchBreakEnabled,
+        lunchBreakStart: executive.lunchBreakStart,
+        lunchBreakEnd: executive.lunchBreakEnd,
+      },
+      reason: selectedReasonConfig,
+    });
+  }, [
+    allowsExecutiveAssignment,
+    appointments,
+    executives,
+    selectedReasonConfig,
+    values.appointmentDate,
+    values.assignedExecutive,
+  ]);
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -345,11 +391,21 @@ export default function ExecutiveAppointmentCreateModal({
     setSubmitError("");
   }
 
+  const selectedTimeConflicts = Boolean(
+    allowsManualStartTime &&
+      values.scheduledStartTime &&
+      executiveDayAvailability &&
+      !executiveDayAvailability.suggestedStarts.some(
+        (slot) => slot.startTime === values.scheduledStartTime,
+      ),
+  );
+
   const canSubmit =
     Boolean(selectedDriver) &&
     Boolean(values.appointmentReason) &&
     !reasonDateCheck.blocked &&
     !executiveLimitStatus.blocked &&
+    !selectedTimeConflicts &&
     (!allowsExecutiveAssignment ||
       (Boolean(values.appointmentDate) &&
         Boolean(values.assignedExecutive) &&
@@ -578,6 +634,36 @@ export default function ExecutiveAppointmentCreateModal({
                     {executiveLimitStatus.appointmentDate}. Elige otro ejecutivo o
                     otra fecha.
                   </div>
+                ) : null}
+
+                {executiveDayAvailability ? (
+                  <>
+                    <ExecutiveAvailabilityPanel
+                      executiveName={values.assignedExecutive}
+                      appointmentDateLabel={formatDisplayDate(values.appointmentDate)}
+                      availability={executiveDayAvailability}
+                      selectedStartTime={values.scheduledStartTime}
+                      allowSelect={allowsManualStartTime}
+                      onSelectStartTime={(startTime) =>
+                        updateField("scheduledStartTime", startTime)
+                      }
+                    />
+                    {allowsManualStartTime &&
+                    values.scheduledStartTime &&
+                    !executiveDayAvailability.suggestedStarts.some(
+                      (slot) => slot.startTime === values.scheduledStartTime,
+                    ) ? (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950 sm:col-span-2">
+                        La hora {values.scheduledStartTime} choca con una cita o
+                        con la colación, o no deja espacio completo para la
+                        duración de la cita. Elige otra hora disponible.
+                      </div>
+                    ) : null}
+                  </>
+                ) : values.assignedExecutive || values.appointmentDate ? (
+                  <p className="text-xs text-slate-500 sm:col-span-2">
+                    Selecciona fecha y ejecutivo para ver la disponibilidad del día.
+                  </p>
                 ) : null}
               </div>
             ) : null}
