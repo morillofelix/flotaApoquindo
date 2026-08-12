@@ -17,7 +17,7 @@ import {
   checkHolidayRestrictedDates,
   getActiveHolidayDateSet,
 } from "@/lib/holidays";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import DriverAccessLoginScreen, {
   type PublicDriverOwner,
 } from "@/components/DriverAccessLoginScreen";
@@ -30,6 +30,8 @@ import { scrollNativePickerIntoView } from "@/lib/form-scroll";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
 } from "@/components/PublicAppointmentHistory";
+import TimeSelectField from "@/components/TimeSelectField";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import {
   UI_DIVIDER_BORDER,
   UI_FIELD_BORDER,
@@ -630,23 +632,53 @@ function AppointmentRequestForm({
   }
 
   useEffect(() => {
-    fetch("/api/appointment-reasons", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar los motivos.");
-        }
+    if (
+      values.appointmentReason &&
+      !activeReasons.some((reason) => reason.value === values.appointmentReason)
+    ) {
+      setValues((currentValues) => ({
+        ...currentValues,
+        appointmentReason: "",
+        appointmentDate: "",
+        vacationStartDate: "",
+        vacationEndDate: "",
+        permitType: "",
+        permitStartDate: "",
+        permitEndDate: "",
+        permitDate: "",
+        permitStartTime: "",
+        permitEndTime: "",
+      }));
+    }
+  }, [activeReasons, values.appointmentReason]);
 
-        return response.json() as Promise<{ reasons?: AppointmentReasonConfig[] }>;
-      })
-      .then((data) => {
-        if (data.reasons?.length) {
-          setReasons(data.reasons);
-        }
-      })
-      .catch(() => {
-        setReasons(defaultAppointmentReasons);
-      });
+  const reloadReasons = useCallback(async () => {
+    const response = await fetch("/api/appointment-reasons", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudieron cargar los motivos.");
+    }
+
+    const data = (await response.json()) as {
+      reasons?: AppointmentReasonConfig[];
+    };
+
+    if (data.reasons?.length) {
+      setReasons(data.reasons);
+    }
   }, []);
+
+  const { refresh: refreshReasons } = useAutoRefresh({
+    onRefresh: reloadReasons,
+    intervalMs: 15_000,
+    enabled: true,
+  });
+
+  useEffect(() => {
+    void refreshReasons({ showSpinner: false });
+  }, [refreshReasons]);
 
   useEffect(() => {
     fetch("/api/holidays", { cache: "no-store" })
@@ -1230,17 +1262,15 @@ function AppointmentRequestForm({
                         <span className="text-sm font-semibold text-[#173b68]">
                           Hora desde
                         </span>
-                        <input
-                          type="time"
+                        <TimeSelectField
                           name="permitStartTime"
                           required
                           value={values.permitStartTime}
-                          onFocus={scrollNativePickerIntoView}
                           onBlur={() => markFieldAsTouched("permitStartTime")}
-                          onChange={(event) =>
-                            updateField("permitStartTime", event.target.value)
+                          onChange={(nextValue) =>
+                            updateField("permitStartTime", nextValue)
                           }
-                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitStartTime")}`}
+                          className={fieldStatus("permitStartTime")}
                         />
                         {touched.permitStartTime && errors.permitStartTime ? (
                           <span className="text-sm text-red-600">
@@ -1253,17 +1283,15 @@ function AppointmentRequestForm({
                         <span className="text-sm font-semibold text-[#173b68]">
                           Hora hasta
                         </span>
-                        <input
-                          type="time"
+                        <TimeSelectField
                           name="permitEndTime"
                           required
                           value={values.permitEndTime}
-                          onFocus={scrollNativePickerIntoView}
                           onBlur={() => markFieldAsTouched("permitEndTime")}
-                          onChange={(event) =>
-                            updateField("permitEndTime", event.target.value)
+                          onChange={(nextValue) =>
+                            updateField("permitEndTime", nextValue)
                           }
-                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitEndTime")}`}
+                          className={fieldStatus("permitEndTime")}
                         />
                         {touched.permitEndTime && errors.permitEndTime ? (
                           <span className="text-sm text-red-600">

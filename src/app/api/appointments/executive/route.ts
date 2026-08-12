@@ -24,6 +24,7 @@ import { queueExecutiveAssignmentEmails } from "@/lib/appointment-email-queue";
 import { shouldSendExecutiveAssignmentEmails } from "@/lib/appointment-emails-server";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { readAdminSession } from "@/lib/driver-auth";
+import { findPropietarioByVehicleNumber } from "@/lib/propietario-vehicle-lookup";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
@@ -47,10 +48,6 @@ type AppointmentCreateBody = {
   permitEndTime?: unknown;
   ccOwnerEmail?: unknown;
 };
-
-function resolvePropietarioEmail(row: { email: string; titularEmail: string }) {
-  return row.email.trim() || row.titularEmail.trim();
-}
 
 function isValidAppointmentDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -471,18 +468,10 @@ export async function POST(request: NextRequest) {
     let emailWarning = "";
 
     if (wantsOwnerCc) {
-      const propietario = await prisma.propietario.findFirst({
-        where: {
-          isActive: true,
-          vehicleNumber: driverOwner.vehicleNumber,
-        },
-        orderBy: [{ updatedAt: "desc" }],
-        select: {
-          email: true,
-          titularEmail: true,
-        },
-      });
-      ownerCcEmail = propietario ? resolvePropietarioEmail(propietario) : "";
+      const propietario = await findPropietarioByVehicleNumber(
+        driverOwner.vehicleNumber,
+      );
+      ownerCcEmail = propietario?.ownerEmail ?? "";
 
       if (!ownerCcEmail) {
         emailWarning =

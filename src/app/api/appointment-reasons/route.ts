@@ -284,9 +284,16 @@ function validateReasonScheduleFields(
 export async function GET() {
   const reasons = await loadReasons();
 
-  return NextResponse.json({
-    reasons: reasons.map(toReason),
-  });
+  return NextResponse.json(
+    {
+      reasons: reasons.map(toReason),
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    },
+  );
 }
 
 export async function POST(request: NextRequest) {

@@ -34,6 +34,7 @@ import {
   getReasonAppointmentDurationMinutes,
 } from "@/lib/appointment-scheduling";
 import ExecutiveAvailabilityPanel from "@/components/agendamientos/ExecutiveAvailabilityPanel";
+import TimeSelectField from "@/components/TimeSelectField";
 import { useEffect, useId, useMemo, useState } from "react";
 
 type VehicleLookupResult = {
@@ -1003,28 +1004,22 @@ export default function ExecutiveAppointmentCreateModal({
                         <span className="text-xs font-semibold text-[#173b68]">
                           Hora desde
                         </span>
-                        <input
-                          type="time"
+                        <TimeSelectField
                           value={values.permitStartTime}
-                          onFocus={scrollNativePickerIntoView}
-                          onChange={(event) =>
-                            updateField("permitStartTime", event.target.value)
+                          onChange={(nextValue) =>
+                            updateField("permitStartTime", nextValue)
                           }
-                          className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                         />
                       </label>
                       <label className="flex min-w-0 flex-col gap-2">
                         <span className="text-xs font-semibold text-[#173b68]">
                           Hora hasta
                         </span>
-                        <input
-                          type="time"
+                        <TimeSelectField
                           value={values.permitEndTime}
-                          onFocus={scrollNativePickerIntoView}
-                          onChange={(event) =>
-                            updateField("permitEndTime", event.target.value)
+                          onChange={(nextValue) =>
+                            updateField("permitEndTime", nextValue)
                           }
-                          className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                         />
                       </label>
                     </div>
