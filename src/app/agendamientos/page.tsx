@@ -43,6 +43,7 @@ import ExecutiveAppointmentCreateModal from "@/components/agendamientos/Executiv
 import ExecutiveAppointmentEditModal from "@/components/agendamientos/ExecutiveAppointmentEditModal";
 import ExecutiveAssignmentConfirmModal from "@/components/agendamientos/ExecutiveAssignmentConfirmModal";
 import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
+import DriverRejectionNoteIcon from "@/components/agendamientos/DriverRejectionNoteIcon";
 import AppointmentRowActions, {
   canResendAppointmentReminder,
 } from "@/components/agendamientos/AppointmentRowActions";
@@ -1290,18 +1291,15 @@ function AppointmentsPageContent() {
                                     appointment.driverApprovalMessage
                                   }
                                 />
+                                {appointment.driverApprovalRejected &&
+                                appointment.driverApprovalMessage ? (
+                                  <DriverRejectionNoteIcon
+                                    note={appointment.driverApprovalMessage}
+                                  />
+                                ) : null}
                               </div>
                             );
                           })()}
-                          {appointment.driverApprovalRejected &&
-                          appointment.driverApprovalMessage ? (
-                            <p
-                              className="mt-1 max-w-[11rem] truncate text-[10px] font-medium leading-4 text-rose-800"
-                              title={appointment.driverApprovalMessage}
-                            >
-                              Obs.: {appointment.driverApprovalMessage}
-                            </p>
-                          ) : null}
                         </td>
                         <td className="px-2.5 py-2 font-semibold text-[#0b5cab]">
                           {getAppointmentTicketLabel(appointment)}
