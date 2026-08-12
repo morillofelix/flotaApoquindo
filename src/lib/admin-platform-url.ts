@@ -84,3 +84,8 @@ export function getDriverLoginUrl() {
 export function getDriverInstallUrl() {
   return `${getDriverLoginUrl()}/?instalar=1`;
 }
+
+/** Enlace para instalar agendamientos como aplicación (PWA) en computador o celular. */
+export function getAdminInstallUrl() {
+  return `${getAdminLoginUrl()}?instalar=1`;
+}

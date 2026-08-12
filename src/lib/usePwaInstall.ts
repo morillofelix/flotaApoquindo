@@ -68,7 +68,7 @@ export function usePwaInstall() {
 
   const canNativeInstall = Boolean(deferredPrompt);
   const shouldSuggestInstall =
-    isMobile && !isInstalled && !isDismissed && (canNativeInstall || isIOS);
+    !isInstalled && !isDismissed && (canNativeInstall || isIOS);
 
   return {
     canNativeInstall,

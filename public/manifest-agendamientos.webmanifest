@@ -1,10 +1,10 @@
 {
-  "id": "/gestion-flota-tna",
+  "id": "/gestion-flota-tna-agendamientos",
   "name": "Gestión Flota TNA",
   "short_name": "Gestión Flota TNA",
   "description": "Sistema de gestión de flota y agendamiento de Transportes Apoquindo.",
   "scope": "/",
-  "start_url": "/?source=pwa",
+  "start_url": "/agendamientos?source=pwa",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#ffffff",

@@ -8,12 +8,20 @@ import { useEffect, useState } from "react";
 const LOGIN_CARD_SHELL =
   "rounded-[22px] border-2 border-[#7a9fc4] bg-white shadow-lg shadow-slate-400/30 ring-1 ring-[#b7cce4]/60 sm:rounded-[24px]";
 
+type PwaInstallVariant = "driver" | "admin";
+
 type PwaInstallLandingProps = {
   onContinueInBrowser: () => void;
+  variant?: PwaInstallVariant;
 };
+
+function getDeviceLabel(isDesktop: boolean) {
+  return isDesktop ? "computador" : "teléfono";
+}
 
 export default function PwaInstallLanding({
   onContinueInBrowser,
+  variant = "driver",
 }: PwaInstallLandingProps) {
   const { canNativeInstall, isIOS, isAndroid, isInstalled, promptInstall } =
     usePwaInstall();
@@ -28,6 +36,55 @@ export default function PwaInstallLanding({
     setInstallAttempted(true);
     await promptInstall();
   }
+
+  const deviceLabel = getDeviceLabel(isDesktop);
+  const isAdmin = variant === "admin";
+
+  const heading = isInstalled
+    ? "Acceso directo creado"
+    : `Instala la plataforma en tu ${deviceLabel}`;
+
+  const description = (() => {
+    if (isInstalled) {
+      return isDesktop
+        ? "Abre Gestión Flota TNA desde el icono en tu escritorio, menú inicio o barra de aplicaciones."
+        : "Abre la plataforma desde el icono Gestión Flota TNA en tu pantalla de inicio. Allí ingresa con tu correo y la clave de acceso del email (4 primeros dígitos de tu RUT).";
+    }
+
+    if (isAdmin) {
+      return isDesktop
+        ? "Instala Gestión Flota TNA como aplicación en tu computador para abrir agendamientos directamente desde el escritorio."
+        : "Instala Gestión Flota TNA en tu teléfono para acceder a agendamientos como una aplicación.";
+    }
+
+    return isDesktop
+      ? "Instala Gestión Flota TNA como aplicación en tu computador para solicitar citas desde el escritorio o el menú inicio."
+      : "Antes de ingresar, crea el acceso directo Gestión Flota TNA en tu pantalla de inicio. Después podrás entrar con tu correo y la clave de acceso que recibiste.";
+  })();
+
+  const installHint = (() => {
+    if (canNativeInstall) {
+      return isDesktop
+        ? "Haz clic en el botón para instalar la aplicación en tu computador."
+        : "Toca el botón para instalar el icono en tu teléfono.";
+    }
+
+    if (isIOS) {
+      return isDesktop
+        ? "En Safari, usa Compartir y luego Agregar al Dock."
+        : "En Safari, usa Compartir y luego Agregar a inicio.";
+    }
+
+    if (isAndroid) {
+      return "En Chrome, abre el menú ⋮ y elige Instalar aplicación o Agregar a pantalla de inicio.";
+    }
+
+    if (isDesktop) {
+      return "En Chrome o Edge, abre el menú del navegador (⋮) y elige Instalar aplicación o Instalar Gestión Flota TNA.";
+    }
+
+    return "Sigue los pasos de tu navegador para agregar el acceso directo.";
+  })();
 
   return (
     <main className="pwa-app-shell flex flex-col items-center justify-center bg-[#eef3f9] px-4 py-6 text-[#0f2747] sm:px-6 sm:py-10 lg:px-10">
@@ -50,33 +107,19 @@ export default function PwaInstallLanding({
             {isInstalled ? "Paso 1 completado" : "Paso 1 de 2"}
           </p>
           <h1 className="mt-3 font-heading text-2xl font-semibold leading-tight tracking-tight text-[#0f2747] sm:text-3xl">
-            {isInstalled
-              ? "Acceso directo creado"
-              : "Instala la plataforma en tu teléfono"}
+            {heading}
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600">
-            {isDesktop
-              ? "Abre este mismo enlace desde tu celular para instalar el acceso directo Flota TNA."
-              : isInstalled
-                ? "Abre la plataforma desde el icono Flota TNA en tu pantalla de inicio. Allí ingresa con tu correo y la clave de acceso del email (4 primeros dígitos de tu RUT)."
-                : "Antes de ingresar, crea el acceso directo Flota TNA en tu pantalla de inicio. Después podrás entrar con tu correo y la clave de acceso que recibiste."}
+            {description}
           </p>
         </div>
 
         {!isInstalled ? (
           <div className="mb-6 rounded-2xl border-2 border-[#9fb8d9] bg-[#f8fbff] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#173b68]">
-              Acceso directo
+              {isDesktop ? "Instalar aplicación" : "Acceso directo"}
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {canNativeInstall
-                ? "Toca el botón para instalar el icono en tu teléfono."
-                : isIOS
-                  ? "En Safari, usa Compartir y luego Agregar a inicio."
-                  : isAndroid
-                    ? "En Chrome, abre el menú ⋮ y elige Instalar aplicación o Agregar a pantalla de inicio."
-                    : "Sigue los pasos de tu navegador para agregar el acceso directo en tu teléfono."}
-            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{installHint}</p>
 
             <div className="mt-4">
               {canNativeInstall ? (
@@ -87,15 +130,16 @@ export default function PwaInstallLanding({
                   }}
                   className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-sm font-semibold text-white transition hover:bg-[#084a8c]"
                 >
-                  Instalar acceso directo
+                  {isDesktop ? "Instalar en el computador" : "Instalar acceso directo"}
                 </button>
               ) : isIOS ? (
                 <p className="text-sm leading-7 text-slate-600">
-                  1. Toca <strong>Compartir</strong> abajo en Safari
+                  1. Toca <strong>Compartir</strong> {isDesktop ? "en Safari" : "abajo en Safari"}
                   <br />
-                  2. Elige <strong>Agregar a inicio</strong>
+                  2. Elige{" "}
+                  <strong>{isDesktop ? "Agregar al Dock" : "Agregar a inicio"}</strong>
                   <br />
-                  3. Confirma con <strong>Agregar</strong>
+                  3. Confirma con <strong>{isDesktop ? "Agregar" : "Agregar"}</strong>
                 </p>
               ) : isAndroid ? (
                 <p className="text-sm leading-7 text-slate-600">
@@ -108,9 +152,22 @@ export default function PwaInstallLanding({
                 </p>
               ) : (
                 <p className="text-sm leading-7 text-slate-600">
-                  Usa el menú del navegador y elige{" "}
-                  <strong>Instalar aplicación</strong> o{" "}
-                  <strong>Agregar a pantalla de inicio</strong>.
+                  {isDesktop ? (
+                    <>
+                      1. Busca el icono de instalación en la barra de direcciones
+                      <br />
+                      2. O abre el menú <strong>⋮</strong> y elige{" "}
+                      <strong>Instalar aplicación</strong>
+                      <br />
+                      3. Confirma la instalación
+                    </>
+                  ) : (
+                    <>
+                      Usa el menú del navegador y elige{" "}
+                      <strong>Instalar aplicación</strong> o{" "}
+                      <strong>Agregar a pantalla de inicio</strong>.
+                    </>
+                  )}
                 </p>
               )}
             </div>
@@ -124,8 +181,9 @@ export default function PwaInstallLanding({
           </div>
         ) : (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Si no ves el icono, revisa tu pantalla de inicio o la carpeta de apps
-            instaladas.
+            {isDesktop
+              ? "Si no ves el icono, revisa tu escritorio, menú inicio o la lista de aplicaciones instaladas."
+              : "Si no ves el icono, revisa tu pantalla de inicio o la carpeta de apps instaladas."}
           </div>
         )}
 

@@ -4,6 +4,7 @@ import AccessChangePasswordScreen from "@/components/AccessChangePasswordScreen"
 import ExecutiveAccessLoginScreen, {
   type LoginAccessUser,
 } from "@/components/ExecutiveAccessLoginScreen";
+import PwaInstallLanding from "@/components/PwaInstallLanding";
 import type { AccessPermissions } from "@/lib/access-users";
 import {
   ADMIN_NAV_ITEMS,
@@ -14,6 +15,10 @@ import {
   getFirstPermittedAdminRoute,
 } from "@/lib/admin-auth-client";
 import Link from "next/link";
+import {
+  clearInstallQueryParam,
+  shouldShowPwaInstallLanding,
+} from "@/lib/pwa-utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
@@ -134,6 +139,7 @@ function AdminShellInner({
     accessUser: LoginAccessUser;
     currentPassword: string;
   } | null>(null);
+  const [skipInstallLanding, setSkipInstallLanding] = useState(false);
 
   async function refreshSession() {
     const data = await fetchAdminSessionClient();
@@ -192,6 +198,18 @@ function AdminShellInner({
 
   if (!authChecked) {
     return null;
+  }
+
+  if (shouldShowPwaInstallLanding() && !skipInstallLanding) {
+    return (
+      <PwaInstallLanding
+        variant="admin"
+        onContinueInBrowser={() => {
+          clearInstallQueryParam();
+          setSkipInstallLanding(true);
+        }}
+      />
+    );
   }
 
   if (pendingPasswordChange) {
