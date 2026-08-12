@@ -350,6 +350,27 @@ export function appointmentReasonAllowsExecutive(
   return Boolean(getReasonConfig(value, reasons)?.allowsExecutiveAssignment);
 }
 
+/** Hora editable por ejecutiva cuando Derivar está activo y el motivo no fija hora de inicio. */
+export function appointmentReasonAllowsManualStartTime(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  const reason = getReasonConfig(value, reasons);
+  return Boolean(
+    reason?.allowsExecutiveAssignment && !reason.usesServiceStartTime,
+  );
+}
+
+export function appointmentAllowsManualStartTime(appointment: {
+  reasonAllowsExecutiveAssignment: boolean;
+  reasonUsesServiceStartTime: boolean;
+}) {
+  return (
+    appointment.reasonAllowsExecutiveAssignment &&
+    !appointment.reasonUsesServiceStartTime
+  );
+}
+
 export function appointmentReasonUsesDateRange(
   value: string,
   reasons = defaultAppointmentReasons,

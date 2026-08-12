@@ -13,6 +13,7 @@ export const DATE_EDITABLE_STATUSES: AppointmentStatus[] = [
 
 export type AppointmentDatePatch = {
   appointmentDate?: string;
+  scheduledStartTime?: string;
   vacationStartDate?: string;
   vacationEndDate?: string;
   permitStartDate?: string;
@@ -128,8 +129,16 @@ function buildPermitHorasPatch(
 }
 
 export function buildDateChangePreviewLabel(patch: AppointmentDatePatch) {
+  if (patch.appointmentDate && patch.scheduledStartTime) {
+    return `Nueva fecha y hora: ${formatDate(patch.appointmentDate)} a las ${patch.scheduledStartTime}`;
+  }
+
   if (patch.appointmentDate) {
     return `Nueva fecha requerida: ${formatDate(patch.appointmentDate)}`;
+  }
+
+  if (patch.scheduledStartTime) {
+    return `Nueva hora de atención: ${patch.scheduledStartTime}`;
   }
 
   if (patch.vacationStartDate && patch.vacationEndDate) {
@@ -164,6 +173,7 @@ export function buildDatePatchFromFieldChange(
   reason: AppointmentReasonConfig | undefined,
   field:
     | "appointmentDate"
+    | "scheduledStartTime"
     | "vacationStartDate"
     | "permitStartDate"
     | "permitDate"
@@ -171,6 +181,19 @@ export function buildDatePatchFromFieldChange(
     | "permitEndTime",
   value: string,
 ): AppointmentDatePatch | null {
+  if (field === "scheduledStartTime") {
+    if (
+      !reason?.allowsExecutiveAssignment ||
+      reason.usesServiceStartTime ||
+      !isValidClockTime(value) ||
+      value === appointment.scheduledStartTime
+    ) {
+      return null;
+    }
+
+    return { scheduledStartTime: value };
+  }
+
   if (!isValidDateOnly(value)) {
     return null;
   }
@@ -265,6 +288,13 @@ export function appointmentDatesChanged(
   }
 
   if (
+    patch.scheduledStartTime !== undefined &&
+    patch.scheduledStartTime !== appointment.scheduledStartTime
+  ) {
+    return true;
+  }
+
+  if (
     patch.vacationStartDate !== undefined &&
     (patch.vacationStartDate !== appointment.vacationStartDate ||
       patch.vacationEndDate !== appointment.vacationEndDate)
@@ -310,11 +340,11 @@ export function getAdminDateChangeWarning(appointment: Appointment) {
     appointment.reasonAllowsExecutiveAssignment &&
     isScheduledWithExecutive
   ) {
-    return "Esta solicitud ya fue agendada. Al cambiar la fecha se cancelará la cita del ejecutivo, se enviará una nueva invitación de calendario y se notificará al conductor.";
+    return "Esta solicitud ya fue agendada. Al cambiar fecha u hora se cancelará la cita del ejecutivo, se enviará una nueva invitación de calendario y se notificará al conductor.";
   }
 
   if (appointment.reasonAllowsExecutiveAssignment) {
-    return "Se actualizará la fecha requerida y se notificará al conductor del cambio.";
+    return "Se actualizará la fecha u hora requerida y se notificará al conductor del cambio.";
   }
 
   if (appointment.reasonUsesDateRange) {
@@ -337,8 +367,21 @@ export function buildDateChangeMessage(
   next: Appointment,
 ) {
   if (next.reasonAllowsExecutiveAssignment) {
-    if (previous.appointmentDate === next.appointmentDate) {
+    const dateChanged = previous.appointmentDate !== next.appointmentDate;
+    const timeChanged =
+      previous.scheduledStartTime !== next.scheduledStartTime ||
+      previous.scheduledEndTime !== next.scheduledEndTime;
+
+    if (!dateChanged && !timeChanged) {
       return "";
+    }
+
+    if (dateChanged && timeChanged) {
+      return `Tu solicitud fue actualizada. Antes: ${formatDate(previous.appointmentDate)}${previous.scheduledStartTime ? ` a las ${previous.scheduledStartTime}` : ""}. Ahora: ${formatDate(next.appointmentDate)}${next.scheduledStartTime ? ` a las ${next.scheduledStartTime}` : ""}.`;
+    }
+
+    if (timeChanged) {
+      return `Tu solicitud fue actualizada. Hora anterior: ${previous.scheduledStartTime || "sin hora"}. Nueva hora: ${next.scheduledStartTime || "sin hora"}.`;
     }
 
     return `Tu solicitud fue actualizada. Fecha anterior: ${formatDate(previous.appointmentDate)}. Nueva fecha: ${formatDate(next.appointmentDate)}.`;

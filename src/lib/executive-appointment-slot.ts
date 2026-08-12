@@ -81,6 +81,7 @@ export function computeExecutiveAppointmentSlot(input: {
   >;
   executiveLunchBreak?: ExecutiveLunchBreakConfig | null;
   existingSlots: ExistingExecutiveSlot[];
+  preferredStartTime?: string;
   defaultStartHour?: number;
   defaultStartMinute?: number;
 }): ComputedExecutiveSlot | null {
@@ -96,6 +97,14 @@ export function computeExecutiveAppointmentSlot(input: {
     input.reason.serviceStartTime,
     toClockMinutes(defaultStartHour, defaultStartMinute),
   );
+
+  if (!input.reason.usesServiceStartTime && input.preferredStartTime) {
+    const preferredMinutes = clockMinutesFromTime(input.preferredStartTime);
+
+    if (preferredMinutes !== null) {
+      startMinutes = preferredMinutes;
+    }
+  }
 
   let changed = true;
   let guard = 0;

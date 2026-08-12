@@ -5,6 +5,7 @@ import {
   type AppointmentReasonConfig,
   type ExecutiveConfig,
   appointmentReasonAllowsExecutive,
+  appointmentReasonAllowsManualStartTime,
   appointmentReasonUsesDateRange,
   appointmentReasonUsesPermitDetails,
   defaultAppointmentReasons,
@@ -43,6 +44,7 @@ type FormValues = {
   vehicleNumber: string;
   appointmentReason: string;
   appointmentDate: string;
+  scheduledStartTime: string;
   assignedExecutive: string;
   vacationStartDate: string;
   vacationEndDate: string;
@@ -58,6 +60,7 @@ const initialValues: FormValues = {
   vehicleNumber: "",
   appointmentReason: "",
   appointmentDate: "",
+  scheduledStartTime: "",
   assignedExecutive: "",
   vacationStartDate: "",
   vacationEndDate: "",
@@ -106,6 +109,10 @@ export default function ExecutiveAppointmentCreateModal({
     reasons,
   );
   const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
+    values.appointmentReason,
+    reasons,
+  );
+  const allowsManualStartTime = appointmentReasonAllowsManualStartTime(
     values.appointmentReason,
     reasons,
   );
@@ -317,7 +324,16 @@ export default function ExecutiveAppointmentCreateModal({
         : {}),
       ...(name === "appointmentReason" &&
       !appointmentReasonAllowsExecutive(value, reasons)
-        ? { appointmentDate: "", assignedExecutive: "" }
+        ? {
+            appointmentDate: "",
+            scheduledStartTime: "",
+            assignedExecutive: "",
+          }
+        : {}),
+      ...(name === "appointmentReason" &&
+      appointmentReasonAllowsExecutive(value, reasons) &&
+      !appointmentReasonAllowsManualStartTime(value, reasons)
+        ? { scheduledStartTime: "" }
         : {}),
       ...(name === "permitType" && value === "dias"
         ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
@@ -335,7 +351,9 @@ export default function ExecutiveAppointmentCreateModal({
     !reasonDateCheck.blocked &&
     !executiveLimitStatus.blocked &&
     (!allowsExecutiveAssignment ||
-      (Boolean(values.appointmentDate) && Boolean(values.assignedExecutive))) &&
+      (Boolean(values.appointmentDate) &&
+        Boolean(values.assignedExecutive) &&
+        (!allowsManualStartTime || Boolean(values.scheduledStartTime)))) &&
     !isSubmitting &&
     !isLoadingContext;
 
@@ -516,6 +534,22 @@ export default function ExecutiveAppointmentCreateModal({
                     className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
+
+                {allowsManualStartTime ? (
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      Hora de atención
+                    </span>
+                    <input
+                      type="time"
+                      value={values.scheduledStartTime}
+                      onChange={(event) =>
+                        updateField("scheduledStartTime", event.target.value)
+                      }
+                      className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                    />
+                  </label>
+                ) : null}
 
                 <label className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-[#173b68]">

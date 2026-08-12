@@ -8,7 +8,13 @@ import {
   shouldRescheduleExecutiveCalendar,
   type AppointmentDatePatch,
 } from "@/lib/appointment-date-edit";
+import {
+  addMinutesToClockTime,
+  formatClockTime,
+  getReasonAppointmentDurationMinutes,
+} from "@/lib/appointment-scheduling";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
+import { parseClockTime } from "@/lib/executive-appointment-slot";
 import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
 import { requireAdminPermission, requireDriverSession } from "@/lib/admin-api-server";
 import { readDriverSession } from "@/lib/driver-auth";
@@ -29,6 +35,7 @@ type PatchBody = {
   status?: unknown;
   assignedExecutive?: unknown;
   appointmentDate?: unknown;
+  scheduledStartTime?: unknown;
   vacationStartDate?: unknown;
   vacationEndDate?: unknown;
   permitStartDate?: unknown;
@@ -62,6 +69,10 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
   let hasPatch = false;
 
   const appointmentDate = parseDateField(body.appointmentDate);
+  const scheduledStartTime =
+    typeof body.scheduledStartTime === "string"
+      ? body.scheduledStartTime.trim()
+      : "";
   const vacationStartDate = parseDateField(body.vacationStartDate);
   const vacationEndDate = parseDateField(body.vacationEndDate);
   const permitStartDate = parseDateField(body.permitStartDate);
@@ -74,6 +85,11 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
 
   if (appointmentDate) {
     patch.appointmentDate = appointmentDate;
+    hasPatch = true;
+  }
+
+  if (scheduledStartTime && isValidClockTime(scheduledStartTime)) {
+    patch.scheduledStartTime = scheduledStartTime;
     hasPatch = true;
   }
 
@@ -124,6 +140,7 @@ async function resolveExecutiveAssignmentSlot(
   appointmentDate: Date,
   assignedExecutiveName: string,
   appointmentReason: string,
+  preferredStartTime?: string,
 ) {
   const reasonRecord = await prisma.appointmentReason.findUnique({
     where: { value: appointmentReason },
@@ -139,6 +156,7 @@ async function resolveExecutiveAssignmentSlot(
     formatDateOnly(appointmentDate),
     reason,
     appointmentId,
+    preferredStartTime,
   );
 }
 
@@ -183,6 +201,16 @@ function validateDatePatchForReason(
 
     if (!isValidDateOnly(patch.appointmentDate)) {
       return "Ingresa una fecha válida.";
+    }
+  }
+
+  if (patch.scheduledStartTime !== undefined) {
+    if (!reason.allowsExecutiveAssignment || reason.usesServiceStartTime) {
+      return "Este motivo no permite definir la hora de atención manualmente.";
+    }
+
+    if (!isValidClockTime(patch.scheduledStartTime)) {
+      return "Ingresa una hora de atención válida.";
     }
   }
 
@@ -641,6 +669,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const assignedExecutiveName =
       data.assignedExecutive ?? currentAppointment.assignedExecutive;
 
+    const preferredStartTime =
+      datePatch?.scheduledStartTime ||
+      (typeof body.scheduledStartTime === "string"
+        ? body.scheduledStartTime.trim()
+        : "") ||
+      currentAppointment.scheduledStartTime;
+
     if (assignedExecutiveName && data.assignedExecutive !== "") {
       if (!reason?.allowsExecutiveAssignment) {
         return NextResponse.json(
@@ -657,6 +692,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         appointmentDateForSlot,
         assignedExecutiveName,
         currentAppointment.appointmentReason,
+        preferredStartTime || undefined,
       );
 
       if (!assignmentResult.ok) {
@@ -665,12 +701,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       data.scheduledStartTime = assignmentResult.slot.startTime;
       data.scheduledEndTime = assignmentResult.slot.endTime;
-    } else if (datePatch?.appointmentDate && assignedExecutiveName) {
+    } else if (
+      (datePatch?.appointmentDate || datePatch?.scheduledStartTime) &&
+      assignedExecutiveName
+    ) {
+      const appointmentDateForSlot =
+        data.appointmentDate ?? currentAppointment.appointmentDate;
+
       const assignmentResult = await resolveExecutiveAssignmentSlot(
         id,
-        data.appointmentDate!,
+        appointmentDateForSlot,
         assignedExecutiveName,
         currentAppointment.appointmentReason,
+        preferredStartTime || undefined,
       );
 
       if (!assignmentResult.ok) {
@@ -679,6 +722,32 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       data.scheduledStartTime = assignmentResult.slot.startTime;
       data.scheduledEndTime = assignmentResult.slot.endTime;
+    } else if (
+      datePatch?.scheduledStartTime &&
+      reason?.allowsExecutiveAssignment &&
+      !reason.usesServiceStartTime
+    ) {
+      const parsedStart = parseClockTime(datePatch.scheduledStartTime);
+
+      if (!parsedStart) {
+        return NextResponse.json(
+          { message: "La hora de atención no es válida." },
+          { status: 400 },
+        );
+      }
+
+      const durationMinutes = getReasonAppointmentDurationMinutes(reason);
+      const endClock = addMinutesToClockTime(
+        parsedStart.hour,
+        parsedStart.minute,
+        durationMinutes,
+      );
+
+      data.scheduledStartTime = formatClockTime(
+        parsedStart.hour,
+        parsedStart.minute,
+      );
+      data.scheduledEndTime = formatClockTime(endClock.hour, endClock.minute);
     }
 
     const updatedAppointment = await prisma.appointment.update({

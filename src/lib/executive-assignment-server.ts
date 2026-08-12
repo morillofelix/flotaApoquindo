@@ -29,6 +29,7 @@ export async function validateExecutiveAssignmentForDate(
   appointmentDate: string,
   reason: AppointmentReasonConfig,
   excludeAppointmentId?: string,
+  preferredStartTime?: string,
 ): Promise<ExecutiveAssignmentValidation> {
   if (!reason.allowsExecutiveAssignment) {
     return { ok: false, message: "Este motivo no permite derivación." };
@@ -40,6 +41,17 @@ export async function validateExecutiveAssignmentForDate(
 
   if (!executive?.isActive) {
     return { ok: false, message: "Selecciona un ejecutivo activo." };
+  }
+
+  const normalizedPreferredStart =
+    typeof preferredStartTime === "string" ? preferredStartTime.trim() : "";
+
+  if (
+    !reason.usesServiceStartTime &&
+    normalizedPreferredStart &&
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(normalizedPreferredStart)
+  ) {
+    return { ok: false, message: "La hora de atención no es válida." };
   }
 
   const appointmentDateValue = toDateOnly(appointmentDate);
@@ -81,6 +93,10 @@ export async function validateExecutiveAssignmentForDate(
 
   const slot = computeExecutiveAppointmentSlot({
     reason,
+    preferredStartTime:
+      !reason.usesServiceStartTime && normalizedPreferredStart
+        ? normalizedPreferredStart
+        : undefined,
     executiveLunchBreak: {
       lunchBreakEnabled: executive.lunchBreakEnabled,
       lunchBreakStart: executive.lunchBreakStart,
