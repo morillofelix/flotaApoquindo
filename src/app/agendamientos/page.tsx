@@ -1228,7 +1228,7 @@ function AppointmentsPageContent() {
 
           {filteredAppointments.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-[#b7cce4]">
-              <div className="max-h-[62dvh] overflow-auto">
+              <div className="max-h-[min(78dvh,calc(100dvh-11rem))] overflow-auto">
                 <table className="min-w-[1160px] w-full border-collapse text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[#d7e7f8] text-[10px] uppercase tracking-[0.12em] text-[#0f2747] shadow-[0_2px_0_#b7cce4]">
                     <tr>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Appointment } from "@/lib/appointments";
 import { shouldSendCalendarInvite } from "@/lib/agendamientos-appointments";
 import { canEditAppointmentDates } from "@/lib/appointment-date-edit";
@@ -91,6 +91,12 @@ function DotsIcon() {
   );
 }
 
+type MenuPosition = {
+  top: number;
+  left: number;
+  openUpward: boolean;
+};
+
 export default function AppointmentRowActions({
   appointment,
   isResending,
@@ -99,9 +105,38 @@ export default function AppointmentRowActions({
   onDelete,
 }: AppointmentRowActionsProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const showResend = canResendAppointmentReminder(appointment);
   const showEdit = canEditAppointmentDates(appointment.status);
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      return;
+    }
+
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = 200;
+    const estimatedMenuHeight =
+      8 + (showEdit ? 40 : 0) + (showResend ? 40 : 0) + 40;
+    const gap = 6;
+    const spaceBelow = window.innerHeight - buttonRect.bottom;
+    const openUpward = spaceBelow < estimatedMenuHeight + 12;
+
+    let left = buttonRect.right - menuWidth;
+    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+
+    const top = openUpward
+      ? Math.max(8, buttonRect.top - estimatedMenuHeight - gap)
+      : Math.min(
+          buttonRect.bottom + gap,
+          window.innerHeight - estimatedMenuHeight - 8,
+        );
+
+    setMenuPosition({ top, left, openUpward });
+  }, [open, showEdit, showResend]);
 
   useEffect(() => {
     if (!open) {
@@ -109,21 +144,35 @@ export default function AppointmentRowActions({
     }
 
     function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        containerRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
       ) {
-        setOpen(false);
+        return;
       }
+      setOpen(false);
+    }
+
+    function handleViewportChange() {
+      setOpen(false);
     }
 
     window.addEventListener("mousedown", handlePointerDown);
-    return () => window.removeEventListener("mousedown", handlePointerDown);
+    window.addEventListener("scroll", handleViewportChange, true);
+    window.addEventListener("resize", handleViewportChange);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("scroll", handleViewportChange, true);
+      window.removeEventListener("resize", handleViewportChange);
+    };
   }, [open]);
 
   return (
     <div ref={containerRef} className="relative inline-flex flex-col items-center">
       <button
+        ref={buttonRef}
         type="button"
         title="Ver acciones"
         aria-label="Ver acciones"
@@ -135,10 +184,17 @@ export default function AppointmentRowActions({
         <DotsIcon />
       </button>
 
-      {open ? (
+      {open && menuPosition ? (
         <div
+          ref={menuRef}
           role="menu"
-          className="absolute right-full top-5 z-40 mr-1.5 min-w-[12.5rem] overflow-hidden rounded-xl border border-[#b7cce4] bg-white py-1 shadow-lg shadow-slate-300/35"
+          style={{
+            position: "fixed",
+            top: menuPosition.top,
+            left: menuPosition.left,
+            zIndex: 80,
+          }}
+          className="min-w-[12.5rem] overflow-hidden rounded-xl border border-[#b7cce4] bg-white py-1 shadow-lg shadow-slate-300/35"
         >
           {showEdit ? (
             <button
