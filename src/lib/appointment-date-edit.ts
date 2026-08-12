@@ -14,6 +14,7 @@ export const DATE_EDITABLE_STATUSES: AppointmentStatus[] = [
 export type AppointmentDatePatch = {
   appointmentDate?: string;
   scheduledStartTime?: string;
+  scheduledEndTime?: string;
   vacationStartDate?: string;
   vacationEndDate?: string;
   permitStartDate?: string;
@@ -130,7 +131,9 @@ function buildPermitHorasPatch(
 
 export function buildDateChangePreviewLabel(patch: AppointmentDatePatch) {
   if (patch.appointmentDate && patch.scheduledStartTime) {
-    return `Nueva fecha y hora: ${formatDate(patch.appointmentDate)} a las ${patch.scheduledStartTime}`;
+    return `Nueva fecha y hora: ${formatDate(patch.appointmentDate)} a las ${patch.scheduledStartTime}${
+      patch.scheduledEndTime ? ` – ${patch.scheduledEndTime}` : ""
+    }`;
   }
 
   if (patch.appointmentDate) {
@@ -138,7 +141,9 @@ export function buildDateChangePreviewLabel(patch: AppointmentDatePatch) {
   }
 
   if (patch.scheduledStartTime) {
-    return `Nueva hora de atención: ${patch.scheduledStartTime}`;
+    return `Nueva hora de atención: ${patch.scheduledStartTime}${
+      patch.scheduledEndTime ? ` – ${patch.scheduledEndTime}` : ""
+    }`;
   }
 
   if (patch.vacationStartDate && patch.vacationEndDate) {
@@ -184,7 +189,7 @@ export function buildDatePatchFromFieldChange(
   if (field === "scheduledStartTime") {
     if (
       !reason?.allowsExecutiveAssignment ||
-      reason.usesServiceStartTime ||
+      !appointment.assignedExecutive ||
       !isValidClockTime(value) ||
       value === appointment.scheduledStartTime
     ) {
@@ -377,11 +382,23 @@ export function buildDateChangeMessage(
     }
 
     if (dateChanged && timeChanged) {
-      return `Tu solicitud fue actualizada. Antes: ${formatDate(previous.appointmentDate)}${previous.scheduledStartTime ? ` a las ${previous.scheduledStartTime}` : ""}. Ahora: ${formatDate(next.appointmentDate)}${next.scheduledStartTime ? ` a las ${next.scheduledStartTime}` : ""}.`;
+      const previousTime = previous.scheduledStartTime
+        ? ` ${previous.scheduledStartTime}${previous.scheduledEndTime ? ` – ${previous.scheduledEndTime}` : ""}`
+        : "";
+      const nextTime = next.scheduledStartTime
+        ? ` ${next.scheduledStartTime}${next.scheduledEndTime ? ` – ${next.scheduledEndTime}` : ""}`
+        : "";
+      return `Tu solicitud fue actualizada. Antes: ${formatDate(previous.appointmentDate)}${previousTime}. Ahora: ${formatDate(next.appointmentDate)}${nextTime}.`;
     }
 
     if (timeChanged) {
-      return `Tu solicitud fue actualizada. Hora anterior: ${previous.scheduledStartTime || "sin hora"}. Nueva hora: ${next.scheduledStartTime || "sin hora"}.`;
+      const previousTime = previous.scheduledStartTime
+        ? `${previous.scheduledStartTime}${previous.scheduledEndTime ? ` – ${previous.scheduledEndTime}` : ""}`
+        : "sin hora";
+      const nextTime = next.scheduledStartTime
+        ? `${next.scheduledStartTime}${next.scheduledEndTime ? ` – ${next.scheduledEndTime}` : ""}`
+        : "sin hora";
+      return `Tu solicitud fue actualizada. Horario anterior: ${previousTime}. Nuevo horario: ${nextTime}.`;
     }
 
     return `Tu solicitud fue actualizada. Fecha anterior: ${formatDate(previous.appointmentDate)}. Nueva fecha: ${formatDate(next.appointmentDate)}.`;

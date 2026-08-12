@@ -2,7 +2,10 @@ import {
   type Appointment,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
-import { getRequestDateDetail } from "@/lib/agendamientos-appointments";
+import {
+  getRequestDateDetail,
+  getRequiredDateSummary,
+} from "@/lib/agendamientos-appointments";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -17,6 +20,8 @@ type DateChangeEmailPayload = Pick<
   | "driverName"
   | "vehicleNumber"
   | "appointmentDate"
+  | "scheduledStartTime"
+  | "scheduledEndTime"
   | "appointmentReasonLabel"
   | "reasonAllowsExecutiveAssignment"
   | "reasonUsesDateRange"
@@ -78,7 +83,13 @@ function createEmailHtml(appointment: DateChangeEmailPayload) {
       <p><strong>Motivo:</strong> ${escapeHtml(appointment.appointmentReasonLabel)}</p>
       <p><strong>Detalle del cambio:</strong> ${escapeHtml(appointment.dateChangeMessage)}</p>
       ${detail ? `<p><strong>Fechas actuales:</strong> ${escapeHtml(detail)}</p>` : ""}
-      ${appointment.reasonAllowsExecutiveAssignment ? `<p><strong>Fecha requerida:</strong> ${escapeHtml(appointment.appointmentDate)}</p>` : ""}
+      ${
+        appointment.reasonAllowsExecutiveAssignment
+          ? `<p><strong>Fecha requerida:</strong> ${escapeHtml(
+              getRequiredDateSummary(appointment as Appointment),
+            )}</p>`
+          : ""
+      }
       <p style="margin-top: 20px;">Si tienes dudas, contacta al departamento de flota.</p>
     </div>
   `;
@@ -100,7 +111,9 @@ function createEmailText(appointment: DateChangeEmailPayload) {
   }
 
   if (appointment.reasonAllowsExecutiveAssignment) {
-    lines.push(`Fecha requerida: ${appointment.appointmentDate}`);
+    lines.push(
+      `Fecha requerida: ${getRequiredDateSummary(appointment as Appointment)}`,
+    );
   }
 
   lines.push("", "Si tienes dudas, contacta al departamento de flota.");

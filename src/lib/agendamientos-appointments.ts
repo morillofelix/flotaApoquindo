@@ -49,6 +49,23 @@ export function formatDate(value: string) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+export function formatScheduledTimeRange(
+  appointment: Pick<Appointment, "scheduledStartTime" | "scheduledEndTime">,
+) {
+  const start = appointment.scheduledStartTime?.trim() ?? "";
+  const end = appointment.scheduledEndTime?.trim() ?? "";
+
+  if (!start) {
+    return "";
+  }
+
+  if (end) {
+    return `${start} – ${end}`;
+  }
+
+  return start;
+}
+
 export function formatCreatedAt(value: string) {
   return new Intl.DateTimeFormat("es-CL", {
     day: "2-digit",
@@ -109,9 +126,14 @@ export function getRequestDateDetail(appointment: Appointment) {
 /** Fecha que rige en calendario y operación (permiso, vacaciones o cita). */
 export function getRequiredDateSummary(appointment: Appointment) {
   if (appointment.reasonAllowsExecutiveAssignment) {
-    return appointment.appointmentDate
-      ? formatDate(appointment.appointmentDate)
-      : "";
+    if (!appointment.appointmentDate) {
+      return "";
+    }
+
+    const dateLabel = formatDate(appointment.appointmentDate);
+    const timeRange = formatScheduledTimeRange(appointment);
+
+    return timeRange ? `${dateLabel}, ${timeRange}` : dateLabel;
   }
 
   return getRequestDateDetail(appointment);
@@ -445,6 +467,8 @@ export async function sendDateChangeEmail(appointment: Appointment) {
       driverName: appointment.driverName,
       vehicleNumber: appointment.vehicleNumber,
       appointmentDate: appointment.appointmentDate,
+      scheduledStartTime: appointment.scheduledStartTime,
+      scheduledEndTime: appointment.scheduledEndTime,
       appointmentReasonLabel: appointment.appointmentReasonLabel,
       reasonAllowsExecutiveAssignment:
         appointment.reasonAllowsExecutiveAssignment,

@@ -205,7 +205,15 @@ function createInviteDescription(appointment: CalendarInvitePayload) {
     `Conductor: ${appointment.driverName}`,
     `Móvil: ${appointment.vehicleNumber}`,
     `Motivo: ${appointment.appointmentReasonLabel}`,
-    `Fecha requerida: ${formatDisplayDate(appointment.appointmentDate)}`,
+    `Fecha requerida: ${formatDisplayDate(appointment.appointmentDate)}${
+      appointment.scheduledStartTime
+        ? ` · ${appointment.scheduledStartTime}${
+            appointment.scheduledEndTime
+              ? ` – ${appointment.scheduledEndTime}`
+              : ""
+          }`
+        : ""
+    }`,
     dateRange ? `Rango de fechas: ${dateRange}` : "",
     `Correo solicitante: ${appointment.email}`,
     `Teléfono: ${appointment.phone}`,

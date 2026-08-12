@@ -141,6 +141,7 @@ async function resolveExecutiveAssignmentSlot(
   assignedExecutiveName: string,
   appointmentReason: string,
   preferredStartTime?: string,
+  preferredEndTime?: string,
 ) {
   const reasonRecord = await prisma.appointmentReason.findUnique({
     where: { value: appointmentReason },
@@ -157,6 +158,7 @@ async function resolveExecutiveAssignmentSlot(
     reason,
     appointmentId,
     preferredStartTime,
+    preferredEndTime,
   );
 }
 
@@ -676,6 +678,30 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         : "") ||
       currentAppointment.scheduledStartTime;
 
+    const preferredEndTime = preferredStartTime
+      ? preferredStartTime === currentAppointment.scheduledStartTime &&
+        currentAppointment.scheduledEndTime
+        ? currentAppointment.scheduledEndTime
+        : (() => {
+            if (!reason) {
+              return currentAppointment.scheduledEndTime || undefined;
+            }
+
+            const parsedStart = parseClockTime(preferredStartTime);
+            if (!parsedStart) {
+              return currentAppointment.scheduledEndTime || undefined;
+            }
+
+            const endClock = addMinutesToClockTime(
+              parsedStart.hour,
+              parsedStart.minute,
+              getReasonAppointmentDurationMinutes(reason),
+            );
+
+            return formatClockTime(endClock.hour, endClock.minute);
+          })()
+      : undefined;
+
     if (assignedExecutiveName && data.assignedExecutive !== "") {
       if (!reason?.allowsExecutiveAssignment) {
         return NextResponse.json(
@@ -693,6 +719,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         assignedExecutiveName,
         currentAppointment.appointmentReason,
         preferredStartTime || undefined,
+        preferredEndTime,
       );
 
       if (!assignmentResult.ok) {
@@ -714,6 +741,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         assignedExecutiveName,
         currentAppointment.appointmentReason,
         preferredStartTime || undefined,
+        preferredEndTime,
       );
 
       if (!assignmentResult.ok) {
@@ -724,8 +752,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       data.scheduledEndTime = assignmentResult.slot.endTime;
     } else if (
       datePatch?.scheduledStartTime &&
-      reason?.allowsExecutiveAssignment &&
-      !reason.usesServiceStartTime
+      reason?.allowsExecutiveAssignment
     ) {
       const parsedStart = parseClockTime(datePatch.scheduledStartTime);
 

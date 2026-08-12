@@ -1352,7 +1352,7 @@ function AppointmentsPageContent() {
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.reasonAllowsExecutiveAssignment &&
                           canEditAppointmentDates(appointment.status) ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex min-w-[9.5rem] flex-col gap-1.5">
                               <input
                                 key={`${appointment.id}-${appointment.appointmentDate}`}
                                 type="date"
@@ -1366,29 +1366,41 @@ function AppointmentsPageContent() {
                                 }
                                 className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               />
-                              {!appointment.reasonUsesServiceStartTime ? (
-                                <input
-                                  key={`${appointment.id}-start-${appointment.scheduledStartTime}`}
-                                  type="time"
-                                  defaultValue={appointment.scheduledStartTime}
-                                  onChange={(event) =>
-                                    requestDateFieldChange(
-                                      appointment,
-                                      "scheduledStartTime",
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                                  title="Hora de atención"
-                                />
-                              ) : appointment.scheduledStartTime ? (
+                              {appointment.assignedExecutive ? (
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <input
+                                    key={`${appointment.id}-start-${appointment.scheduledStartTime}`}
+                                    type="time"
+                                    defaultValue={appointment.scheduledStartTime}
+                                    onChange={(event) =>
+                                      requestDateFieldChange(
+                                        appointment,
+                                        "scheduledStartTime",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                    title="Hora de inicio"
+                                  />
+                                  {appointment.scheduledEndTime ? (
+                                    <span className="text-[11px] font-semibold text-[#173b68]">
+                                      – {appointment.scheduledEndTime}
+                                    </span>
+                                  ) : appointment.scheduledStartTime ? (
+                                    <span className="text-[11px] font-medium text-slate-500">
+                                      (sin término)
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] font-medium text-slate-500">
+                                      Elige hora
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
                                 <span className="text-[11px] font-medium text-slate-500">
-                                  {appointment.scheduledStartTime}
-                                  {appointment.scheduledEndTime
-                                    ? ` – ${appointment.scheduledEndTime}`
-                                    : ""}
+                                  Asigna un ejecutivo para definir la hora
                                 </span>
-                              ) : null}
+                              )}
                             </div>
                           ) : appointment.reasonUsesDateRange &&
                           canEditAppointmentDates(appointment.status) ? (
@@ -1478,14 +1490,7 @@ function AppointmentsPageContent() {
                             </div>
                           ) : appointment.reasonAllowsExecutiveAssignment ? (
                             <span className="text-[11px] font-semibold text-[#173b68]">
-                              {getRequiredDateSummary(appointment)}
-                              {appointment.scheduledStartTime
-                                ? ` · ${appointment.scheduledStartTime}${
-                                    appointment.scheduledEndTime
-                                      ? ` – ${appointment.scheduledEndTime}`
-                                      : ""
-                                  }`
-                                : ""}
+                              {getRequiredDateSummary(appointment) || "No aplica"}
                             </span>
                           ) : getRequiredDateSummary(appointment) ? (
                             <span className="text-[11px] font-semibold text-[#173b68]">
