@@ -38,11 +38,16 @@ export default function ExecutiveAvailabilityPanel({
       <p className="mt-1 text-sm font-semibold text-[#0f2747]">
         {executiveName} · {appointmentDateLabel}
       </p>
-      <p className="mt-1 text-xs text-slate-600">
+                  <p className="mt-1 text-xs text-slate-600">
         Atención {availability.dayStartTime} – {availability.dayEndTime} ·
         Duración estimada: {availability.durationMinutes} min
         {availability.hasLunchBreak ? " · Incluye bloqueo de colación" : ""}
       </p>
+      {availability.earliestSelectableStartMinutes !== null ? (
+        <p className="mt-1 text-xs font-medium text-amber-800">
+          Para hoy solo se muestran horarios posteriores a la hora actual.
+        </p>
+      ) : null}
       <p className="mt-2 text-xs font-medium text-[#173b68]">
         Selecciona un bloque disponible o ajusta manualmente la hora de
         atención.

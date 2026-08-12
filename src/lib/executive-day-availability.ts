@@ -59,6 +59,8 @@ export type ExecutiveDayAvailability = {
   dayEndTime: string;
   dayStartMinutes: number;
   dayEndMinutes: number;
+  /** Minutos desde medianoche (Santiago). Si hay valor, no se permiten inicios anteriores. */
+  earliestSelectableStartMinutes: number | null;
 };
 
 function toMinutes(hour: number, minute: number) {
@@ -77,6 +79,49 @@ function parseMinutes(value: string) {
   }
 
   return toMinutes(parsed.hour, parsed.minute);
+}
+
+/** Hora actual en minutos desde medianoche, zona America/Santiago. */
+export function getSantiagoNowMinutes(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Santiago",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const hourRaw = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(
+    parts.find((part) => part.type === "minute")?.value ?? "0",
+  );
+  const hour = hourRaw === 24 ? 0 : hourRaw;
+
+  return toMinutes(hour, minute);
+}
+
+export function getSantiagoTodayDate(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+  }).format(now);
+}
+
+/**
+ * Si la cita es para hoy (Santiago), no se puede sugerir/seleccionar
+ * una hora de inicio anterior al instante actual.
+ */
+export function resolveEarliestSelectableStartMinutes(
+  appointmentDate: string | undefined,
+  now = new Date(),
+) {
+  if (!appointmentDate || !/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) {
+    return null;
+  }
+
+  if (appointmentDate !== getSantiagoTodayDate(now)) {
+    return null;
+  }
+
+  return getSantiagoNowMinutes(now);
 }
 
 function mergeIntervals(intervals: BusyInterval[]) {
@@ -222,15 +267,25 @@ export function buildExecutiveDayAvailability(input: {
   dayStartMinutes?: number;
   dayEndMinutes?: number;
   slotStepMinutes?: number;
+  appointmentDate?: string;
+  now?: Date;
 }): ExecutiveDayAvailability {
   const durationMinutes = getReasonAppointmentDurationMinutes(input.reason);
   const window = resolveAvailabilityDayWindow(input.reason);
   const dayStart = input.dayStartMinutes ?? window.dayStartMinutes;
   const dayEnd = input.dayEndMinutes ?? window.dayEndMinutes;
   const step = input.slotStepMinutes ?? AVAILABILITY_SLOT_STEP_MINUTES;
+  const earliestSelectableStartMinutes = resolveEarliestSelectableStartMinutes(
+    input.appointmentDate,
+    input.now,
+  );
+  const selectableFrom = Math.max(
+    dayStart,
+    earliestSelectableStartMinutes ?? dayStart,
+  );
   const { busy, hasLunchBreak } = buildBusyIntervals(input);
 
-  const free: FreeInterval[] = [];
+  const freeRaw: FreeInterval[] = [];
   let cursor = dayStart;
 
   for (const block of busy) {
@@ -242,7 +297,7 @@ export function buildExecutiveDayAvailability(input: {
     }
 
     if (cursor < blockStart) {
-      free.push({
+      freeRaw.push({
         startMinutes: cursor,
         endMinutes: Math.min(blockStart, dayEnd),
         startTime: minutesToTime(cursor),
@@ -254,7 +309,7 @@ export function buildExecutiveDayAvailability(input: {
   }
 
   if (cursor < dayEnd) {
-    free.push({
+    freeRaw.push({
       startMinutes: cursor,
       endMinutes: dayEnd,
       startTime: minutesToTime(cursor),
@@ -262,13 +317,37 @@ export function buildExecutiveDayAvailability(input: {
     });
   }
 
+  const free: FreeInterval[] = [];
+
+  for (const block of freeRaw) {
+    const startMinutes = Math.max(block.startMinutes, selectableFrom);
+
+    if (startMinutes >= block.endMinutes) {
+      continue;
+    }
+
+    free.push({
+      startMinutes,
+      endMinutes: block.endMinutes,
+      startTime: minutesToTime(startMinutes),
+      endTime: minutesToTime(block.endMinutes),
+    });
+  }
+
   const suggestedStarts: SuggestedStartSlot[] = [];
+  const suggestionStart =
+    earliestSelectableStartMinutes === null
+      ? dayStart
+      : Math.ceil(selectableFrom / step) * step;
 
   for (
-    let start = dayStart;
+    let start = suggestionStart;
     start + durationMinutes <= dayEnd;
     start += step
   ) {
+    if (start < selectableFrom) {
+      continue;
+    }
     const end = start + durationMinutes;
     const overlapsBusy = busy.some(
       (block) => start < block.endMinutes && end > block.startMinutes,
@@ -309,6 +388,7 @@ export function buildExecutiveDayAvailability(input: {
     dayEndTime: minutesToTime(dayEnd),
     dayStartMinutes: dayStart,
     dayEndMinutes: dayEnd,
+    earliestSelectableStartMinutes,
   };
 }
 
@@ -351,6 +431,17 @@ export function validateAppointmentTimeRange(input: {
     return {
       ok: false,
       message: "La hora de inicio debe ser anterior a la hora de término.",
+    };
+  }
+
+  if (
+    input.availability.earliestSelectableStartMinutes !== null &&
+    start < input.availability.earliestSelectableStartMinutes
+  ) {
+    return {
+      ok: false,
+      message:
+        "No puedes agendar una hora que ya pasó. Elige un horario posterior.",
     };
   }
 

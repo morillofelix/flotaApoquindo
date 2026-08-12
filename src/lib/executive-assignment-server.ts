@@ -135,6 +135,7 @@ export async function validateExecutiveAssignmentForDate(
       existingSlots,
       lunchBreak,
       reason,
+      appointmentDate,
     });
     const validation = validateAppointmentTimeRange({
       startTime: normalizedPreferredStart,

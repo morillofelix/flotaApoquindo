@@ -122,6 +122,7 @@ export default function ExecutiveAppointmentCreateModal({
   const [selectedFreeBlockKey, setSelectedFreeBlockKey] = useState<string | null>(
     null,
   );
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedDriver, setSelectedDriver] = useState<VehicleLookupResult | null>(
     null,
   );
@@ -246,11 +247,14 @@ export default function ExecutiveAppointmentCreateModal({
         lunchBreakEnd: executive.lunchBreakEnd,
       },
       reason: selectedReasonConfig,
+      appointmentDate: values.appointmentDate,
+      now: new Date(nowMs),
     });
   }, [
     allowsExecutiveAssignment,
     appointments,
     executives,
+    nowMs,
     selectedReasonConfig,
     values.appointmentDate,
     values.assignedExecutive,
@@ -338,6 +342,19 @@ export default function ExecutiveAppointmentCreateModal({
       .finally(() => {
         setIsLoadingContext(false);
       });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setNowMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
   }, [isOpen]);
 
   useEffect(() => {

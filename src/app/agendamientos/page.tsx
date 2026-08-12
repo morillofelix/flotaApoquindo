@@ -181,13 +181,30 @@ function AppointmentsPageContent() {
   );
 
   useEffect(() => {
-    if (emailNotice?.status !== "sent") {
+    if (!emailNotice) {
       return;
     }
 
+    const timeoutMs = emailNotice.status === "sent" ? 4500 : 8000;
     const timeoutId = window.setTimeout(() => {
-      setEmailNotice(null);
-    }, 4500);
+      setEmailNotice((current) => {
+        if (!current) {
+          return null;
+        }
+
+        if (current.status === "sending") {
+          return {
+            status: "sent",
+            message:
+              current.message.includes("Solicitud creada")
+                ? "Solicitud creada. Los correos de cita se enviaron o quedaron en cola."
+                : "Proceso de correos finalizado.",
+          };
+        }
+
+        return null;
+      });
+    }, timeoutMs);
 
     return () => window.clearTimeout(timeoutId);
   }, [emailNotice]);
@@ -1628,9 +1645,9 @@ function AppointmentsPageContent() {
 
           if (meta.emailsQueued) {
             setEmailNotice({
-              status: "sending",
+              status: "sent",
               message:
-                "Solicitud creada. Enviando correos de cita al ejecutivo y al conductor...",
+                "Solicitud creada. Los correos de cita se están enviando al ejecutivo y al conductor.",
             });
             return;
           }
@@ -1639,6 +1656,11 @@ function AppointmentsPageContent() {
             setEmailNotice({
               status: "sent",
               message: "Correos de cita enviados al ejecutivo y al conductor.",
+            });
+          } else {
+            setEmailNotice({
+              status: "sent",
+              message: "Solicitud creada correctamente.",
             });
           }
         }}
