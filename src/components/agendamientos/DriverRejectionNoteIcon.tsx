@@ -10,18 +10,17 @@ function CommentIcon() {
   return (
     <svg
       aria-hidden
-      viewBox="0 0 24 24"
+      viewBox="0 0 16 16"
       className="size-3.5"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M7.5 18.5 4.5 21v-3.2A7.5 7.5 0 1 1 12 19.5c-1.5 0-2.9-.4-4.1-1.1L7.5 18.5z" />
-      <path d="M9 11h6" />
-      <path d="M9 14h4" />
-      <path d="M9 8h6" />
+      <path d="M4.2 11.4 2.8 13V4.8A1.8 1.8 0 0 1 4.6 3h6.8A1.8 1.8 0 0 1 13.2 4.8v4.4A1.8 1.8 0 0 1 11.4 11H5.1l-.9.4z" />
+      <path d="M5.4 6.2h5.2" />
+      <path d="M5.4 8.4h3.6" />
     </svg>
   );
 }
@@ -103,7 +102,7 @@ export default function DriverRejectionNoteIcon({
         aria-label="Ver observación del conductor"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-rose-300 bg-rose-50 text-rose-700 transition hover:border-rose-400 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60"
       >
         <CommentIcon />
       </button>
