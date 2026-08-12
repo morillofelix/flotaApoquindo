@@ -1,6 +1,7 @@
 import { type AppointmentStatus, defaultExecutives } from "@/lib/appointments";
 import {
   appointmentDatesChanged,
+  buildCancellationMessage,
   buildDateChangeMessage,
   canEditAppointmentDates,
   isValidClockTime,
@@ -36,6 +37,7 @@ type PatchBody = {
   assignedExecutive?: unknown;
   appointmentDate?: unknown;
   scheduledStartTime?: unknown;
+  scheduledEndTime?: unknown;
   vacationStartDate?: unknown;
   vacationEndDate?: unknown;
   permitStartDate?: unknown;
@@ -90,6 +92,16 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
 
   if (scheduledStartTime && isValidClockTime(scheduledStartTime)) {
     patch.scheduledStartTime = scheduledStartTime;
+    hasPatch = true;
+  }
+
+  const scheduledEndTime =
+    typeof body.scheduledEndTime === "string"
+      ? body.scheduledEndTime.trim()
+      : "";
+
+  if (scheduledEndTime && isValidClockTime(scheduledEndTime)) {
+    patch.scheduledEndTime = scheduledEndTime;
     hasPatch = true;
   }
 
@@ -207,7 +219,7 @@ function validateDatePatchForReason(
   }
 
   if (patch.scheduledStartTime !== undefined) {
-    if (!reason.allowsExecutiveAssignment || reason.usesServiceStartTime) {
+    if (!reason.allowsExecutiveAssignment) {
       return "Este motivo no permite definir la hora de atención manualmente.";
     }
 
@@ -678,28 +690,35 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         : "") ||
       currentAppointment.scheduledStartTime;
 
+    const preferredEndFromBody =
+      datePatch?.scheduledEndTime ||
+      (typeof body.scheduledEndTime === "string"
+        ? body.scheduledEndTime.trim()
+        : "");
+
     const preferredEndTime = preferredStartTime
-      ? preferredStartTime === currentAppointment.scheduledStartTime &&
+      ? preferredEndFromBody ||
+        (preferredStartTime === currentAppointment.scheduledStartTime &&
         currentAppointment.scheduledEndTime
-        ? currentAppointment.scheduledEndTime
-        : (() => {
-            if (!reason) {
-              return currentAppointment.scheduledEndTime || undefined;
-            }
+          ? currentAppointment.scheduledEndTime
+          : (() => {
+              if (!reason) {
+                return currentAppointment.scheduledEndTime || undefined;
+              }
 
-            const parsedStart = parseClockTime(preferredStartTime);
-            if (!parsedStart) {
-              return currentAppointment.scheduledEndTime || undefined;
-            }
+              const parsedStart = parseClockTime(preferredStartTime);
+              if (!parsedStart) {
+                return currentAppointment.scheduledEndTime || undefined;
+              }
 
-            const endClock = addMinutesToClockTime(
-              parsedStart.hour,
-              parsedStart.minute,
-              getReasonAppointmentDurationMinutes(reason),
-            );
+              const endClock = addMinutesToClockTime(
+                parsedStart.hour,
+                parsedStart.minute,
+                getReasonAppointmentDurationMinutes(reason),
+              );
 
-            return formatClockTime(endClock.hour, endClock.minute);
-          })()
+              return formatClockTime(endClock.hour, endClock.minute);
+            })())
       : undefined;
 
     if (assignedExecutiveName && data.assignedExecutive !== "") {
@@ -775,6 +794,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         parsedStart.minute,
       );
       data.scheduledEndTime = formatClockTime(endClock.hour, endClock.minute);
+    }
+
+    if (
+      data.status === "cancelado" &&
+      previousAppointment.status !== "cancelado"
+    ) {
+      data.dateChangePending = true;
+      data.dateChangeMessage = buildCancellationMessage(previousAppointment);
     }
 
     const updatedAppointment = await prisma.appointment.update({

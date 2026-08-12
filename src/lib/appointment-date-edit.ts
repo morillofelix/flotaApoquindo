@@ -448,6 +448,24 @@ export function buildDateChangeMessage(
   return "Tu solicitud fue actualizada con nuevas fechas.";
 }
 
+export function buildCancellationMessage(appointment: Appointment) {
+  const dateLabel = appointment.appointmentDate
+    ? formatDate(appointment.appointmentDate)
+    : "";
+  const timeLabel =
+    appointment.scheduledStartTime && appointment.scheduledEndTime
+      ? ` ${appointment.scheduledStartTime} – ${appointment.scheduledEndTime}`
+      : appointment.scheduledStartTime
+        ? ` ${appointment.scheduledStartTime}`
+        : "";
+
+  if (dateLabel) {
+    return `Tu solicitud fue cancelada. La cita que estaba agendada para el ${dateLabel}${timeLabel} ya no corresponde. Si tienes dudas, contacta al departamento de flota.`;
+  }
+
+  return `Tu solicitud fue cancelada. Si tienes dudas, contacta al departamento de flota.`;
+}
+
 export function shouldRescheduleExecutiveCalendar(appointment: Appointment) {
   return (
     appointment.reasonAllowsExecutiveAssignment &&
@@ -457,3 +475,4 @@ export function shouldRescheduleExecutiveCalendar(appointment: Appointment) {
     appointment.scheduledEndTime !== ""
   );
 }
+

@@ -122,18 +122,42 @@ function PublicAppointmentHistoryContent({
               ) : null}
 
               {appointment.dateChangePending && appointment.dateChangeMessage ? (
-                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
-                    Fecha actualizada
+                <div
+                  className={`rounded-xl border-2 px-3 py-2.5 ${
+                    /cancelad/i.test(appointment.dateChangeMessage)
+                      ? "border-slate-400 bg-slate-100"
+                      : "border-amber-400 bg-amber-50"
+                  }`}
+                >
+                  <p
+                    className={`text-[10px] font-bold uppercase tracking-[0.12em] ${
+                      /cancelad/i.test(appointment.dateChangeMessage)
+                        ? "text-slate-800"
+                        : "text-amber-900"
+                    }`}
+                  >
+                    {/cancelad/i.test(appointment.dateChangeMessage)
+                      ? "Solicitud cancelada"
+                      : "Fecha actualizada"}
                   </p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-amber-950">
+                  <p
+                    className={`mt-1 text-xs font-semibold leading-5 ${
+                      /cancelad/i.test(appointment.dateChangeMessage)
+                        ? "text-slate-900"
+                        : "text-amber-950"
+                    }`}
+                  >
                     {appointment.dateChangeMessage}
                   </p>
                   {onDismissDateChange ? (
                     <button
                       type="button"
                       onClick={() => onDismissDateChange(appointment.id)}
-                      className="mt-2 text-[11px] font-semibold text-amber-900 underline underline-offset-2"
+                      className={`mt-2 text-[11px] font-semibold underline underline-offset-2 ${
+                        /cancelad/i.test(appointment.dateChangeMessage)
+                          ? "text-slate-800"
+                          : "text-amber-900"
+                      }`}
                     >
                       Entendido
                     </button>

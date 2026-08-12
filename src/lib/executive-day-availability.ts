@@ -184,6 +184,7 @@ export function getExistingSlotsForExecutiveDay(
   appointments: Appointment[],
   executiveName: string,
   appointmentDate: string,
+  excludeAppointmentId?: string,
 ) {
   return appointments
     .filter(
@@ -193,7 +194,8 @@ export function getExistingSlotsForExecutiveDay(
         appointment.scheduledStartTime &&
         appointment.scheduledEndTime &&
         appointment.status !== "cancelado" &&
-        appointment.status !== "rechazado",
+        appointment.status !== "rechazado" &&
+        (!excludeAppointmentId || appointment.id !== excludeAppointmentId),
     )
     .map((appointment) => ({
       startTime: appointment.scheduledStartTime,

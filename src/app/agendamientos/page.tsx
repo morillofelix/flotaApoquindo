@@ -42,6 +42,7 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import ExecutiveAppointmentCreateModal from "@/components/agendamientos/ExecutiveAppointmentCreateModal";
+import ExecutiveAssignmentConfirmModal from "@/components/agendamientos/ExecutiveAssignmentConfirmModal";
 import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
 import AppointmentRowActions, {
   canResendAppointmentReminder,
@@ -339,13 +340,25 @@ function AppointmentsPageContent() {
         throw new Error("No se pudo actualizar la solicitud.");
       }
 
-      if (shouldSendCalendarInvite(updatedAppointment)) {
+      const patchData = (await response.json().catch(() => ({}))) as {
+        appointment?: Appointment;
+      };
+
+      const savedAppointment = patchData.appointment ?? updatedAppointment;
+
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === id ? savedAppointment : appointment,
+        ),
+      );
+
+      if (shouldSendCalendarInvite(savedAppointment)) {
         try {
           setEmailNotice({
             status: "sending",
             message: "Enviando cita y confirmación...",
           });
-          await sendExecutiveAssignmentEmails(updatedAppointment);
+          await sendExecutiveAssignmentEmails(savedAppointment);
           setEmailNotice({
             status: "sent",
             message: "Correos enviados.",
@@ -358,17 +371,19 @@ function AppointmentsPageContent() {
         }
       }
 
-      if (shouldSendCancellationEmails(updatedAppointment)) {
+      if (shouldSendCancellationEmails(savedAppointment)) {
         try {
           setEmailNotice({
             status: "sending",
             message: "Enviando correos de cancelación...",
           });
-          const cancellationTasks = [sendCancellationToRequester(updatedAppointment)];
+          const cancellationTasks = [
+            sendCancellationToRequester(savedAppointment),
+          ];
 
-          if (updatedAppointment.assignedExecutive) {
+          if (savedAppointment.assignedExecutive) {
             cancellationTasks.push(
-              sendCalendarCancelToExecutive(updatedAppointment),
+              sendCalendarCancelToExecutive(savedAppointment),
             );
           }
 
@@ -376,7 +391,8 @@ function AppointmentsPageContent() {
 
           setEmailNotice({
             status: "sent",
-            message: "Cancelación notificada por correo.",
+            message:
+              "Cancelación notificada por correo y aviso al conductor en la app.",
           });
         } catch {
           setEmailNotice(null);
@@ -384,7 +400,7 @@ function AppointmentsPageContent() {
             "La solicitud quedó cancelada, pero no se pudieron enviar todos los correos.",
           );
         }
-      } else if (shouldSendDecisionEmail(updatedAppointment)) {
+      } else if (shouldSendDecisionEmail(savedAppointment)) {
         try {
           setEmailNotice({
             status: "sending",
@@ -393,7 +409,7 @@ function AppointmentsPageContent() {
                 ? "Enviando correo de aprobación..."
                 : "Enviando correo de rechazo...",
           });
-          await sendDecisionEmail(updatedAppointment);
+          await sendDecisionEmail(savedAppointment);
           setEmailNotice({
             status: "sent",
             message: "Correo enviado.",
@@ -518,12 +534,17 @@ function AppointmentsPageContent() {
     setExecutiveAssignmentPrompt(null);
   }
 
-  async function confirmExecutiveAssignment() {
+  async function confirmExecutiveAssignment(selection: {
+    assignedExecutive: string;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
+  }) {
     if (!executiveAssignmentPrompt) {
       return;
     }
 
-    const { appointmentId: id, assignedExecutive } = executiveAssignmentPrompt;
+    const { appointmentId: id } = executiveAssignmentPrompt;
+    const assignedExecutive = selection.assignedExecutive;
     const previousAppointments = appointments;
     const currentAppointment = appointments.find(
       (appointment) => appointment.id === id,
@@ -567,6 +588,10 @@ function AppointmentsPageContent() {
       ...currentAppointment,
       assignedExecutive,
       status: nextStatus,
+      scheduledStartTime:
+        selection.scheduledStartTime ?? currentAppointment.scheduledStartTime,
+      scheduledEndTime:
+        selection.scheduledEndTime ?? currentAppointment.scheduledEndTime,
     };
 
     const updatedAppointments = appointments.map((appointment) =>
@@ -579,10 +604,23 @@ function AppointmentsPageContent() {
     setEmailNotice(null);
 
     try {
-      const patchBody = {
+      const patchBody: {
+        assignedExecutive: string;
+        status: AppointmentStatus;
+        scheduledStartTime?: string;
+        scheduledEndTime?: string;
+      } = {
         assignedExecutive,
         status: appointmentToInvite.status,
       };
+
+      if (assignedExecutive && selection.scheduledStartTime) {
+        patchBody.scheduledStartTime = selection.scheduledStartTime;
+      }
+
+      if (assignedExecutive && selection.scheduledEndTime) {
+        patchBody.scheduledEndTime = selection.scheduledEndTime;
+      }
 
       const response = await fetch(`/api/appointments/${id}`, {
         ...adminFetchInit,
@@ -594,7 +632,12 @@ function AppointmentsPageContent() {
       });
 
       if (!response.ok) {
-        throw new Error("No se pudo asignar el ejecutivo.");
+        const errorData = (await response.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(
+          errorData.message || "No se pudo asignar el ejecutivo.",
+        );
       }
 
       const patchData = (await response.json()) as { appointment?: Appointment };
@@ -625,9 +668,13 @@ function AppointmentsPageContent() {
           );
         }
       }
-    } catch {
+    } catch (error) {
       setAppointments(previousAppointments);
-      setAppointmentsError("No se pudo asignar el ejecutivo.");
+      setAppointmentsError(
+        error instanceof Error && error.message
+          ? error.message
+          : "No se pudo asignar el ejecutivo.",
+      );
     } finally {
       setIsConfirmingExecutive(false);
     }
@@ -1367,40 +1414,35 @@ function AppointmentsPageContent() {
                                 className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                               />
                               {appointment.assignedExecutive ? (
-                                <div className="flex flex-wrap items-center gap-1">
-                                  <input
-                                    key={`${appointment.id}-start-${appointment.scheduledStartTime}`}
-                                    type="time"
-                                    defaultValue={appointment.scheduledStartTime}
-                                    onChange={(event) =>
-                                      requestDateFieldChange(
-                                        appointment,
-                                        "scheduledStartTime",
-                                        event.target.value,
-                                      )
-                                    }
-                                    className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                                    title="Hora de inicio"
-                                  />
-                                  {appointment.scheduledEndTime ? (
-                                    <span className="text-[11px] font-semibold text-[#173b68]">
-                                      – {appointment.scheduledEndTime}
-                                    </span>
-                                  ) : appointment.scheduledStartTime ? (
-                                    <span className="text-[11px] font-medium text-slate-500">
-                                      (sin término)
-                                    </span>
-                                  ) : (
-                                    <span className="text-[11px] font-medium text-slate-500">
-                                      Elige hora
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-[11px] font-medium text-slate-500">
-                                  Asigna un ejecutivo para definir la hora
-                                </span>
-                              )}
+                                appointment.createdByType === "ejecutivo" ||
+                                appointment.scheduledStartTime ? (
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <input
+                                      key={`${appointment.id}-start-${appointment.scheduledStartTime}`}
+                                      type="time"
+                                      defaultValue={appointment.scheduledStartTime}
+                                      onChange={(event) =>
+                                        requestDateFieldChange(
+                                          appointment,
+                                          "scheduledStartTime",
+                                          event.target.value,
+                                        )
+                                      }
+                                      className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                                      title="Hora de inicio"
+                                    />
+                                    {appointment.scheduledEndTime ? (
+                                      <span className="text-[11px] font-semibold text-[#173b68]">
+                                        – {appointment.scheduledEndTime}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  <span className="text-[11px] font-medium text-slate-500">
+                                    Confirma el horario al asignar ejecutivo
+                                  </span>
+                                )
+                              ) : null}
                             </div>
                           ) : appointment.reasonUsesDateRange &&
                           canEditAppointmentDates(appointment.status) ? (
@@ -1510,7 +1552,12 @@ function AppointmentsPageContent() {
                           {appointmentAllowsExecutive(appointment) ? (
                             <div className="flex min-w-32 flex-col gap-2">
                               <select
-                                value={appointment.assignedExecutive}
+                                value={
+                                  executiveAssignmentPrompt?.appointmentId ===
+                                  appointment.id
+                                    ? executiveAssignmentPrompt.assignedExecutive
+                                    : appointment.assignedExecutive
+                                }
                                 onChange={(event) =>
                                   requestExecutiveAssignment(
                                     appointment.id,
@@ -1526,62 +1573,6 @@ function AppointmentsPageContent() {
                                   </option>
                                 ))}
                               </select>
-
-                              {executiveAssignmentPrompt?.appointmentId ===
-                              appointment.id ? (
-                                <div className="rounded-2xl border border-[#b7cce4] bg-white p-3 shadow-lg shadow-slate-300/25">
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0b5cab]">
-                                    Confirmar ejecutivo
-                                  </p>
-                                  <p className="mt-2 text-xs leading-5 text-[#173b68]">
-                                    {executiveAssignmentPrompt.assignedExecutive ===
-                                    "" ? (
-                                      "¿Desea quitar el ejecutivo asignado a esta solicitud?"
-                                    ) : executiveAssignmentPrompt.willSendEmail ? (
-                                      <>
-                                        ¿Está seguro que{" "}
-                                        <strong>
-                                          {
-                                            executiveAssignmentPrompt.assignedExecutive
-                                          }
-                                        </strong>{" "}
-                                        es el ejecutivo correcto? Se enviará un
-                                        correo con la cita.
-                                      </>
-                                    ) : (
-                                      <>
-                                        ¿Está seguro que desea asignar a{" "}
-                                        <strong>
-                                          {
-                                            executiveAssignmentPrompt.assignedExecutive
-                                          }
-                                        </strong>{" "}
-                                        como ejecutivo?
-                                      </>
-                                    )}
-                                  </p>
-                                  <div className="mt-3 flex justify-end gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={cancelExecutiveAssignment}
-                                      disabled={isConfirmingExecutive}
-                                      className="inline-flex h-8 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      Cancelar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={confirmExecutiveAssignment}
-                                      disabled={isConfirmingExecutive}
-                                      className="inline-flex h-8 items-center justify-center rounded-2xl bg-[#0b5cab] px-3 text-xs font-semibold text-white transition hover:bg-[#084a8c] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      {isConfirmingExecutive
-                                        ? "Guardando..."
-                                        : "Confirmar"}
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : null}
                             </div>
                           ) : (
                             <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-slate-400">
@@ -1672,6 +1663,34 @@ function AppointmentsPageContent() {
         executives={activeExecutives}
         appointments={appointments}
       />
+      {executiveAssignmentPrompt ? (
+        (() => {
+          const promptAppointment = appointments.find(
+            (appointment) =>
+              appointment.id === executiveAssignmentPrompt.appointmentId,
+          );
+
+          if (!promptAppointment) {
+            return null;
+          }
+
+          return (
+            <ExecutiveAssignmentConfirmModal
+              appointment={promptAppointment}
+              assignedExecutive={executiveAssignmentPrompt.assignedExecutive}
+              executives={activeExecutives}
+              appointments={appointments}
+              reason={getReasonForAppointment(promptAppointment)}
+              willSendEmail={executiveAssignmentPrompt.willSendEmail}
+              isConfirming={isConfirmingExecutive}
+              onCancel={cancelExecutiveAssignment}
+              onConfirm={(selection) => {
+                void confirmExecutiveAssignment(selection);
+              }}
+            />
+          );
+        })()
+      ) : null}
       {dialog}
     </main>
   );
