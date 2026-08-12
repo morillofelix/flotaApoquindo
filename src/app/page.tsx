@@ -26,11 +26,16 @@ import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
 import { sessionFetchInit } from "@/lib/admin-fetch";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
+import { DRIVER_RESTRICTION_MESSAGE } from "@/lib/driver-restriction-message";
 import { scrollNativePickerIntoView } from "@/lib/form-scroll";
+import {
+  getPastPermitTimeMessage,
+  getPermitTimeMinForDate,
+  isPermitClockTimeInPast,
+} from "@/lib/permit-time-rules";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
 } from "@/components/PublicAppointmentHistory";
-import TimeSelectField from "@/components/TimeSelectField";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import {
   UI_DIVIDER_BORDER,
@@ -721,11 +726,47 @@ function AppointmentRequestForm({
         : "";
     const permitStartTime =
       usesPermitDetails && values.permitType === "horas"
-        ? validateField("permitStartTime", values.permitStartTime, today, reasons)
+        ? (() => {
+            const base = validateField(
+              "permitStartTime",
+              values.permitStartTime,
+              today,
+              reasons,
+            );
+            if (base) {
+              return base;
+            }
+            if (
+              values.permitDate &&
+              values.permitStartTime &&
+              isPermitClockTimeInPast(values.permitDate, values.permitStartTime)
+            ) {
+              return getPastPermitTimeMessage();
+            }
+            return "";
+          })()
         : "";
     const permitEndTime =
       usesPermitDetails && values.permitType === "horas"
-        ? validateField("permitEndTime", values.permitEndTime, today, reasons)
+        ? (() => {
+            const base = validateField(
+              "permitEndTime",
+              values.permitEndTime,
+              today,
+              reasons,
+            );
+            if (base) {
+              return base;
+            }
+            if (
+              values.permitDate &&
+              values.permitEndTime &&
+              isPermitClockTimeInPast(values.permitDate, values.permitEndTime)
+            ) {
+              return getPastPermitTimeMessage();
+            }
+            return "";
+          })()
         : "";
     const appointmentDate = allowsExecutiveAssignment
       ? validateField("appointmentDate", values.appointmentDate, today, reasons)
@@ -849,6 +890,18 @@ function AppointmentRequestForm({
       ...(name === "permitType" && value === "horas"
         ? { permitStartDate: "", permitEndDate: "" }
         : {}),
+      ...(name === "permitDate"
+        ? {
+            ...(currentValues.permitStartTime &&
+            isPermitClockTimeInPast(value, currentValues.permitStartTime)
+              ? { permitStartTime: "" }
+              : {}),
+            ...(currentValues.permitEndTime &&
+            isPermitClockTimeInPast(value, currentValues.permitEndTime)
+              ? { permitEndTime: "" }
+              : {}),
+          }
+        : {}),
     }));
     resetSubmissionState();
   }
@@ -882,7 +935,7 @@ function AppointmentRequestForm({
     const submittedTooFast = Date.now() - formStartedAt < 2000;
 
     if (reasonDateCheck.blocked) {
-      setSubmitError(reasonDateCheck.message);
+      setSubmitError(DRIVER_RESTRICTION_MESSAGE);
       setShowSuccess(false);
       return;
     }
@@ -1089,8 +1142,8 @@ function AppointmentRequestForm({
                 </label>
 
                 {reasonDateCheck.blocked ? (
-                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
-                    {reasonDateCheck.message}
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4">
+                    {DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>
@@ -1145,8 +1198,8 @@ function AppointmentRequestForm({
                 </label>
 
                 {reasonDateCheck.blocked ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900 sm:col-span-2">
-                    {reasonDateCheck.message}
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4 sm:col-span-2">
+                    {DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>
@@ -1262,15 +1315,18 @@ function AppointmentRequestForm({
                         <span className="text-sm font-semibold text-[#173b68]">
                           Hora desde
                         </span>
-                        <TimeSelectField
+                        <input
+                          type="time"
                           name="permitStartTime"
                           required
                           value={values.permitStartTime}
+                          min={getPermitTimeMinForDate(values.permitDate) || undefined}
+                          onFocus={scrollNativePickerIntoView}
                           onBlur={() => markFieldAsTouched("permitStartTime")}
-                          onChange={(nextValue) =>
-                            updateField("permitStartTime", nextValue)
+                          onChange={(event) =>
+                            updateField("permitStartTime", event.target.value)
                           }
-                          className={fieldStatus("permitStartTime")}
+                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitStartTime")}`}
                         />
                         {touched.permitStartTime && errors.permitStartTime ? (
                           <span className="text-sm text-red-600">
@@ -1283,15 +1339,22 @@ function AppointmentRequestForm({
                         <span className="text-sm font-semibold text-[#173b68]">
                           Hora hasta
                         </span>
-                        <TimeSelectField
+                        <input
+                          type="time"
                           name="permitEndTime"
                           required
                           value={values.permitEndTime}
-                          onBlur={() => markFieldAsTouched("permitEndTime")}
-                          onChange={(nextValue) =>
-                            updateField("permitEndTime", nextValue)
+                          min={
+                            values.permitStartTime ||
+                            getPermitTimeMinForDate(values.permitDate) ||
+                            undefined
                           }
-                          className={fieldStatus("permitEndTime")}
+                          onFocus={scrollNativePickerIntoView}
+                          onBlur={() => markFieldAsTouched("permitEndTime")}
+                          onChange={(event) =>
+                            updateField("permitEndTime", event.target.value)
+                          }
+                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitEndTime")}`}
                         />
                         {touched.permitEndTime && errors.permitEndTime ? (
                           <span className="text-sm text-red-600">
@@ -1304,8 +1367,8 @@ function AppointmentRequestForm({
                 ) : null}
 
                 {reasonDateCheck.blocked ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
-                    {reasonDateCheck.message}
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4">
+                    {DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>

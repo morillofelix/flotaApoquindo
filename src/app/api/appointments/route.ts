@@ -16,12 +16,14 @@ import {
   toHolidayConfig,
 } from "@/lib/holidays";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
+import { DRIVER_RESTRICTION_MESSAGE } from "@/lib/driver-restriction-message";
 import {
   formatShifts,
   normalizeVehicleNumber,
   shiftsFromStorage,
   type ShiftType,
 } from "@/lib/driver-owners";
+import { validatePermitHoursRange } from "@/lib/permit-time-rules";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeEmail } from "@/lib/password-utils";
@@ -302,6 +304,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (appointment.permitType === "horas") {
+    const permitTimeError = validatePermitHoursRange({
+      permitDate: appointment.permitDate,
+      permitStartTime: appointment.permitStartTime,
+      permitEndTime: appointment.permitEndTime,
+    });
+
+    if (permitTimeError) {
+      return NextResponse.json({ message: permitTimeError }, { status: 400 });
+    }
+  }
+
   const holidayRecords = reason
     ? await prisma.holiday.findMany({
         where: { isActive: true },
@@ -329,7 +343,7 @@ export async function POST(request: NextRequest) {
 
     if (holidayCheck.blocked) {
       return NextResponse.json(
-        { message: holidayCheck.message },
+        { message: DRIVER_RESTRICTION_MESSAGE },
         { status: 403 },
       );
     }
@@ -344,7 +358,7 @@ export async function POST(request: NextRequest) {
 
     if (reasonDateCheck.blocked) {
       return NextResponse.json(
-        { message: reasonDateCheck.message },
+        { message: DRIVER_RESTRICTION_MESSAGE },
         { status: 403 },
       );
     }

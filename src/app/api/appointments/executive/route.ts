@@ -25,6 +25,7 @@ import { shouldSendExecutiveAssignmentEmails } from "@/lib/appointment-emails-se
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { readAdminSession } from "@/lib/driver-auth";
 import { findPropietarioByVehicleNumber } from "@/lib/propietario-vehicle-lookup";
+import { validatePermitHoursRange } from "@/lib/permit-time-rules";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
@@ -341,6 +342,18 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  if (appointment.permitType === "horas") {
+    const permitTimeError = validatePermitHoursRange({
+      permitDate: appointment.permitDate,
+      permitStartTime: appointment.permitStartTime,
+      permitEndTime: appointment.permitEndTime,
+    });
+
+    if (permitTimeError) {
+      return NextResponse.json({ message: permitTimeError }, { status: 400 });
+    }
   }
 
   let executiveSlot: { startTime: string; endTime: string } | null = null;
