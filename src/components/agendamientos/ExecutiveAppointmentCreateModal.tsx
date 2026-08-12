@@ -712,7 +712,7 @@ export default function ExecutiveAppointmentCreateModal({
                   {selectedDriver.email} · {selectedDriver.phone}
                 </p>
                 {selectedDriver.companyName || selectedDriver.ownerName ? (
-                  <div className="mt-2 space-y-0.5 border-t border-[#c5d8eb] pt-2">
+                  <div className="mt-2 space-y-2 border-t border-[#c5d8eb] pt-2">
                     {selectedDriver.companyName ? (
                       <p className="text-xs font-medium text-[#0f2747]">
                         Empresa:{" "}
@@ -729,11 +729,54 @@ export default function ExecutiveAppointmentCreateModal({
                         </span>
                       </p>
                     ) : null}
+                    <label className="flex items-start gap-2.5 rounded-xl border border-[#c5d8eb] bg-white px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={values.ccOwnerEmail}
+                        disabled={!selectedDriver.ownerEmail}
+                        onChange={(event) =>
+                          updateField("ccOwnerEmail", event.target.checked)
+                        }
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[#0b5cab] disabled:opacity-50"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-[#173b68]">
+                          Enviar correo en copia al propietario
+                        </span>
+                        <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">
+                          {selectedDriver.ownerEmail
+                            ? `Copia del correo de confirmación a ${selectedDriver.ownerEmail}${
+                                selectedDriver.companyName
+                                  ? ` (${selectedDriver.companyName})`
+                                  : ""
+                              }.`
+                            : "Este móvil no tiene correo de propietario registrado."}
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 ) : (
-                  <p className="mt-2 text-[11px] text-slate-500">
-                    Sin propietario asociado a este móvil en el mantenedor.
-                  </p>
+                  <div className="mt-2 space-y-2 border-t border-[#c5d8eb] pt-2">
+                    <p className="text-[11px] text-slate-500">
+                      Sin propietario asociado a este móvil en el mantenedor.
+                    </p>
+                    <label className="flex items-start gap-2.5 rounded-xl border border-[#c5d8eb] bg-white px-3 py-2.5 opacity-70">
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        disabled
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[#0b5cab] disabled:opacity-50"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-[#173b68]">
+                          Enviar correo en copia al propietario
+                        </span>
+                        <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">
+                          Este móvil no tiene correo de propietario registrado.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                 )}
               </div>
             ) : null}
@@ -1026,34 +1069,6 @@ export default function ExecutiveAppointmentCreateModal({
                   </div>
                 ) : null}
               </div>
-            ) : null}
-
-            {selectedDriver ? (
-              <label className="flex items-start gap-3 rounded-2xl border border-[#9fb8d9] bg-white px-4 py-3 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={values.ccOwnerEmail}
-                  disabled={!selectedDriver.ownerEmail}
-                  onChange={(event) =>
-                    updateField("ccOwnerEmail", event.target.checked)
-                  }
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#0b5cab] disabled:opacity-50"
-                />
-                <span className="min-w-0">
-                  <span className="block text-xs font-semibold text-[#173b68]">
-                    Enviar correo en copia al propietario
-                  </span>
-                  <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">
-                    {selectedDriver.ownerEmail
-                      ? `Copia del correo de confirmación a ${selectedDriver.ownerEmail}${
-                          selectedDriver.companyName
-                            ? ` (${selectedDriver.companyName})`
-                            : ""
-                        }.`
-                      : "Este móvil no tiene correo de propietario registrado."}
-                  </span>
-                </span>
-              </label>
             ) : null}
 
             {reasonDateCheck.blocked ? (
