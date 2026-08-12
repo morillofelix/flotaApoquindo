@@ -43,7 +43,6 @@ import ExecutiveAppointmentCreateModal from "@/components/agendamientos/Executiv
 import ExecutiveAppointmentEditModal from "@/components/agendamientos/ExecutiveAppointmentEditModal";
 import ExecutiveAssignmentConfirmModal from "@/components/agendamientos/ExecutiveAssignmentConfirmModal";
 import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
-import DriverRejectionNoteIcon from "@/components/agendamientos/DriverRejectionNoteIcon";
 import AppointmentRowActions, {
   canResendAppointmentReminder,
 } from "@/components/agendamientos/AppointmentRowActions";
@@ -1291,12 +1290,6 @@ function AppointmentsPageContent() {
                                     appointment.driverApprovalMessage
                                   }
                                 />
-                                {appointment.driverApprovalRejected &&
-                                appointment.driverApprovalMessage ? (
-                                  <DriverRejectionNoteIcon
-                                    note={appointment.driverApprovalMessage}
-                                  />
-                                ) : null}
                               </div>
                             );
                           })()}
