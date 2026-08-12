@@ -4,7 +4,6 @@ import {
   type Appointment,
   type AppointmentReasonConfig,
   type AppointmentStatus,
-  type Executive,
   type ExecutiveConfig,
   type PermissionReason,
   defaultAppointmentReasons,
@@ -25,7 +24,6 @@ import {
   appointmentAllowsExecutive,
   downloadExcel,
   formatCreatedAt,
-  formatDate,
   getRequiredDateSummary,
   isWithinDateFilter,
   sendExecutiveAssignmentEmails,
@@ -42,7 +40,7 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import AppointmentsCalendar from "@/components/agendamientos/AppointmentsCalendar";
 import DataRefreshButton from "@/components/agendamientos/DataRefreshButton";
 import ExecutiveAppointmentCreateModal from "@/components/agendamientos/ExecutiveAppointmentCreateModal";
-import ExecutiveAssignmentConfirmModal from "@/components/agendamientos/ExecutiveAssignmentConfirmModal";
+import ExecutiveAppointmentEditModal from "@/components/agendamientos/ExecutiveAppointmentEditModal";
 import DriverApprovalAckBadge from "@/components/agendamientos/DriverApprovalAckBadge";
 import AppointmentRowActions, {
   canResendAppointmentReminder,
@@ -52,14 +50,6 @@ import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyL
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
-import {
-  buildDatePatchFromFieldChange,
-  buildDateChangePreviewLabel,
-  canEditAppointmentDates,
-  getAdminDateChangeWarning,
-  type AppointmentDatePatch,
-} from "@/lib/appointment-date-edit";
 import {
   getVehicleShiftLabel,
   getVehicleShifts,
@@ -103,25 +93,16 @@ function AppointmentsPageContent() {
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   const [appointmentsError, setAppointmentsError] = useState("");
   const [emailNotice, setEmailNotice] = useState<EmailNotice>(null);
-  const [executiveAssignmentPrompt, setExecutiveAssignmentPrompt] = useState<{
-    appointmentId: string;
-    assignedExecutive: Executive | "";
-    willSendEmail: boolean;
-  } | null>(null);
-  const [isConfirmingExecutive, setIsConfirmingExecutive] = useState(false);
   const [dailyLimitAlert, setDailyLimitAlert] = useState<{
     executiveName: string;
     appointmentDate: string;
     currentCount: number;
     max: number;
   } | null>(null);
-  const [dateEditPrompt, setDateEditPrompt] = useState<{
-    appointment: Appointment;
-    patch: AppointmentDatePatch;
-    previewLabel: string;
-  } | null>(null);
-  const [isSavingDateChange, setIsSavingDateChange] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(
+    null,
+  );
   const [resendingAppointmentId, setResendingAppointmentId] = useState("");
 
   const reloadAppointmentsData = useCallback(async () => {
@@ -141,12 +122,9 @@ function AppointmentsPageContent() {
   }, []);
 
   const shouldPauseAutoRefresh =
-    isConfirmingExecutive ||
-    executiveAssignmentPrompt !== null ||
     isLoadingAppointments ||
-    dateEditPrompt !== null ||
-    isSavingDateChange ||
     isCreateModalOpen ||
+    editingAppointment !== null ||
     resendingAppointmentId !== "";
 
   const {
@@ -468,338 +446,88 @@ function AppointmentsPageContent() {
     await updateStatus(appointment.id, nextStatus);
   }
 
-  function requestExecutiveAssignment(
-    id: string,
-    assignedExecutive: Executive | "",
+  async function handleAppointmentEdited(
+    savedAppointment: Appointment,
+    meta: {
+      dateChange: {
+        occurred: boolean;
+        requiresCalendarCancel: boolean;
+        requiresCalendarInvite: boolean;
+        previousAppointment: Appointment;
+      } | null;
+      previousAppointment: Appointment;
+    },
   ) {
-    const currentAppointment = appointments.find(
-      (appointment) => appointment.id === id,
+    setAppointments((currentAppointments) =>
+      currentAppointments.map((item) =>
+        item.id === savedAppointment.id ? savedAppointment : item,
+      ),
     );
-
-    if (!currentAppointment) {
-      return;
-    }
-
-    if (currentAppointment.assignedExecutive === assignedExecutive) {
-      setExecutiveAssignmentPrompt(null);
-      return;
-    }
-
-    if (assignedExecutive !== "") {
-      const executive = executiveOptions.find(
-        (option) => option.name === assignedExecutive,
-      );
-      const limitStatus = getExecutiveDailyLimitStatus(
-        executive,
-        appointments,
-        currentAppointment,
-        assignedExecutive,
-      );
-
-      if (limitStatus.blocked) {
-        setExecutiveAssignmentPrompt(null);
-        setDailyLimitAlert({
-          executiveName: limitStatus.executiveName,
-          appointmentDate: limitStatus.appointmentDate,
-          currentCount: limitStatus.currentCount,
-          max: limitStatus.max,
-        });
-        return;
-      }
-    }
-
-    const nextStatusForPreview =
-      assignedExecutive !== ""
-        ? ("revisado" as const)
-        : currentAppointment.status;
-
-    const appointmentWithSelection: Appointment = {
-      ...currentAppointment,
-      assignedExecutive,
-      status: nextStatusForPreview,
-    };
-
-    setExecutiveAssignmentPrompt({
-      appointmentId: id,
-      assignedExecutive,
-      willSendEmail: shouldSendCalendarInvite(appointmentWithSelection),
-    });
-  }
-
-  function cancelExecutiveAssignment() {
-    if (isConfirmingExecutive) {
-      return;
-    }
-
-    setExecutiveAssignmentPrompt(null);
-  }
-
-  async function confirmExecutiveAssignment(selection: {
-    assignedExecutive: string;
-    scheduledStartTime?: string;
-    scheduledEndTime?: string;
-  }) {
-    if (!executiveAssignmentPrompt) {
-      return;
-    }
-
-    const { appointmentId: id } = executiveAssignmentPrompt;
-    const assignedExecutive = selection.assignedExecutive;
-    const previousAppointments = appointments;
-    const currentAppointment = appointments.find(
-      (appointment) => appointment.id === id,
-    );
-
-    if (!currentAppointment) {
-      return;
-    }
-
-    if (assignedExecutive !== "") {
-      const executive = executiveOptions.find(
-        (option) => option.name === assignedExecutive,
-      );
-      const limitStatus = getExecutiveDailyLimitStatus(
-        executive,
-        appointments,
-        currentAppointment,
-        assignedExecutive,
-      );
-
-      if (limitStatus.blocked) {
-        setExecutiveAssignmentPrompt(null);
-        setDailyLimitAlert({
-          executiveName: limitStatus.executiveName,
-          appointmentDate: limitStatus.appointmentDate,
-          currentCount: limitStatus.currentCount,
-          max: limitStatus.max,
-        });
-        return;
-      }
-    }
-
-    const nextStatus: AppointmentStatus =
-      assignedExecutive !== ""
-        ? "revisado"
-        : currentAppointment.status === "revisado"
-          ? "pendiente"
-          : currentAppointment.status;
-
-    const appointmentToInvite: Appointment = {
-      ...currentAppointment,
-      assignedExecutive,
-      status: nextStatus,
-      scheduledStartTime:
-        selection.scheduledStartTime ?? currentAppointment.scheduledStartTime,
-      scheduledEndTime:
-        selection.scheduledEndTime ?? currentAppointment.scheduledEndTime,
-    };
-
-    const updatedAppointments = appointments.map((appointment) =>
-      appointment.id === id ? appointmentToInvite : appointment,
-    );
-
-    setIsConfirmingExecutive(true);
-    setAppointments(updatedAppointments);
+    setEditingAppointment(null);
     setAppointmentsError("");
     setEmailNotice(null);
 
-    try {
-      const patchBody: {
-        assignedExecutive: string;
-        status: AppointmentStatus;
-        scheduledStartTime?: string;
-        scheduledEndTime?: string;
-      } = {
-        assignedExecutive,
-        status: appointmentToInvite.status,
-      };
-
-      if (assignedExecutive && selection.scheduledStartTime) {
-        patchBody.scheduledStartTime = selection.scheduledStartTime;
-      }
-
-      if (assignedExecutive && selection.scheduledEndTime) {
-        patchBody.scheduledEndTime = selection.scheduledEndTime;
-      }
-
-      const response = await fetch(`/api/appointments/${id}`, {
-        ...adminFetchInit,
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(patchBody),
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(
-          errorData.message || "No se pudo asignar el ejecutivo.",
-        );
-      }
-
-      const patchData = (await response.json()) as { appointment?: Appointment };
-      const savedAppointment = patchData.appointment ?? appointmentToInvite;
-
-      setAppointments((currentAppointments) =>
-        currentAppointments.map((appointment) =>
-          appointment.id === id ? savedAppointment : appointment,
-        ),
-      );
-      setExecutiveAssignmentPrompt(null);
-
-      if (shouldSendCalendarInvite(savedAppointment)) {
-        try {
-          setEmailNotice({
-            status: "sending",
-            message: "Enviando cita y confirmación...",
-          });
-          await sendExecutiveAssignmentEmails(savedAppointment);
-          setEmailNotice({
-            status: "sent",
-            message: "Correos enviados.",
-          });
-        } catch {
-          setEmailNotice(null);
-          setAppointmentsError(
-            "El ejecutivo quedó asignado, pero no se pudieron enviar todos los correos.",
-          );
-        }
-      }
-    } catch (error) {
-      setAppointments(previousAppointments);
-      setAppointmentsError(
-        error instanceof Error && error.message
-          ? error.message
-          : "No se pudo asignar el ejecutivo.",
-      );
-    } finally {
-      setIsConfirmingExecutive(false);
-    }
-  }
-
-  function getReasonForAppointment(appointment: Appointment) {
-    return reasons.find((reason) => reason.value === appointment.appointmentReason);
-  }
-
-  function requestDateFieldChange(
-    appointment: Appointment,
-    field:
-      | "appointmentDate"
-      | "scheduledStartTime"
-      | "vacationStartDate"
-      | "permitStartDate"
-      | "permitDate"
-      | "permitStartTime"
-      | "permitEndTime",
-    value: string,
-  ) {
-    const patch = buildDatePatchFromFieldChange(
-      appointment,
-      getReasonForAppointment(appointment),
-      field,
-      value,
-    );
-
-    if (!patch) {
-      return;
-    }
-
-    setDateEditPrompt({
-      appointment,
-      patch,
-      previewLabel: buildDateChangePreviewLabel(patch),
-    });
-  }
-
-  function cancelDateChange() {
-    if (isSavingDateChange) {
-      return;
-    }
-
-    setDateEditPrompt(null);
-  }
-
-  async function confirmDateChange() {
-    if (!dateEditPrompt) {
-      return;
-    }
-
-    const { appointment, patch } = dateEditPrompt;
-    const previousAppointments = appointments;
-    setIsSavingDateChange(true);
-    setAppointmentsError("");
-    setEmailNotice(null);
+    const previous = meta.previousAppointment;
+    const executiveChanged =
+      previous.assignedExecutive !== savedAppointment.assignedExecutive;
+    const newlyAssigned =
+      Boolean(savedAppointment.assignedExecutive) &&
+      (!previous.assignedExecutive || executiveChanged);
 
     try {
-      const response = await fetch(`/api/appointments/${appointment.id}`, {
-        ...adminFetchInit,
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(patch),
-      });
+      if (newlyAssigned && shouldSendCalendarInvite(savedAppointment)) {
+        setEmailNotice({
+          status: "sending",
+          message: "Enviando cita y confirmación...",
+        });
+        await sendExecutiveAssignmentEmails(savedAppointment);
 
-      if (!response.ok) {
-        throw new Error("No se pudo actualizar las fechas.");
-      }
-
-      const data = (await response.json()) as {
-        appointment?: Appointment;
-        dateChange?: {
-          occurred: boolean;
-          requiresCalendarCancel: boolean;
-          requiresCalendarInvite: boolean;
-          previousAppointment: Appointment;
-        } | null;
-      };
-
-      const savedAppointment = data.appointment;
-
-      if (!savedAppointment) {
-        throw new Error("No se pudo actualizar las fechas.");
-      }
-
-      setAppointments((currentAppointments) =>
-        currentAppointments.map((item) =>
-          item.id === savedAppointment.id ? savedAppointment : item,
-        ),
-      );
-      setDateEditPrompt(null);
-
-      if (data.dateChange?.occurred) {
-        try {
-          setEmailNotice({
-            status: "sending",
-            message: "Actualizando fechas y notificando...",
-          });
+        if (
+          meta.dateChange?.occurred &&
+          savedAppointment.dateChangeMessage.trim()
+        ) {
           await sendAppointmentDateChangeEmails(
             savedAppointment,
-            data.dateChange.previousAppointment,
+            meta.dateChange.previousAppointment,
             {
-              requiresCalendarCancel: data.dateChange.requiresCalendarCancel,
-              requiresCalendarInvite: data.dateChange.requiresCalendarInvite,
+              requiresCalendarCancel: meta.dateChange.requiresCalendarCancel,
+              requiresCalendarInvite: false,
             },
           );
-          setEmailNotice({
-            status: "sent",
-            message: "Fechas actualizadas y notificaciones enviadas.",
-          });
-        } catch {
-          setEmailNotice(null);
-          setAppointmentsError(
-            "Las fechas se guardaron, pero no se pudieron enviar todas las notificaciones.",
-          );
         }
+
+        setEmailNotice({
+          status: "sent",
+          message: "Cambios guardados y notificaciones enviadas.",
+        });
+      } else if (meta.dateChange?.occurred) {
+        setEmailNotice({
+          status: "sending",
+          message: "Actualizando fechas y notificando...",
+        });
+        await sendAppointmentDateChangeEmails(
+          savedAppointment,
+          meta.dateChange.previousAppointment,
+          {
+            requiresCalendarCancel: meta.dateChange.requiresCalendarCancel,
+            requiresCalendarInvite: meta.dateChange.requiresCalendarInvite,
+          },
+        );
+        setEmailNotice({
+          status: "sent",
+          message: "Cambios guardados y notificaciones enviadas.",
+        });
+      } else {
+        setEmailNotice({
+          status: "sent",
+          message: "Solicitud actualizada correctamente.",
+        });
       }
     } catch {
-      setAppointments(previousAppointments);
-      setAppointmentsError("No se pudo actualizar las fechas.");
-    } finally {
-      setIsSavingDateChange(false);
+      setEmailNotice(null);
+      setAppointmentsError(
+        "Los cambios se guardaron, pero no se pudieron enviar todas las notificaciones.",
+      );
     }
   }
 
@@ -1223,42 +951,6 @@ function AppointmentsPageContent() {
             </div>
           ) : null}
 
-          {dateEditPrompt ? (
-            <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-900">
-                Confirmar cambio de fecha
-              </p>
-              <p className="mt-2 text-sm leading-6 text-amber-950">
-                {getAdminDateChangeWarning(dateEditPrompt.appointment)}
-              </p>
-              <p className="mt-2 text-sm font-semibold text-amber-950">
-                {dateEditPrompt.previewLabel}
-              </p>
-              <p className="mt-1 text-xs text-amber-900">
-                Ticket {getAppointmentTicketLabel(dateEditPrompt.appointment)} ·
-                Móvil {dateEditPrompt.appointment.vehicleNumber}
-              </p>
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={cancelDateChange}
-                  disabled={isSavingDateChange}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-300 bg-white px-4 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void confirmDateChange()}
-                  disabled={isSavingDateChange}
-                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-amber-600 px-4 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSavingDateChange ? "Guardando..." : "Confirmar cambio"}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           <div className="mb-3 flex flex-col gap-3 border-b border-[#c5d8eb] pb-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
@@ -1396,145 +1088,8 @@ function AppointmentsPageContent() {
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.appointmentReasonLabel}
                         </td>
-                        <td className="px-2.5 py-2 text-slate-700">
-                          {appointment.reasonAllowsExecutiveAssignment &&
-                          canEditAppointmentDates(appointment.status) ? (
-                            <div className="flex min-w-[9.5rem] flex-col gap-1.5">
-                              <input
-                                key={`${appointment.id}-${appointment.appointmentDate}`}
-                                type="date"
-                                defaultValue={appointment.appointmentDate}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "appointmentDate",
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                              {appointment.assignedExecutive ? (
-                                appointment.createdByType === "ejecutivo" ||
-                                appointment.scheduledStartTime ? (
-                                  <div className="flex flex-wrap items-center gap-1">
-                                    <input
-                                      key={`${appointment.id}-start-${appointment.scheduledStartTime}`}
-                                      type="time"
-                                      defaultValue={appointment.scheduledStartTime}
-                                      onChange={(event) =>
-                                        requestDateFieldChange(
-                                          appointment,
-                                          "scheduledStartTime",
-                                          event.target.value,
-                                        )
-                                      }
-                                      className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                                      title="Hora de inicio"
-                                    />
-                                    {appointment.scheduledEndTime ? (
-                                      <span className="text-[11px] font-semibold text-[#173b68]">
-                                        – {appointment.scheduledEndTime}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <span className="text-[11px] font-medium text-slate-500">
-                                    Confirma el horario al asignar ejecutivo
-                                  </span>
-                                )
-                              ) : null}
-                            </div>
-                          ) : appointment.reasonUsesDateRange &&
-                          canEditAppointmentDates(appointment.status) ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <input
-                                key={`${appointment.id}-${appointment.vacationStartDate}`}
-                                type="date"
-                                defaultValue={appointment.vacationStartDate}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "vacationStartDate",
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                              <span className="text-[11px] font-medium text-slate-500">
-                                hasta {formatDate(appointment.vacationEndDate)}
-                              </span>
-                            </div>
-                          ) : appointment.reasonUsesPermitDetails &&
-                            appointment.permitType === "dias" &&
-                            canEditAppointmentDates(appointment.status) ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <input
-                                key={`${appointment.id}-${appointment.permitStartDate}`}
-                                type="date"
-                                defaultValue={appointment.permitStartDate}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "permitStartDate",
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                              <span className="text-[11px] font-medium text-slate-500">
-                                hasta {formatDate(appointment.permitEndDate)}
-                              </span>
-                            </div>
-                          ) : appointment.reasonUsesPermitDetails &&
-                            appointment.permitType === "horas" &&
-                            canEditAppointmentDates(appointment.status) ? (
-                            <div className="flex flex-wrap items-center gap-1">
-                              <input
-                                key={`${appointment.id}-${appointment.permitDate}`}
-                                type="date"
-                                defaultValue={appointment.permitDate}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "permitDate",
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8 min-w-[8.5rem] rounded-lg border border-[#9fb8d9] bg-white px-2 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                              <input
-                                key={`${appointment.id}-${appointment.permitStartTime}`}
-                                type="time"
-                                defaultValue={appointment.permitStartTime}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "permitStartTime",
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                              <span className="text-slate-400">—</span>
-                              <input
-                                key={`${appointment.id}-${appointment.permitEndTime}`}
-                                type="time"
-                                defaultValue={appointment.permitEndTime}
-                                onChange={(event) =>
-                                  requestDateFieldChange(
-                                    appointment,
-                                    "permitEndTime",
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8 w-[5.75rem] rounded-lg border border-[#9fb8d9] bg-white px-1.5 text-xs font-medium text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              />
-                            </div>
-                          ) : appointment.reasonAllowsExecutiveAssignment ? (
-                            <span className="text-[11px] font-semibold text-[#173b68]">
-                              {getRequiredDateSummary(appointment) || "No aplica"}
-                            </span>
-                          ) : getRequiredDateSummary(appointment) ? (
+                                                <td className="px-2.5 py-2 text-slate-700">
+                          {getRequiredDateSummary(appointment) ? (
                             <span className="text-[11px] font-semibold text-[#173b68]">
                               {getRequiredDateSummary(appointment)}
                             </span>
@@ -1548,32 +1103,11 @@ function AppointmentsPageContent() {
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.phone}
                         </td>
-                        <td className="px-2.5 py-2 align-top">
+                                                <td className="px-2.5 py-2 align-top">
                           {appointmentAllowsExecutive(appointment) ? (
-                            <div className="flex min-w-32 flex-col gap-2">
-                              <select
-                                value={
-                                  executiveAssignmentPrompt?.appointmentId ===
-                                  appointment.id
-                                    ? executiveAssignmentPrompt.assignedExecutive
-                                    : appointment.assignedExecutive
-                                }
-                                onChange={(event) =>
-                                  requestExecutiveAssignment(
-                                    appointment.id,
-                                    event.target.value as Executive | "",
-                                  )
-                                }
-                                className="h-8 w-full rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-2.5 text-xs font-semibold text-[#173b68] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                              >
-                                <option value="">Sin asignar</option>
-                                {activeExecutives.map((executive) => (
-                                  <option key={executive.name} value={executive.name}>
-                                    {executive.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                            <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-[#173b68]">
+                              {appointment.assignedExecutive || "Sin asignar"}
+                            </span>
                           ) : (
                             <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-slate-400">
                               No aplica
@@ -1596,6 +1130,9 @@ function AppointmentsPageContent() {
                             <AppointmentRowActions
                             appointment={appointment}
                             isResending={resendingAppointmentId === appointment.id}
+                            onEdit={(currentAppointment) =>
+                              setEditingAppointment(currentAppointment)
+                            }
                             onResend={(currentAppointment) =>
                               void resendAppointment(currentAppointment)
                             }
@@ -1663,34 +1200,15 @@ function AppointmentsPageContent() {
         executives={activeExecutives}
         appointments={appointments}
       />
-      {executiveAssignmentPrompt ? (
-        (() => {
-          const promptAppointment = appointments.find(
-            (appointment) =>
-              appointment.id === executiveAssignmentPrompt.appointmentId,
-          );
-
-          if (!promptAppointment) {
-            return null;
-          }
-
-          return (
-            <ExecutiveAssignmentConfirmModal
-              appointment={promptAppointment}
-              assignedExecutive={executiveAssignmentPrompt.assignedExecutive}
-              executives={activeExecutives}
-              appointments={appointments}
-              reason={getReasonForAppointment(promptAppointment)}
-              willSendEmail={executiveAssignmentPrompt.willSendEmail}
-              isConfirming={isConfirmingExecutive}
-              onCancel={cancelExecutiveAssignment}
-              onConfirm={(selection) => {
-                void confirmExecutiveAssignment(selection);
-              }}
-            />
-          );
-        })()
-      ) : null}
+      <ExecutiveAppointmentEditModal
+        appointment={editingAppointment}
+        isOpen={editingAppointment !== null}
+        onClose={() => setEditingAppointment(null)}
+        onSaved={handleAppointmentEdited}
+        executives={activeExecutives}
+        appointments={appointments}
+        reasons={reasons}
+      />
       {dialog}
     </main>
   );

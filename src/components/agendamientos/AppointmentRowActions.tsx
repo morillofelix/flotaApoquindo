@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { type Appointment } from "@/lib/appointments";
 import { shouldSendCalendarInvite } from "@/lib/agendamientos-appointments";
+import { canEditAppointmentDates } from "@/lib/appointment-date-edit";
 
 type AppointmentRowActionsProps = {
   appointment: Appointment;
   isResending: boolean;
+  onEdit: (appointment: Appointment) => void;
   onResend: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
 };
@@ -20,6 +22,24 @@ export function canResendAppointmentReminder(appointment: Appointment) {
   }
 
   return shouldSendCalendarInvite(appointment);
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className="size-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12.5 5.5 18.5 11.5" />
+      <path d="M4.5 19.5 5.8 14.8 15.7 4.9a1.7 1.7 0 0 1 2.4 0l1 1a1.7 1.7 0 0 1 0 2.4L9.2 18.2 4.5 19.5z" />
+    </svg>
+  );
 }
 
 function TrashIcon() {
@@ -74,12 +94,14 @@ function DotsIcon() {
 export default function AppointmentRowActions({
   appointment,
   isResending,
+  onEdit,
   onResend,
   onDelete,
 }: AppointmentRowActionsProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const showResend = canResendAppointmentReminder(appointment);
+  const showEdit = canEditAppointmentDates(appointment.status);
 
   useEffect(() => {
     if (!open) {
@@ -118,6 +140,21 @@ export default function AppointmentRowActions({
           role="menu"
           className="absolute right-full top-5 z-40 mr-1.5 min-w-[12.5rem] overflow-hidden rounded-xl border border-[#b7cce4] bg-white py-1 shadow-lg shadow-slate-300/35"
         >
+          {showEdit ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onEdit(appointment);
+              }}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-[#0b5cab] transition hover:bg-[#eef6ff]"
+            >
+              <PencilIcon />
+              <span>Editar</span>
+            </button>
+          ) : null}
+
           {showResend ? (
             <button
               type="button"

@@ -639,12 +639,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
 
       if (!appointmentDatesChanged(previousAppointment, datePatch)) {
-        return NextResponse.json(
-          { message: "No hay cambios de fecha para guardar." },
-          { status: 400 },
-        );
-      }
+        if (
+          data.assignedExecutive === undefined &&
+          data.status === undefined
+        ) {
+          return NextResponse.json(
+            { message: "No hay cambios de fecha para guardar." },
+            { status: 400 },
+          );
+        }
 
+        // Hay cambio de ejecutivo/estado: no forzar error por fechas iguales.
+      } else {
       if (datePatch.appointmentDate !== undefined) {
         data.appointmentDate = toDateOnly(datePatch.appointmentDate);
       }
@@ -678,6 +684,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
 
       requiresCalendarCancel = shouldRescheduleExecutiveCalendar(previousAppointment);
+      }
     }
 
     const assignedExecutiveName =
