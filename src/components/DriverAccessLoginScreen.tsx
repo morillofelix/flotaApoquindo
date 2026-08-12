@@ -1,7 +1,6 @@
 "use client";
 
 import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
-import { PERMANENT_PASSWORD_REQUIREMENTS_HINT } from "@/lib/password-policy";
 import { UI_FIELD_FOCUS, UI_FIELD_SHADOW } from "@/lib/ui-borders";
 import Image from "next/image";
 import { useState } from "react";
@@ -119,19 +118,19 @@ export default function DriverAccessLoginScreen({
       if (!response.ok) {
         throw new Error(
           [data.message, data.detail].filter(Boolean).join(" — ") ||
-            "No se pudo enviar la clave temporal.",
+            "No se pudo enviar la clave de acceso.",
         );
       }
 
       setRecoverMessage(
         data.message ??
-          "Si el correo está registrado, recibirás una clave temporal en los próximos minutos.",
+          "Si el correo está registrado, recibirás tu clave de acceso (4 primeros dígitos de tu RUT) en los próximos minutos.",
       );
     } catch (error) {
       setRecoverError(
         error instanceof Error
           ? error.message
-          : "No se pudo enviar la clave temporal.",
+          : "No se pudo enviar la clave de acceso.",
       );
     } finally {
       setIsRecoveringPassword(false);
@@ -195,7 +194,7 @@ export default function DriverAccessLoginScreen({
                     }))
                   }
                   className={`h-12 w-full rounded-2xl px-4 pr-12 text-[#0f2747] placeholder:text-slate-400 ${LOGIN_FIELD_CLASS}`}
-                  placeholder="Clave temporal o definitiva"
+                  placeholder="Clave de acceso"
                   autoComplete="current-password"
                   inputMode="text"
                 />
@@ -243,12 +242,9 @@ export default function DriverAccessLoginScreen({
             className="grid gap-5"
           >
             <p className="text-sm leading-6 text-slate-600">
-              Te enviaremos una clave temporal al correo registrado como
-              conductor para ingresar al portal de solicitud de citas. Al
-              ingresar deberás crear una clave definitiva.
-            </p>
-            <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
-              {PERMANENT_PASSWORD_REQUIREMENTS_HINT}
+              Te enviaremos tu clave de acceso al correo registrado como
+              conductor. Corresponde a los 4 primeros dígitos de tu RUT y podrás
+              usarla directamente para ingresar.
             </p>
 
             <label className="flex flex-col gap-2">
@@ -280,7 +276,7 @@ export default function DriverAccessLoginScreen({
               disabled={isRecoveringPassword}
               className="flex h-12 w-full items-center justify-center rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {isRecoveringPassword ? "Enviando..." : "Enviar clave temporal"}
+              {isRecoveringPassword ? "Enviando..." : "Enviar clave de acceso"}
             </button>
 
             <button

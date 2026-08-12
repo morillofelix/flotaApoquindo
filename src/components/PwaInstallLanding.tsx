@@ -58,8 +58,8 @@ export default function PwaInstallLanding({
             {isDesktop
               ? "Abre este mismo enlace desde tu celular para instalar el acceso directo Agendamiento Apoquindo."
               : isInstalled
-                ? "Abre la plataforma desde el icono Agendamiento Apoquindo en tu pantalla de inicio. Allí ingresa con tu correo y la clave temporal del email."
-                : "Antes de ingresar, crea el acceso directo Agendamiento Apoquindo en tu pantalla de inicio. Después podrás entrar con tu correo y la clave temporal que recibiste."}
+                ? "Abre la plataforma desde el icono Agendamiento Apoquindo en tu pantalla de inicio. Allí ingresa con tu correo y la clave de acceso del email (4 primeros dígitos de tu RUT)."
+                : "Antes de ingresar, crea el acceso directo Agendamiento Apoquindo en tu pantalla de inicio. Después podrás entrar con tu correo y la clave de acceso que recibiste."}
           </p>
         </div>
 

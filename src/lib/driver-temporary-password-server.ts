@@ -54,7 +54,7 @@ export async function issueDriverOwnerTemporaryPassword(driverOwnerId: string) {
 
   if (!temporaryPassword) {
     throw new DriverTemporaryPasswordError(
-      "El RUT debe tener al menos 4 dígitos para generar la clave temporal.",
+      "El RUT debe tener al menos 4 dígitos para generar la clave de acceso.",
       400,
     );
   }
@@ -77,7 +77,7 @@ export async function issueDriverOwnerTemporaryPassword(driverOwnerId: string) {
       error instanceof Error ? error.message : "Error desconocido de correo.";
 
     throw new DriverTemporaryPasswordError(
-      `No se pudo enviar la clave temporal. ${detail}`,
+      `No se pudo enviar la clave de acceso. ${detail}`,
       500,
     );
   }
@@ -86,13 +86,13 @@ export async function issueDriverOwnerTemporaryPassword(driverOwnerId: string) {
     where: { id: driverOwner.id },
     data: {
       passwordHash: hashPassword(temporaryPassword),
-      mustChangePassword: true,
+      mustChangePassword: false,
       tempPasswordSentAt: new Date(),
     },
   });
 
   return {
-    message: `Clave temporal enviada a ${driverOwner.email.trim()}.`,
+    message: `Clave de acceso enviada a ${driverOwner.email.trim()}.`,
     email: driverOwner.email.trim(),
     temporaryPassword,
   };

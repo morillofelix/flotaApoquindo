@@ -16,6 +16,9 @@ export type RecoverPasswordAudience = "driver" | "admin";
 export const GENERIC_RECOVER_PASSWORD_MESSAGE =
   "Si el correo está registrado, recibirás una clave temporal en los próximos minutos.";
 
+export const DRIVER_RECOVER_PASSWORD_MESSAGE =
+  "Si el correo está registrado, recibirás tu clave de acceso (4 primeros dígitos de tu RUT) en los próximos minutos.";
+
 export class RecoverPasswordRateLimitError extends Error {
   constructor() {
     super(

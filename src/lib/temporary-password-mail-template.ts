@@ -2,7 +2,6 @@ import {
   getDriverInstallUrl,
   getDriverLoginUrl,
 } from "@/lib/admin-platform-url";
-import { PERMANENT_PASSWORD_EMAIL_LINES } from "@/lib/password-policy";
 
 type TemporaryPasswordEmailContentInput = {
   fullName: string;
@@ -33,12 +32,10 @@ export function buildTemporaryPasswordEmailContent(
     "",
     "Abre ese enlace desde tu celular para ingresar y crear el acceso directo Agendamiento Apoquindo en tu pantalla de inicio.",
     "",
-    "PASO 2 — Usa esta clave temporal para ingresar:",
+    "PASO 2 — Usa esta clave de acceso para ingresar:",
     input.temporaryPassword,
     "",
-    "Ingresa con tu correo y esta clave temporal.",
-    "",
-    ...PERMANENT_PASSWORD_EMAIL_LINES,
+    "Ingresa con tu correo y esta clave. Corresponde a los 4 primeros dígitos de tu RUT y será tu clave definitiva.",
     "",
     `Si prefieres entrar sin instalar: ${appUrl}`,
     "",
@@ -60,13 +57,10 @@ export function buildTemporaryPasswordEmailContent(
           Accede e instala la plataforma
         </a>
       </p>
-      <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#071c35;">Tu clave temporal de ingreso</p>
+      <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#071c35;">Tu clave de acceso</p>
       <p style="font-size:28px;font-weight:800;letter-spacing:0.18em;color:#071c35;margin:0 0 16px;">${escapeHtml(input.temporaryPassword)}</p>
       <p style="font-size:14px;color:#607086;">
-        Ingresa con tu correo y esta clave temporal.
-      </p>
-      <p style="font-size:14px;color:#607086;margin-top:12px;">
-        ${PERMANENT_PASSWORD_EMAIL_LINES.join("<br />")}
+        Ingresa con tu correo y esta clave. Corresponde a los 4 primeros dígitos de tu RUT y será tu clave definitiva.
       </p>
       <p style="font-size:14px;color:#607086;margin-top:18px;">
         Al agregar a inicio, el acceso directo se llamará <strong>Agendamiento Apoquindo</strong>.

@@ -25,7 +25,7 @@ export async function sendTemporaryPasswordEmail(
   }
 
   const transporter = createNotificaTransporter();
-  const subject = "Clave temporal - Solicitud de citas";
+  const subject = "Clave de acceso - Solicitud de citas";
   const { text, html } = buildTemporaryPasswordEmailContent(input);
 
   await transporter.sendMail({

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "No se pudo enviar la clave temporal.",
+        message: "No se pudo enviar la clave de acceso.",
         detail:
           error instanceof Error ? error.message : "Error desconocido de correo.",
       },

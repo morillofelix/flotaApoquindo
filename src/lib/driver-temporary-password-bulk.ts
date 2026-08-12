@@ -71,7 +71,7 @@ export async function sendDriverTemporaryPasswordsBatched(
           ok: false,
           error:
             [data.message, data.detail].filter(Boolean).join(" — ") ||
-            "No se pudo enviar la clave temporal.",
+            "No se pudo enviar la clave de acceso.",
         });
       } else {
         results.push({
@@ -87,7 +87,7 @@ export async function sendDriverTemporaryPasswordsBatched(
         error:
           error instanceof Error
             ? error.message
-            : "No se pudo enviar la clave temporal.",
+            : "No se pudo enviar la clave de acceso.",
       });
     }
 

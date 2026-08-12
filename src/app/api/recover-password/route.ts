@@ -1,4 +1,5 @@
 import {
+  DRIVER_RECOVER_PASSWORD_MESSAGE,
   GENERIC_RECOVER_PASSWORD_MESSAGE,
   RecoverPasswordAudienceError,
   RecoverPasswordRateLimitError,
@@ -45,7 +46,12 @@ export async function POST(request: NextRequest) {
   try {
     await recoverPasswordByEmail(email, audience);
 
-    return NextResponse.json({ message: GENERIC_RECOVER_PASSWORD_MESSAGE });
+    return NextResponse.json({
+      message:
+        audience === "driver"
+          ? DRIVER_RECOVER_PASSWORD_MESSAGE
+          : GENERIC_RECOVER_PASSWORD_MESSAGE,
+    });
   } catch (error) {
     if (error instanceof RecoverPasswordSmtpError) {
       return NextResponse.json({ message: error.message }, { status: 503 });
@@ -60,7 +66,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "No se pudo enviar la clave temporal.",
+        message:
+          audience === "driver"
+            ? "No se pudo enviar la clave de acceso."
+            : "No se pudo enviar la clave temporal.",
         detail,
       },
       { status: 500 },

@@ -629,7 +629,7 @@ export default function ConductoresPage() {
   async function sendTemporaryPassword() {
     if (!driverOwnerForm.id) {
       setDriverOwnerError(
-        "Guarda o selecciona un conductor antes de enviar la clave temporal.",
+        "Guarda o selecciona un conductor antes de enviar la clave de acceso.",
       );
       return;
     }
@@ -648,15 +648,15 @@ export default function ConductoresPage() {
 
     if (!temporaryPassword) {
       setDriverOwnerError(
-        "El RUT debe tener al menos 4 dígitos para generar la clave temporal.",
+        "El RUT debe tener al menos 4 dígitos para generar la clave de acceso.",
       );
       return;
     }
 
     const confirmed = await confirm({
-      title: "Enviar clave temporal",
-      message: `¿Enviar clave temporal al correo ${driverOwnerForm.email.trim()}?`,
-      detail: `Clave que recibirá el cliente: ${temporaryPassword}`,
+      title: "Enviar clave de acceso",
+      message: `¿Enviar clave de acceso al correo ${driverOwnerForm.email.trim()}?`,
+      detail: `Clave (4 primeros dígitos del RUT): ${temporaryPassword}`,
       confirmLabel: "Enviar correo",
     });
 
@@ -681,18 +681,18 @@ export default function ConductoresPage() {
       if (!response.ok) {
         throw new Error(
           [data.message, data.detail].filter(Boolean).join(" — ") ||
-            "No se pudo enviar la clave temporal.",
+            "No se pudo enviar la clave de acceso.",
         );
       }
 
       setDriverOwnerMessage(
-        `${data.message ?? "Clave temporal enviada correctamente."} Clave: ${temporaryPassword}`,
+        `${data.message ?? "Clave de acceso enviada correctamente."} Clave: ${temporaryPassword}`,
       );
     } catch (error) {
       setDriverOwnerError(
         error instanceof Error
           ? error.message
-          : "No se pudo enviar la clave temporal.",
+          : "No se pudo enviar la clave de acceso.",
       );
     } finally {
       setSendingTempPassword(false);
@@ -737,8 +737,8 @@ export default function ConductoresPage() {
     }
 
     const confirmed = await confirm({
-      title: "Enviar claves temporales",
-      message: `¿Enviar clave temporal a ${idsToSend.length} conductor(es)?`,
+      title: "Enviar claves de acceso",
+      message: `¿Enviar clave de acceso a ${idsToSend.length} conductor(es)?`,
       detail:
         "Los correos se enviarán uno a uno con pausa entre cada envío. Los conductores que recibieron clave hace menos de 5 minutos serán omitidos.",
       confirmLabel: "Enviar correos",
@@ -796,7 +796,7 @@ export default function ConductoresPage() {
       } else {
         const firstError = results.find((result) => !result.ok)?.error;
         setDriverOwnerError(
-          firstError ?? "No se pudo enviar ninguna clave temporal.",
+          firstError ?? "No se pudo enviar ninguna clave de acceso.",
         );
       }
     } catch (error) {
@@ -1223,7 +1223,7 @@ export default function ConductoresPage() {
                   >
                     {isSendingBulkTempPassword
                       ? bulkTempPasswordProgress || "Enviando..."
-                      : `Enviar clave temporal (${selectedDriverOwnerIds.length})`}
+                      : `Enviar clave de acceso (${selectedDriverOwnerIds.length})`}
                   </button>
                 </div>
               </div>
@@ -1353,13 +1353,13 @@ export default function ConductoresPage() {
                       onClick={sendTemporaryPassword}
                       className="inline-flex h-9 shrink-0 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68] transition hover:bg-[#eef3f9] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {sendingTempPassword ? "Enviando..." : "Clave temporal"}
+                      {sendingTempPassword ? "Enviando..." : "Clave de acceso"}
                     </button>
                   ) : null}
                 </div>
                 {sendingTempPassword ? (
                   <p className="mt-3 text-xs font-medium text-[#0b5cab]">
-                    Enviando clave temporal a {driverOwnerForm.email.trim()}...
+                    Enviando clave de acceso a {driverOwnerForm.email.trim()}...
                   </p>
                 ) : null}
               </div>
