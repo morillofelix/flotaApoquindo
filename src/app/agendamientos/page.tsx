@@ -78,9 +78,9 @@ function AppointmentsPageContent() {
   const [vehicleShiftsByNumber, setVehicleShiftsByNumber] = useState<
     Record<string, ShiftType[]>
   >({});
-  const [statusFilter, setStatusFilter] = useState<"todos" | AppointmentStatus>(
-    "todos",
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "todos" | AppointmentStatus | "rechazado_conductor"
+  >("todos");
   const [reasonFilter, setReasonFilter] = useState<"todos" | PermissionReason>(
     "todos",
   );
@@ -217,7 +217,10 @@ function AppointmentsPageContent() {
 
     return appointments.filter((appointment) => {
       const matchesStatus =
-        statusFilter === "todos" || appointment.status === statusFilter;
+        statusFilter === "todos" ||
+        (statusFilter === "rechazado_conductor"
+          ? appointment.driverApprovalRejected
+          : appointment.status === statusFilter);
       const matchesReason =
         reasonFilter === "todos" ||
         appointment.appointmentReason === reasonFilter;
@@ -281,9 +284,12 @@ function AppointmentsPageContent() {
   const rejectedCount = appointments.filter(
     (appointment) => appointment.status === "rechazado",
   ).length;
+  const driverRejectedCount = appointments.filter(
+    (appointment) => appointment.driverApprovalRejected,
+  ).length;
 
   function setStatusFilterFromIndicator(
-    nextFilter: "todos" | AppointmentStatus,
+    nextFilter: "todos" | AppointmentStatus | "rechazado_conductor",
   ) {
     setStatusFilter(nextFilter);
   }
@@ -887,7 +893,7 @@ function AppointmentsPageContent() {
               </h1>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[600px]">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:min-w-[720px] xl:grid-cols-6">
               <button
                 type="button"
                 onClick={() => setStatusFilterFromIndicator("todos")}
@@ -960,10 +966,28 @@ function AppointmentsPageContent() {
                 )}
               >
                 <p className="text-[11px] font-semibold text-red-800">
-                  Rechazados
+                  Rech. ejecutivo
                 </p>
                 <p className="font-heading text-xl font-semibold text-red-800">
                   {rejectedCount}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusFilterFromIndicator("rechazado_conductor")
+                }
+                aria-pressed={statusFilter === "rechazado_conductor"}
+                className={indicatorCardClass(
+                  statusFilter === "rechazado_conductor",
+                  "border border-rose-200 bg-rose-50",
+                )}
+              >
+                <p className="text-[11px] font-semibold text-rose-800">
+                  Rech. conductor
+                </p>
+                <p className="font-heading text-xl font-semibold text-rose-800">
+                  {driverRejectedCount}
                 </p>
               </button>
             </div>
@@ -998,7 +1022,10 @@ function AppointmentsPageContent() {
                 value={statusFilter}
                 onChange={(event) =>
                   setStatusFilter(
-                    event.target.value as "todos" | AppointmentStatus,
+                    event.target.value as
+                      | "todos"
+                      | AppointmentStatus
+                      | "rechazado_conductor",
                   )
                 }
                 className="h-8 w-full rounded-lg border border-[#9fb8d9] bg-white px-2 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
@@ -1007,7 +1034,8 @@ function AppointmentsPageContent() {
                 <option value="pendiente">Pendientes</option>
                 <option value="revisado">Agendados</option>
                 <option value="aprobado">Aprobados</option>
-                <option value="rechazado">Rechazados</option>
+                <option value="rechazado">Rech. ejecutivo</option>
+                <option value="rechazado_conductor">Rech. conductor</option>
                 <option value="cancelado">Cancelados</option>
               </select>
             </label>
@@ -1258,10 +1286,22 @@ function AppointmentsPageContent() {
                                   driverApprovalRejected={
                                     appointment.driverApprovalRejected
                                   }
+                                  driverApprovalMessage={
+                                    appointment.driverApprovalMessage
+                                  }
                                 />
                               </div>
                             );
                           })()}
+                          {appointment.driverApprovalRejected &&
+                          appointment.driverApprovalMessage ? (
+                            <p
+                              className="mt-1 max-w-[11rem] truncate text-[10px] font-medium leading-4 text-rose-800"
+                              title={appointment.driverApprovalMessage}
+                            >
+                              Obs.: {appointment.driverApprovalMessage}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="px-2.5 py-2 font-semibold text-[#0b5cab]">
                           {getAppointmentTicketLabel(appointment)}

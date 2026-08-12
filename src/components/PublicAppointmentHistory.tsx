@@ -61,7 +61,10 @@ type PublicAppointmentHistoryContentProps = {
   vehicleNumber: string;
   onDismissDateChange?: (appointmentId: string) => void;
   onApproveDriverRequest?: (appointmentId: string) => void;
-  onRejectDriverRequest?: (appointmentId: string) => void;
+  onRejectDriverRequest?: (
+    appointmentId: string,
+    rejectionNote: string,
+  ) => void | Promise<void>;
 };
 
 function PublicAppointmentHistoryContent({
@@ -71,6 +74,35 @@ function PublicAppointmentHistoryContent({
   onApproveDriverRequest,
   onRejectDriverRequest,
 }: PublicAppointmentHistoryContentProps) {
+  const [rejectingId, setRejectingId] = useState("");
+  const [rejectionNote, setRejectionNote] = useState("");
+  const [rejectionError, setRejectionError] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  async function submitRejection(appointmentId: string) {
+    const note = rejectionNote.trim();
+    if (note.length < 3) {
+      setRejectionError("Escribe una observación breve (mínimo 3 caracteres).");
+      return;
+    }
+
+    if (!onRejectDriverRequest) {
+      return;
+    }
+
+    setIsRejecting(true);
+    setRejectionError("");
+    try {
+      await onRejectDriverRequest(appointmentId, note);
+      setRejectingId("");
+      setRejectionNote("");
+    } catch {
+      setRejectionError("No se pudo registrar el rechazo. Intenta nuevamente.");
+    } finally {
+      setIsRejecting(false);
+    }
+  }
+
   return (
     <>
       <div className="mb-3 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
@@ -97,27 +129,94 @@ function PublicAppointmentHistoryContent({
                     {appointment.driverApprovalMessage}
                   </p>
                   {onApproveDriverRequest || onRejectDriverRequest ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {onApproveDriverRequest ? (
-                        <button
-                          type="button"
-                          onClick={() => onApproveDriverRequest(appointment.id)}
-                          className="inline-flex h-8 items-center justify-center rounded-xl bg-violet-700 px-3 text-[11px] font-semibold text-white transition hover:bg-violet-800"
-                        >
-                          Aprobar solicitud
-                        </button>
-                      ) : null}
-                      {onRejectDriverRequest ? (
-                        <button
-                          type="button"
-                          onClick={() => onRejectDriverRequest(appointment.id)}
-                          className="inline-flex h-8 items-center justify-center rounded-xl border border-red-300 bg-white px-3 text-[11px] font-semibold text-red-700 transition hover:bg-red-50"
-                        >
-                          Rechazar
-                        </button>
-                      ) : null}
-                    </div>
+                    rejectingId === appointment.id ? (
+                      <div className="mt-3 space-y-2">
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-violet-900">
+                            Observación del rechazo
+                          </span>
+                          <textarea
+                            value={rejectionNote}
+                            onChange={(event) => {
+                              setRejectionNote(event.target.value.slice(0, 400));
+                              setRejectionError("");
+                            }}
+                            rows={3}
+                            maxLength={400}
+                            placeholder="Ej: No puedo asistir en ese horario..."
+                            className="w-full resize-none rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs leading-5 text-[#0f2747] outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-200"
+                          />
+                          <span className="text-[10px] text-violet-800/80">
+                            {rejectionNote.length}/400
+                          </span>
+                        </label>
+                        {rejectionError ? (
+                          <p className="text-[11px] font-medium text-red-700">
+                            {rejectionError}
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={isRejecting}
+                            onClick={() => {
+                              setRejectingId("");
+                              setRejectionNote("");
+                              setRejectionError("");
+                            }}
+                            className="inline-flex h-8 items-center justify-center rounded-xl border border-violet-300 bg-white px-3 text-[11px] font-semibold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60"
+                          >
+                            Volver
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isRejecting}
+                            onClick={() => void submitRejection(appointment.id)}
+                            className="inline-flex h-8 items-center justify-center rounded-xl border border-red-300 bg-red-600 px-3 text-[11px] font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                          >
+                            {isRejecting ? "Enviando..." : "Confirmar rechazo"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {onApproveDriverRequest ? (
+                          <button
+                            type="button"
+                            onClick={() => onApproveDriverRequest(appointment.id)}
+                            className="inline-flex h-8 items-center justify-center rounded-xl bg-violet-700 px-3 text-[11px] font-semibold text-white transition hover:bg-violet-800"
+                          >
+                            Aprobar solicitud
+                          </button>
+                        ) : null}
+                        {onRejectDriverRequest ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectingId(appointment.id);
+                              setRejectionNote("");
+                              setRejectionError("");
+                            }}
+                            className="inline-flex h-8 items-center justify-center rounded-xl border border-red-300 bg-white px-3 text-[11px] font-semibold text-red-700 transition hover:bg-red-50"
+                          >
+                            Rechazar
+                          </button>
+                        ) : null}
+                      </div>
+                    )
                   ) : null}
+                </div>
+              ) : null}
+
+              {appointment.driverApprovalRejected &&
+              appointment.driverApprovalMessage ? (
+                <div className="rounded-xl border-2 border-red-300 bg-red-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-900">
+                    Rechazaste esta solicitud
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-red-950">
+                    {appointment.driverApprovalMessage}
+                  </p>
                 </div>
               ) : null}
 
@@ -248,7 +347,10 @@ type PublicAppointmentHistoryProps = {
   vehicleNumber: string;
   onDismissDateChange?: (appointmentId: string) => void;
   onApproveDriverRequest?: (appointmentId: string) => void;
-  onRejectDriverRequest?: (appointmentId: string) => void;
+  onRejectDriverRequest?: (
+    appointmentId: string,
+    rejectionNote: string,
+  ) => void | Promise<void>;
 };
 
 export default function PublicAppointmentHistory({

@@ -4,23 +4,29 @@ type DriverApprovalAckBadgeProps = {
   createdByType: AppointmentCreatedByType;
   driverApprovalPending: boolean;
   driverApprovalRejected: boolean;
+  driverApprovalMessage?: string;
 };
 
 export default function DriverApprovalAckBadge({
   createdByType,
   driverApprovalPending,
   driverApprovalRejected,
+  driverApprovalMessage = "",
 }: DriverApprovalAckBadgeProps) {
   if (createdByType !== "ejecutivo") {
     return null;
   }
 
   if (driverApprovalRejected) {
+    const rejectionTitle = driverApprovalMessage
+      ? `Conductor rechazó: ${driverApprovalMessage}`
+      : "Conductor rechazó la solicitud";
+
     return (
       <span
-        title="Conductor rechazó la solicitud"
+        title={rejectionTitle}
         className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-red-300 bg-red-100 text-[10px] font-bold leading-none text-red-700"
-        aria-label="Conductor rechazó la solicitud"
+        aria-label={rejectionTitle}
       >
         ×
       </span>

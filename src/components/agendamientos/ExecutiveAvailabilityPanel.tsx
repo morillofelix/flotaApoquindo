@@ -185,7 +185,7 @@ export default function ExecutiveAvailabilityPanel({
         </div>
       ) : availability.busy.length ? (
         <p className="mt-3 text-xs font-medium text-amber-800">
-          No hay huecos suficientes para una cita de{" "}
+          No hay espacio suficiente para una cita de{" "}
           {availability.durationMinutes} minutos este día.
         </p>
       ) : null}

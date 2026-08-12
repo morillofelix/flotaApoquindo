@@ -48,6 +48,7 @@ type PatchBody = {
   acknowledgeDateChange?: unknown;
   acknowledgeDriverApproval?: unknown;
   rejectDriverApproval?: unknown;
+  driverRejectionNote?: unknown;
 };
 
 const validStatuses: AppointmentStatus[] = [
@@ -379,6 +380,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ message: "No autorizado." }, { status: 401 });
     }
 
+    const rejectionNote =
+      typeof body.driverRejectionNote === "string"
+        ? body.driverRejectionNote.trim().slice(0, 400)
+        : "";
+
+    if (rejectionNote.length < 3) {
+      return NextResponse.json(
+        {
+          message:
+            "Indica una observación breve para explicar el rechazo (mínimo 3 caracteres).",
+        },
+        { status: 400 },
+      );
+    }
+
     try {
       const existingAppointment = await prisma.appointment.findUnique({
         where: { id },
@@ -414,7 +430,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         data: {
           driverApprovalPending: false,
           driverApprovalRejected: true,
-          driverApprovalMessage: "",
+          driverApprovalMessage: rejectionNote,
         },
       });
       const reasonRecord = await prisma.appointmentReason.findUnique({

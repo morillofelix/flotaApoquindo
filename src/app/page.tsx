@@ -576,36 +576,53 @@ function AppointmentRequestForm({
     }
   }
 
-  async function rejectDriverRequest(appointmentId: string) {
-    try {
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
-        ...sessionFetchInit,
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ rejectDriverApproval: true }),
-      });
+  async function rejectDriverRequest(
+    appointmentId: string,
+    rejectionNote: string,
+  ) {
+    const note = rejectionNote.trim();
+    const response = await fetch(`/api/appointments/${appointmentId}`, {
+      ...sessionFetchInit,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        rejectDriverApproval: true,
+        driverRejectionNote: note,
+      }),
+    });
 
-      if (!response.ok) {
-        return;
-      }
-
-      setRecentAppointments((currentAppointments) =>
-        currentAppointments.map((appointment) =>
-          appointment.id === appointmentId
-            ? {
-                ...appointment,
-                driverApprovalPending: false,
-                driverApprovalRejected: true,
-                driverApprovalMessage: "",
-              }
-            : appointment,
-        ),
-      );
-    } catch {
-      // ignore rejection errors in the conductor view
+    if (!response.ok) {
+      throw new Error("No se pudo registrar el rechazo.");
     }
+
+    setRecentAppointments((currentAppointments) =>
+      currentAppointments.map((appointment) =>
+        appointment.id === appointmentId
+          ? {
+              ...appointment,
+              driverApprovalPending: false,
+              driverApprovalRejected: true,
+              driverApprovalMessage: note,
+            }
+          : appointment,
+      ),
+    );
+  }
+
+  function startAnotherAppointment() {
+    setValues({
+      ...initialValues,
+      driverName: driverOwner.fullName,
+      vehicleNumber:
+        driverOwner.vehicleNumber.replace(/^0+/, "") ||
+        driverOwner.vehicleNumber,
+      email: driverOwner.email,
+      phone: driverOwner.phone,
+    });
+    setTouched({});
+    resetSubmissionState();
   }
 
   useEffect(() => {
@@ -868,7 +885,15 @@ function AppointmentRequestForm({
             .catch(() => {});
         }
 
-        setValues(initialValues);
+        setValues({
+          ...initialValues,
+          driverName: driverOwner.fullName,
+          vehicleNumber:
+            driverOwner.vehicleNumber.replace(/^0+/, "") ||
+            driverOwner.vehicleNumber,
+          email: driverOwner.email,
+          phone: driverOwner.phone,
+        });
         setTouched({});
         setShowSuccess(true);
       } catch (error) {
@@ -940,8 +965,8 @@ function AppointmentRequestForm({
                 onApproveDriverRequest={(appointmentId) =>
                   void approveDriverRequest(appointmentId)
                 }
-                onRejectDriverRequest={(appointmentId) =>
-                  void rejectDriverRequest(appointmentId)
+                onRejectDriverRequest={(appointmentId, rejectionNote) =>
+                  rejectDriverRequest(appointmentId, rejectionNote)
                 }
               />
             </div>
@@ -1249,10 +1274,19 @@ function AppointmentRequestForm({
           </div>
 
           {showSuccess ? (
-            <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
-              Solicitud registrada correctamente. Tu número de ticket es{" "}
-              <strong>{successTicketId}</strong>. Puedes usarlo para hacer
-              seguimiento de tu solicitud.
+            <div className="mt-6 space-y-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+              <p>
+                Solicitud registrada correctamente. Tu número de ticket es{" "}
+                <strong>{successTicketId}</strong>. Puedes usarlo para hacer
+                seguimiento de tu solicitud.
+              </p>
+              <button
+                type="button"
+                onClick={startAnotherAppointment}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-green-300 bg-white px-4 text-sm font-semibold text-green-900 transition hover:bg-green-100"
+              >
+                Realizar otro agendamiento
+              </button>
             </div>
           ) : null}
 
