@@ -25,6 +25,7 @@ import {
 } from "@/lib/holidays";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { displayVehicleNumber } from "@/lib/driver-owners";
+import { scrollNativePickerIntoView } from "@/lib/form-scroll";
 import {
   FALLBACK_APPOINTMENT_DURATION_MINUTES,
   formatDisplayDate,
@@ -534,7 +535,7 @@ export default function ExecutiveAppointmentEditModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto px-4 py-4 sm:px-5">
+        <div className="overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-5">
           <div className="mb-4 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-4 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               Datos de la solicitud
@@ -759,39 +760,42 @@ export default function ExecutiveAppointmentEditModal({
                     type="date"
                     value={permitDate}
                     min={today}
+                    onFocus={scrollNativePickerIntoView}
                     onChange={(event) => {
                       setPermitDate(event.target.value);
                       setSubmitError("");
                     }}
-                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                    className="h-11 w-full min-w-0 scroll-mt-24 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                   />
                 </label>
-                <label className="flex flex-col gap-2">
+                <label className="flex min-w-0 flex-col gap-2">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Hora desde
                   </span>
                   <input
                     type="time"
                     value={permitStartTime}
+                    onFocus={scrollNativePickerIntoView}
                     onChange={(event) => {
                       setPermitStartTime(event.target.value);
                       setSubmitError("");
                     }}
-                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                    className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                   />
                 </label>
-                <label className="flex flex-col gap-2">
+                <label className="flex min-w-0 flex-col gap-2">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Hora hasta
                   </span>
                   <input
                     type="time"
                     value={permitEndTime}
+                    onFocus={scrollNativePickerIntoView}
                     onChange={(event) => {
                       setPermitEndTime(event.target.value);
                       setSubmitError("");
                     }}
-                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                    className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                   />
                 </label>
               </>

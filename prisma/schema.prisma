@@ -56,6 +56,7 @@ model AppointmentReason {
   serviceStartTime           String   @default("")
   usesDateRange              Boolean  @default(false)
   usesPermitDetails          Boolean  @default(false)
+  visibleToDriver            Boolean  @default(true)
   isActive                   Boolean  @default(true)
   restrictedWeekdays         String   @default("")
   requiresBusinessDayAdvance Boolean  @default(false)
@@ -67,6 +68,7 @@ model AppointmentReason {
 
   @@index([isActive])
   @@index([sortOrder])
+  @@index([visibleToDriver])
 }
 
 model Executive {
@@ -182,6 +184,7 @@ model Propietario {
   @@index([isActive])
   @@index([fullName])
   @@index([rut])
+  @@index([vehicleNumber])
 }
 
 model PropietarioBank {

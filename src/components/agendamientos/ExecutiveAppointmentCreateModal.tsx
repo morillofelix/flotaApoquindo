@@ -27,6 +27,7 @@ import {
 } from "@/lib/holidays";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { displayVehicleNumber } from "@/lib/driver-owners";
+import { scrollNativePickerIntoView } from "@/lib/form-scroll";
 import {
   FALLBACK_APPOINTMENT_DURATION_MINUTES,
   formatDisplayDate,
@@ -40,6 +41,9 @@ type VehicleLookupResult = {
   fullName: string;
   email: string;
   phone: string;
+  companyName: string;
+  ownerName: string;
+  ownerEmail: string;
 };
 
 type ExecutiveAppointmentCreateModalProps = {
@@ -68,6 +72,7 @@ type FormValues = {
   permitDate: string;
   permitStartTime: string;
   permitEndTime: string;
+  ccOwnerEmail: boolean;
 };
 
 const initialValues: FormValues = {
@@ -85,6 +90,7 @@ const initialValues: FormValues = {
   permitDate: "",
   permitStartTime: "",
   permitEndTime: "",
+  ccOwnerEmail: false,
 };
 
 function freeBlockKey(block: FreeInterval) {
@@ -388,6 +394,11 @@ export default function ExecutiveAppointmentCreateModal({
     if (digits.length < 1) {
       setSelectedDriver(null);
       setLookupError("");
+      setValues((currentValues) =>
+        currentValues.ccOwnerEmail
+          ? { ...currentValues, ccOwnerEmail: false }
+          : currentValues,
+      );
       return;
     }
 
@@ -414,7 +425,23 @@ export default function ExecutiveAppointmentCreateModal({
             return;
           }
 
-          setSelectedDriver(data.result);
+          const nextDriver: VehicleLookupResult = {
+            vehicleNumber: data.result.vehicleNumber,
+            fullName: data.result.fullName,
+            email: data.result.email,
+            phone: data.result.phone,
+            companyName: data.result.companyName ?? "",
+            ownerName: data.result.ownerName ?? "",
+            ownerEmail: data.result.ownerEmail ?? "",
+          };
+
+          setSelectedDriver(nextDriver);
+          if (!nextDriver.ownerEmail) {
+            setValues((currentValues) => ({
+              ...currentValues,
+              ccOwnerEmail: false,
+            }));
+          }
           setLookupError("");
         })
         .catch(() => {
@@ -455,7 +482,7 @@ export default function ExecutiveAppointmentCreateModal({
         [name]: value,
       };
 
-      if (name === "appointmentReason") {
+      if (name === "appointmentReason" && typeof value === "string") {
         if (!appointmentReasonUsesDateRange(value, reasons)) {
           nextValues.vacationStartDate = "";
           nextValues.vacationEndDate = "";
@@ -638,7 +665,7 @@ export default function ExecutiveAppointmentCreateModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto px-4 py-4 sm:px-5">
+        <div className="overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-5">
           <div className="mb-4 rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-4 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               Ejecutivo que crea
@@ -683,6 +710,30 @@ export default function ExecutiveAppointmentCreateModal({
                 <p className="mt-1 text-xs text-slate-600">
                   {selectedDriver.email} · {selectedDriver.phone}
                 </p>
+                {selectedDriver.companyName || selectedDriver.ownerName ? (
+                  <div className="mt-2 space-y-0.5 border-t border-[#c5d8eb] pt-2">
+                    {selectedDriver.companyName ? (
+                      <p className="text-xs font-medium text-[#0f2747]">
+                        Empresa:{" "}
+                        <span className="text-[#0b5cab]">
+                          {selectedDriver.companyName}
+                        </span>
+                      </p>
+                    ) : null}
+                    {selectedDriver.ownerName ? (
+                      <p className="text-xs font-medium text-[#0f2747]">
+                        Propietario:{" "}
+                        <span className="text-[#0b5cab]">
+                          {selectedDriver.ownerName}
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-slate-500">
+                    Sin propietario asociado a este móvil en el mantenedor.
+                  </p>
+                )}
               </div>
             ) : null}
 
@@ -701,6 +752,7 @@ export default function ExecutiveAppointmentCreateModal({
                 {activeReasons.map((reason) => (
                   <option key={reason.value} value={reason.value}>
                     {reason.label}
+                    {reason.visibleToDriver === false ? " (solo ejecutivo)" : ""}
                   </option>
                 ))}
               </select>
@@ -716,10 +768,11 @@ export default function ExecutiveAppointmentCreateModal({
                     type="date"
                     value={values.appointmentDate}
                     min={today}
+                    onFocus={scrollNativePickerIntoView}
                     onChange={(event) =>
                       updateField("appointmentDate", event.target.value)
                     }
-                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                    className="h-10 w-full min-w-0 scroll-mt-24 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 
@@ -781,30 +834,32 @@ export default function ExecutiveAppointmentCreateModal({
                     />
 
                     <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                      <label className="flex flex-col gap-2">
+                      <label className="flex min-w-0 flex-col gap-2">
                         <span className="text-xs font-semibold text-[#173b68]">
                           Hora de inicio
                         </span>
                         <input
                           type="time"
                           value={values.scheduledStartTime}
+                          onFocus={scrollNativePickerIntoView}
                           onChange={(event) =>
                             updateField("scheduledStartTime", event.target.value)
                           }
-                          className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                          className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4"
                         />
                       </label>
-                      <label className="flex flex-col gap-2">
+                      <label className="flex min-w-0 flex-col gap-2">
                         <span className="text-xs font-semibold text-[#173b68]">
                           Hora de término
                         </span>
                         <input
                           type="time"
                           value={values.scheduledEndTime}
+                          onFocus={scrollNativePickerIntoView}
                           onChange={(event) =>
                             updateField("scheduledEndTime", event.target.value)
                           }
-                          className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                          className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4"
                         />
                       </label>
                     </div>
@@ -901,10 +956,11 @@ export default function ExecutiveAppointmentCreateModal({
                         type="date"
                         value={values.permitStartDate}
                         min={today}
+                        onFocus={scrollNativePickerIntoView}
                         onChange={(event) =>
                           updateField("permitStartDate", event.target.value)
                         }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                        className="h-11 w-full min-w-0 scroll-mt-24 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                       />
                     </label>
                     <label className="flex flex-col gap-2">
@@ -915,17 +971,18 @@ export default function ExecutiveAppointmentCreateModal({
                         type="date"
                         value={values.permitEndDate}
                         min={values.permitStartDate || today}
+                        onFocus={scrollNativePickerIntoView}
                         onChange={(event) =>
                           updateField("permitEndDate", event.target.value)
                         }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                        className="h-11 w-full min-w-0 scroll-mt-24 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                       />
                     </label>
                   </div>
                 ) : null}
 
                 {values.permitType === "horas" ? (
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3">
                     <label className="flex flex-col gap-2">
                       <span className="text-xs font-semibold text-[#173b68]">
                         Fecha del permiso
@@ -934,41 +991,74 @@ export default function ExecutiveAppointmentCreateModal({
                         type="date"
                         value={values.permitDate}
                         min={today}
+                        onFocus={scrollNativePickerIntoView}
                         onChange={(event) =>
                           updateField("permitDate", event.target.value)
                         }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                        className="h-11 w-full min-w-0 scroll-mt-24 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
                       />
                     </label>
-                    <label className="flex flex-col gap-2">
-                      <span className="text-xs font-semibold text-[#173b68]">
-                        Hora desde
-                      </span>
-                      <input
-                        type="time"
-                        value={values.permitStartTime}
-                        onChange={(event) =>
-                          updateField("permitStartTime", event.target.value)
-                        }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-2">
-                      <span className="text-xs font-semibold text-[#173b68]">
-                        Hora hasta
-                      </span>
-                      <input
-                        type="time"
-                        value={values.permitEndTime}
-                        onChange={(event) =>
-                          updateField("permitEndTime", event.target.value)
-                        }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
-                      />
-                    </label>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="flex min-w-0 flex-col gap-2">
+                        <span className="text-xs font-semibold text-[#173b68]">
+                          Hora desde
+                        </span>
+                        <input
+                          type="time"
+                          value={values.permitStartTime}
+                          onFocus={scrollNativePickerIntoView}
+                          onChange={(event) =>
+                            updateField("permitStartTime", event.target.value)
+                          }
+                          className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
+                        />
+                      </label>
+                      <label className="flex min-w-0 flex-col gap-2">
+                        <span className="text-xs font-semibold text-[#173b68]">
+                          Hora hasta
+                        </span>
+                        <input
+                          type="time"
+                          value={values.permitEndTime}
+                          onFocus={scrollNativePickerIntoView}
+                          onChange={(event) =>
+                            updateField("permitEndTime", event.target.value)
+                          }
+                          className="h-11 w-full min-w-0 scroll-mt-28 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] sm:px-4"
+                        />
+                      </label>
+                    </div>
                   </div>
                 ) : null}
               </div>
+            ) : null}
+
+            {selectedDriver ? (
+              <label className="flex items-start gap-3 rounded-2xl border border-[#9fb8d9] bg-white px-4 py-3 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={values.ccOwnerEmail}
+                  disabled={!selectedDriver.ownerEmail}
+                  onChange={(event) =>
+                    updateField("ccOwnerEmail", event.target.checked)
+                  }
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#0b5cab] disabled:opacity-50"
+                />
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-[#173b68]">
+                    Enviar correo en copia al propietario
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">
+                    {selectedDriver.ownerEmail
+                      ? `Copia del correo de confirmación a ${selectedDriver.ownerEmail}${
+                          selectedDriver.companyName
+                            ? ` (${selectedDriver.companyName})`
+                            : ""
+                        }.`
+                      : "Este móvil no tiene correo de propietario registrado."}
+                  </span>
+                </span>
+              </label>
             ) : null}
 
             {reasonDateCheck.blocked ? (

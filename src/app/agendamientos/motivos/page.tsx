@@ -30,6 +30,7 @@ type ReasonForm = {
   serviceStartTime: string;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  visibleToDriver: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
   weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig;
@@ -39,11 +40,13 @@ type ReasonBooleanField =
   | "allowsExecutiveAssignment"
   | "usesDateRange"
   | "usesPermitDetails"
+  | "visibleToDriver"
   | "isActive";
 
 const reasonFeatureFields: Array<[ReasonBooleanField, string]> = [
   ["usesDateRange", "Rango fechas"],
   ["usesPermitDetails", "Permiso horas/días"],
+  ["visibleToDriver", "Visualiza conductor"],
   ["isActive", "Activo"],
 ];
 
@@ -57,6 +60,7 @@ const emptyReasonForm: ReasonForm = {
   serviceStartTime: "09:00",
   usesDateRange: false,
   usesPermitDetails: false,
+  visibleToDriver: true,
   isActive: true,
   restrictedWeekdays: [],
   weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
@@ -136,6 +140,7 @@ export default function MotivosPage() {
       serviceStartTime: reason.serviceStartTime || "09:00",
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      visibleToDriver: reason.visibleToDriver !== false,
       isActive: reason.isActive,
       restrictedWeekdays: reason.restrictedWeekdays,
       weekdayBusinessAdvance: reason.weekdayBusinessAdvance,
@@ -353,6 +358,9 @@ export default function MotivosPage() {
                             : "",
                           reason.usesDateRange ? "Fechas" : "",
                           reason.usesPermitDetails ? "Horas/días" : "",
+                          reason.visibleToDriver === false
+                            ? "Solo ejecutivo"
+                            : "Conductor",
                           reason.restrictedWeekdays.length
                             ? `Restringe: ${formatRestrictedWeekdays(reason.restrictedWeekdays)}`
                             : "",
@@ -531,20 +539,28 @@ export default function MotivosPage() {
                 {reasonFeatureFields.map(([field, label]) => (
                   <label
                     key={field}
-                    className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]"
+                    className="flex min-h-10 flex-col justify-center gap-1 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 py-2 text-xs font-semibold text-[#173b68]"
                   >
-                    {label}
-                    <input
-                      type="checkbox"
-                      checked={reasonForm[field]}
-                      onChange={(event) =>
-                        setReasonForm((currentForm) => ({
-                          ...currentForm,
-                          [field]: event.target.checked,
-                        }))
-                      }
-                      className="h-4 w-4 accent-[#0b5cab]"
-                    />
+                    <span className="flex items-center justify-between gap-3">
+                      {label}
+                      <input
+                        type="checkbox"
+                        checked={reasonForm[field]}
+                        onChange={(event) =>
+                          setReasonForm((currentForm) => ({
+                            ...currentForm,
+                            [field]: event.target.checked,
+                          }))
+                        }
+                        className="h-4 w-4 accent-[#0b5cab]"
+                      />
+                    </span>
+                    {field === "visibleToDriver" ? (
+                      <span className="text-[11px] font-normal leading-4 text-slate-500">
+                        Si está activo, el conductor lo ve al agendar. Si no, solo
+                        aparece para el ejecutivo.
+                      </span>
+                    ) : null}
                   </label>
                 ))}
               </div>

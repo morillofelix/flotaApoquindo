@@ -378,6 +378,7 @@ function createEmailText(
 export async function sendScheduledConfirmationEmail(
   appointment: ScheduledEmailPayload,
   executiveContext?: ExecutiveEmailContext,
+  options?: { cc?: string },
 ) {
   const smtp = getNotificaSmtpConfig();
 
@@ -404,10 +405,12 @@ export async function sendScheduledConfirmationEmail(
   }
 
   const transporter = createNotificaTransporter();
+  const cc = options?.cc?.trim();
 
   return transporter.sendMail({
     from: smtp.from,
     to: appointment.email,
+    ...(cc ? { cc } : {}),
     subject: `Cita agendada - Ticket ${getAppointmentTicketLabel(appointment)}`,
     html: `
       <div style="font-family: Arial, sans-serif; color: #0f2747; line-height: 1.6;">
@@ -437,6 +440,7 @@ export async function sendScheduledConfirmationEmail(
 
 export async function sendExecutiveAssignmentEmailsServer(
   appointment: Appointment,
+  options?: { ownerCcEmail?: string },
 ) {
   if (!shouldSendExecutiveAssignmentEmails(appointment)) {
     return;
@@ -456,6 +460,8 @@ export async function sendExecutiveAssignmentEmailsServer(
 
   await Promise.all([
     sendCalendarInviteEmail(appointment, executiveContext),
-    sendScheduledConfirmationEmail(appointment, executiveContext),
+    sendScheduledConfirmationEmail(appointment, executiveContext, {
+      cc: options?.ownerCcEmail,
+    }),
   ]);
 }

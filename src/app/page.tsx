@@ -26,6 +26,7 @@ import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
 import { sessionFetchInit } from "@/lib/admin-fetch";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
+import { scrollNativePickerIntoView } from "@/lib/form-scroll";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
 } from "@/components/PublicAppointmentHistory";
@@ -399,7 +400,10 @@ function AppointmentRequestForm({
   >([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(false);
   const activeReasons = useMemo(
-    () => reasons.filter((reason) => reason.isActive),
+    () =>
+      reasons.filter(
+        (reason) => reason.isActive && reason.visibleToDriver !== false,
+      ),
     [reasons],
   );
   const usesDateRange = appointmentReasonUsesDateRange(
@@ -1155,11 +1159,12 @@ function AppointmentRequestForm({
                         required
                         value={values.permitStartDate}
                         min={today}
+                        onFocus={scrollNativePickerIntoView}
                         onBlur={() => markFieldAsTouched("permitStartDate")}
                         onChange={(event) =>
                           updateField("permitStartDate", event.target.value)
                         }
-                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitStartDate")}`}
+                        className={`h-12 w-full min-w-0 scroll-mt-24 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitStartDate")}`}
                       />
                       {touched.permitStartDate && errors.permitStartDate ? (
                         <span className="text-sm text-red-600">
@@ -1178,11 +1183,12 @@ function AppointmentRequestForm({
                         required
                         value={values.permitEndDate}
                         min={values.permitStartDate || today}
+                        onFocus={scrollNativePickerIntoView}
                         onBlur={() => markFieldAsTouched("permitEndDate")}
                         onChange={(event) =>
                           updateField("permitEndDate", event.target.value)
                         }
-                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitEndDate")}`}
+                        className={`h-12 w-full min-w-0 scroll-mt-24 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitEndDate")}`}
                       />
                       {touched.permitEndDate && errors.permitEndDate ? (
                         <span className="text-sm text-red-600">
@@ -1194,7 +1200,7 @@ function AppointmentRequestForm({
                 ) : null}
 
                 {values.permitType === "horas" ? (
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4">
                     <label className="flex flex-col gap-2">
                       <span className="text-sm font-semibold text-[#173b68]">
                         Fecha del permiso
@@ -1205,11 +1211,12 @@ function AppointmentRequestForm({
                         required
                         value={values.permitDate}
                         min={today}
+                        onFocus={scrollNativePickerIntoView}
                         onBlur={() => markFieldAsTouched("permitDate")}
                         onChange={(event) =>
                           updateField("permitDate", event.target.value)
                         }
-                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitDate")}`}
+                        className={`h-12 w-full min-w-0 scroll-mt-24 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitDate")}`}
                       />
                       {touched.permitDate && errors.permitDate ? (
                         <span className="text-sm text-red-600">
@@ -1218,49 +1225,53 @@ function AppointmentRequestForm({
                       ) : null}
                     </label>
 
-                    <label className="flex flex-col gap-2">
-                      <span className="text-sm font-semibold text-[#173b68]">
-                        Hora desde
-                      </span>
-                      <input
-                        type="time"
-                        name="permitStartTime"
-                        required
-                        value={values.permitStartTime}
-                        onBlur={() => markFieldAsTouched("permitStartTime")}
-                        onChange={(event) =>
-                          updateField("permitStartTime", event.target.value)
-                        }
-                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitStartTime")}`}
-                      />
-                      {touched.permitStartTime && errors.permitStartTime ? (
-                        <span className="text-sm text-red-600">
-                          {errors.permitStartTime}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="flex min-w-0 flex-col gap-2">
+                        <span className="text-sm font-semibold text-[#173b68]">
+                          Hora desde
                         </span>
-                      ) : null}
-                    </label>
+                        <input
+                          type="time"
+                          name="permitStartTime"
+                          required
+                          value={values.permitStartTime}
+                          onFocus={scrollNativePickerIntoView}
+                          onBlur={() => markFieldAsTouched("permitStartTime")}
+                          onChange={(event) =>
+                            updateField("permitStartTime", event.target.value)
+                          }
+                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitStartTime")}`}
+                        />
+                        {touched.permitStartTime && errors.permitStartTime ? (
+                          <span className="text-sm text-red-600">
+                            {errors.permitStartTime}
+                          </span>
+                        ) : null}
+                      </label>
 
-                    <label className="flex flex-col gap-2">
-                      <span className="text-sm font-semibold text-[#173b68]">
-                        Hora hasta
-                      </span>
-                      <input
-                        type="time"
-                        name="permitEndTime"
-                        required
-                        value={values.permitEndTime}
-                        onBlur={() => markFieldAsTouched("permitEndTime")}
-                        onChange={(event) =>
-                          updateField("permitEndTime", event.target.value)
-                        }
-                        className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitEndTime")}`}
-                      />
-                      {touched.permitEndTime && errors.permitEndTime ? (
-                        <span className="text-sm text-red-600">
-                          {errors.permitEndTime}
+                      <label className="flex min-w-0 flex-col gap-2">
+                        <span className="text-sm font-semibold text-[#173b68]">
+                          Hora hasta
                         </span>
-                      ) : null}
-                    </label>
+                        <input
+                          type="time"
+                          name="permitEndTime"
+                          required
+                          value={values.permitEndTime}
+                          onFocus={scrollNativePickerIntoView}
+                          onBlur={() => markFieldAsTouched("permitEndTime")}
+                          onChange={(event) =>
+                            updateField("permitEndTime", event.target.value)
+                          }
+                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitEndTime")}`}
+                        />
+                        {touched.permitEndTime && errors.permitEndTime ? (
+                          <span className="text-sm text-red-600">
+                            {errors.permitEndTime}
+                          </span>
+                        ) : null}
+                      </label>
+                    </div>
                   </div>
                 ) : null}
 

@@ -45,7 +45,12 @@ type AppointmentCreateBody = {
   permitDate?: unknown;
   permitStartTime?: unknown;
   permitEndTime?: unknown;
+  ccOwnerEmail?: unknown;
 };
+
+function resolvePropietarioEmail(row: { email: string; titularEmail: string }) {
+  return row.email.trim() || row.titularEmail.trim();
+}
 
 function isValidAppointmentDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -461,9 +466,38 @@ export async function POST(request: NextRequest) {
     );
 
     const shouldQueueEmails = shouldSendExecutiveAssignmentEmails(savedAppointment);
+    const wantsOwnerCc = body.ccOwnerEmail === true;
+    let ownerCcEmail = "";
+    let emailWarning = "";
+
+    if (wantsOwnerCc) {
+      const propietario = await prisma.propietario.findFirst({
+        where: {
+          isActive: true,
+          vehicleNumber: driverOwner.vehicleNumber,
+        },
+        orderBy: [{ updatedAt: "desc" }],
+        select: {
+          email: true,
+          titularEmail: true,
+        },
+      });
+      ownerCcEmail = propietario ? resolvePropietarioEmail(propietario) : "";
+
+      if (!ownerCcEmail) {
+        emailWarning =
+          "La solicitud se creó, pero no hay correo de propietario asociado al móvil para enviar en copia.";
+      } else if (!shouldQueueEmails) {
+        emailWarning =
+          "La solicitud se creó, pero no se envió correo de confirmación (sin ejecutivo/agenda), por lo que no se envió copia al propietario.";
+      }
+    }
 
     if (shouldQueueEmails) {
-      queueExecutiveAssignmentEmails(savedAppointment);
+      queueExecutiveAssignmentEmails(
+        savedAppointment,
+        ownerCcEmail ? { ownerCcEmail } : undefined,
+      );
     }
 
     return NextResponse.json(
@@ -471,7 +505,7 @@ export async function POST(request: NextRequest) {
         appointment: savedAppointment,
         emailsQueued: shouldQueueEmails,
         emailsSent: false,
-        emailWarning: "",
+        emailWarning,
       },
       { status: 201 },
     );

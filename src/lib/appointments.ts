@@ -40,6 +40,8 @@ export type AppointmentReasonConfig = {
   serviceStartTime: string;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  /** If true, the reason appears in the conductor app form. */
+  visibleToDriver: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
   weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig;
@@ -59,6 +61,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: true,
     usesPermitDetails: false,
+    visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
     weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
@@ -76,6 +79,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: true,
     usesPermitDetails: false,
+    visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
     weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
@@ -93,6 +97,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: false,
     usesPermitDetails: true,
+    visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
     weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),
@@ -110,6 +115,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: false,
     usesPermitDetails: false,
+    visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
     weekdayBusinessAdvance: createDefaultWeekdayBusinessAdvance(),

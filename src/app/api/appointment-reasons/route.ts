@@ -30,6 +30,7 @@ type ReasonBody = {
   serviceStartTime?: unknown;
   usesDateRange?: unknown;
   usesPermitDetails?: unknown;
+  visibleToDriver?: unknown;
   isActive?: unknown;
   restrictedWeekdays?: unknown;
   weekdayBusinessAdvance?: unknown;
@@ -61,6 +62,7 @@ function toReason(
     serviceStartTime: string;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
+    visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
     weekdayBusinessAdvance: string;
@@ -80,6 +82,7 @@ function toReason(
     serviceStartTime: value.serviceStartTime,
     usesDateRange: value.usesDateRange,
     usesPermitDetails: value.usesPermitDetails,
+    visibleToDriver: value.visibleToDriver !== false,
     isActive: value.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(value.restrictedWeekdays),
     weekdayBusinessAdvance: parseWeekdayBusinessAdvance(
@@ -181,6 +184,7 @@ async function ensureDefaultReasons() {
       serviceStartTime: reason.serviceStartTime,
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      visibleToDriver: reason.visibleToDriver,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
       weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
@@ -363,6 +367,8 @@ export async function POST(request: NextRequest) {
       serviceStartTime: durationFields.serviceStartTime,
       usesDateRange: getBoolean(body.usesDateRange),
       usesPermitDetails: getBoolean(body.usesPermitDetails),
+      visibleToDriver:
+        body.visibleToDriver === undefined ? true : getBoolean(body.visibleToDriver),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
       restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
       weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
@@ -438,6 +444,7 @@ export async function PATCH(request: NextRequest) {
         serviceStartTime: durationFields.serviceStartTime,
         usesDateRange: getBoolean(body.usesDateRange),
         usesPermitDetails: getBoolean(body.usesPermitDetails),
+        visibleToDriver: getBoolean(body.visibleToDriver),
         isActive: getBoolean(body.isActive),
         restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),
         weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(

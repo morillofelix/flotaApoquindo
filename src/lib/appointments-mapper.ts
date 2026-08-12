@@ -35,6 +35,7 @@ export function toReasonConfig(
     serviceStartTime: string;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
+    visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
     weekdayBusinessAdvance: string;
@@ -57,6 +58,7 @@ export function toReasonConfig(
     serviceStartTime: reason.serviceStartTime,
     usesDateRange: reason.usesDateRange,
     usesPermitDetails: reason.usesPermitDetails,
+    visibleToDriver: reason.visibleToDriver !== false,
     isActive: reason.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
     weekdayBusinessAdvance: parseWeekdayBusinessAdvance(

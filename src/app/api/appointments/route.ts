@@ -92,6 +92,7 @@ async function ensureDefaultReasons() {
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      visibleToDriver: reason.visibleToDriver,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
       weekdayBusinessAdvance: serializeWeekdayBusinessAdvance(
@@ -141,6 +142,7 @@ function validateCreateBody(
     !isValidAppointmentDate(appointmentDate) ||
     !reasonConfig ||
     !reasonConfig.isActive ||
+    !reasonConfig.visibleToDriver ||
     !email ||
     !phone
   ) {
