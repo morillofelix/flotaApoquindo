@@ -351,7 +351,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (
-    appointment.vehicleNumber !== session.vehicleNumber ||
+    normalizeVehicleNumber(appointment.vehicleNumber) !==
+      normalizeVehicleNumber(session.vehicleNumber) ||
     normalizeEmail(appointment.email) !== session.email
   ) {
     return NextResponse.json(

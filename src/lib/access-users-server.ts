@@ -12,7 +12,19 @@ import { prisma } from "@/lib/prisma";
 export { getSuperAdminEmail };
 
 export function getSuperAdminTempPassword() {
-  return (process.env.ACCESS_SUPER_ADMIN_TEMP_PASSWORD ?? "1818").trim();
+  const configured = (process.env.ACCESS_SUPER_ADMIN_TEMP_PASSWORD ?? "").trim();
+
+  if (configured) {
+    return configured;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "ACCESS_SUPER_ADMIN_TEMP_PASSWORD debe estar configurada en producción.",
+    );
+  }
+
+  return "1818";
 }
 
 export function generateAccessTemporaryPassword() {

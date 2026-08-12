@@ -66,13 +66,21 @@ export function getLegacyAdminCredentials() {
 export function verifyAdminCredentials(user: string, password: string) {
   const normalizedUser = user.trim().toLowerCase();
   const normalizedPassword = password.trim();
-
-  if (normalizedUser === LEGACY_ADMIN_USER.toLowerCase()) {
-    return compareSecretStrings(normalizedPassword, LEGACY_ADMIN_PASSWORD);
-  }
-
   const envUser = process.env.ADMIN_USER?.trim().toLowerCase();
   const envPassword = process.env.ADMIN_PASSWORD?.trim();
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // Hardcoded legacy pair is never valid in production.
+  if (
+    normalizedUser === LEGACY_ADMIN_USER.toLowerCase() &&
+    (!envUser || envUser !== LEGACY_ADMIN_USER.toLowerCase())
+  ) {
+    if (isProduction) {
+      return false;
+    }
+
+    return compareSecretStrings(normalizedPassword, LEGACY_ADMIN_PASSWORD);
+  }
 
   if (!envUser || !envPassword || normalizedUser !== envUser) {
     return false;

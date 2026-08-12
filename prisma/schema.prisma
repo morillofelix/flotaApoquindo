@@ -43,6 +43,8 @@ model Appointment {
   @@index([assignedExecutive])
   @@index([appointmentReason])
   @@index([createdAt])
+  @@index([vehicleNumber])
+  @@index([appointmentDate])
 }
 
 model AppointmentReason {

@@ -324,7 +324,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       if (
         normalizeVehicleNumber(existingAppointment.vehicleNumber) !==
-          session.vehicleNumber ||
+          normalizeVehicleNumber(session.vehicleNumber) ||
         normalizeEmail(existingAppointment.email) !== normalizeEmail(session.email)
       ) {
         return NextResponse.json(
@@ -409,7 +409,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       if (
         normalizeVehicleNumber(existingAppointment.vehicleNumber) !==
-          session.vehicleNumber ||
+          normalizeVehicleNumber(session.vehicleNumber) ||
         normalizeEmail(existingAppointment.email) !== normalizeEmail(session.email)
       ) {
         return NextResponse.json(
@@ -479,7 +479,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       if (
         normalizeVehicleNumber(existingAppointment.vehicleNumber) !==
-          session.vehicleNumber ||
+          normalizeVehicleNumber(session.vehicleNumber) ||
         normalizeEmail(existingAppointment.email) !== normalizeEmail(session.email)
       ) {
         return NextResponse.json(
