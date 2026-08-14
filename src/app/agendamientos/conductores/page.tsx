@@ -36,7 +36,7 @@ import {
 } from "@/lib/propietario-status";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type DriverOwnerForm = DriverOwnerConfig & {
   id: string;
@@ -47,6 +47,31 @@ const statusSelectBaseClassName =
 
 const driverOwnerListGridClassName =
   "grid grid-cols-[2.5rem_4rem_minmax(10rem,1fr)_5.5rem_5.5rem_4.5rem] gap-2 px-3";
+
+function DriverOwnerActionBanner({
+  message,
+  error,
+}: {
+  message: string;
+  error: string;
+}) {
+  if (!message && !error) {
+    return null;
+  }
+
+  return (
+    <div
+      role="status"
+      className={`rounded-2xl border px-3 py-2.5 text-sm font-semibold ${
+        error
+          ? "border-red-200 bg-red-50 text-red-700"
+          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+      }`}
+    >
+      {error || message}
+    </div>
+  );
+}
 
 type BulkUploadPhase =
   | "idle"
@@ -168,6 +193,12 @@ export default function ConductoresPage() {
   const [bulkImportFilters, setBulkImportFilters] =
     useState<BulkImportFilters>(defaultBulkImportFilters);
   const [isListPanelCollapsed, setIsListPanelCollapsed] = useState(false);
+  const driverOwnerFormRef = useRef<HTMLFormElement>(null);
+
+  function revealDriverOwnerFeedback() {
+    driverOwnerFormRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const reloadDriverOwners = useCallback(async () => {
     const loadedDriverOwners = await loadDriverOwners();
@@ -631,16 +662,19 @@ export default function ConductoresPage() {
       setDriverOwnerError(
         "Guarda o selecciona un conductor antes de enviar la clave de acceso.",
       );
+      revealDriverOwnerFeedback();
       return;
     }
 
     if (!driverOwnerForm.email.trim()) {
       setDriverOwnerError("El conductor debe tener un correo registrado.");
+      revealDriverOwnerFeedback();
       return;
     }
 
     if (!driverOwnerForm.rut.trim()) {
       setDriverOwnerError("El conductor debe tener un RUT válido.");
+      revealDriverOwnerFeedback();
       return;
     }
 
@@ -650,6 +684,7 @@ export default function ConductoresPage() {
       setDriverOwnerError(
         "El RUT debe tener al menos 4 dígitos para generar la clave de acceso.",
       );
+      revealDriverOwnerFeedback();
       return;
     }
 
@@ -688,12 +723,14 @@ export default function ConductoresPage() {
       setDriverOwnerMessage(
         `${data.message ?? "Clave de acceso enviada correctamente."} Clave: ${temporaryPassword}`,
       );
+      revealDriverOwnerFeedback();
     } catch (error) {
       setDriverOwnerError(
         error instanceof Error
           ? error.message
           : "No se pudo enviar la clave de acceso.",
       );
+      revealDriverOwnerFeedback();
     } finally {
       setSendingTempPassword(false);
     }
@@ -809,6 +846,7 @@ export default function ConductoresPage() {
       setIsSendingBulkTempPassword(false);
       setSendingTempPassword(false);
       setBulkTempPasswordProgress("");
+      revealDriverOwnerFeedback();
     }
   }
 
@@ -1226,6 +1264,10 @@ export default function ConductoresPage() {
                       : `Enviar clave de acceso (${selectedDriverOwnerIds.length})`}
                   </button>
                 </div>
+                <DriverOwnerActionBanner
+                  message={driverOwnerMessage}
+                  error={driverOwnerError}
+                />
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-[#b7cce4] bg-white">
@@ -1331,11 +1373,12 @@ export default function ConductoresPage() {
               ) : null}
 
             <form
+              ref={driverOwnerFormRef}
               noValidate
               onSubmit={saveDriverOwner}
               className="min-w-0 max-h-[85vh] overflow-x-hidden overflow-y-auto rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-4"
             >
-              <div className="mb-4 border-b border-[#c5d8eb] pb-3">
+              <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-[#c5d8eb] bg-[#f8fbff] px-4 pb-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h4 className="font-heading text-base font-semibold text-[#0f2747]">
@@ -1362,6 +1405,12 @@ export default function ConductoresPage() {
                     Enviando clave de acceso a {driverOwnerForm.email.trim()}...
                   </p>
                 ) : null}
+                <div className="mt-3">
+                  <DriverOwnerActionBanner
+                    message={driverOwnerMessage}
+                    error={driverOwnerError}
+                  />
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1751,17 +1800,6 @@ export default function ConductoresPage() {
                   />
                 </label>
               </div>
-
-              {driverOwnerMessage ? (
-                <p className="mt-3 text-xs font-semibold text-green-700">
-                  {driverOwnerMessage}
-                </p>
-              ) : null}
-              {driverOwnerError ? (
-                <p className="mt-3 text-xs font-semibold text-red-600">
-                  {driverOwnerError}
-                </p>
-              ) : null}
 
               <div className="mt-5 flex flex-wrap justify-end gap-2">
                 {driverOwnerForm.id ? (
