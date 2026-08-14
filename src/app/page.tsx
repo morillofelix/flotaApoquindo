@@ -5,6 +5,7 @@ import {
   type AppointmentReasonConfig,
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
+  appointmentReasonUsesDaySwap,
   appointmentReasonAllowsExecutive,
   defaultAppointmentReasons,
   getAppointmentTicketLabel,
@@ -57,6 +58,8 @@ type FormValues = {
   permitDate: string;
   permitStartTime: string;
   permitEndTime: string;
+  swapFromDate: string;
+  swapToDate: string;
   email: string;
   phone: string;
 };
@@ -76,6 +79,8 @@ const initialValues: FormValues = {
   permitDate: "",
   permitStartTime: "",
   permitEndTime: "",
+  swapFromDate: "",
+  swapToDate: "",
   email: "",
   phone: "",
 };
@@ -114,7 +119,11 @@ function validateField(
   }
 
   if (
-    (name === "permitStartDate" || name === "permitDate" || name === "appointmentDate") &&
+    (name === "permitStartDate" ||
+      name === "permitDate" ||
+      name === "appointmentDate" ||
+      name === "swapFromDate" ||
+      name === "swapToDate") &&
     trimmedValue < today
   ) {
     return "La fecha debe ser hoy o posterior.";
@@ -158,6 +167,7 @@ type AppointmentSubmission = Omit<
   | "reasonServiceStartTime"
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
+  | "reasonUsesDaySwap"
   | "assignedExecutive"
   | "scheduledStartTime"
   | "scheduledEndTime"
@@ -184,6 +194,10 @@ function createAppointment(
     values.appointmentReason,
     reasons,
   );
+  const usesDaySwap = appointmentReasonUsesDaySwap(
+    values.appointmentReason,
+    reasons,
+  );
   const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
     values.appointmentReason,
     reasons,
@@ -194,7 +208,9 @@ function createAppointment(
     vehicleNumber: normalizeVehicleNumber(values.vehicleNumber),
     appointmentDate: allowsExecutiveAssignment
       ? values.appointmentDate
-      : getSantiagoToday().date,
+      : usesDaySwap
+        ? values.swapToDate
+        : getSantiagoToday().date,
     vacationStartDate: usesDateRange ? values.vacationStartDate : "",
     vacationEndDate: usesDateRange ? values.vacationEndDate : "",
     permitType: usesPermitDetails
@@ -220,6 +236,8 @@ function createAppointment(
       usesPermitDetails && values.permitType === "horas"
         ? values.permitEndTime
         : "",
+    swapFromDate: usesDaySwap ? values.swapFromDate : "",
+    swapToDate: usesDaySwap ? values.swapToDate : "",
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
@@ -421,6 +439,10 @@ function AppointmentRequestForm({
     values.appointmentReason,
     reasons,
   );
+  const usesDaySwap = appointmentReasonUsesDaySwap(
+    values.appointmentReason,
+    reasons,
+  );
   const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
     values.appointmentReason,
     reasons,
@@ -442,6 +464,7 @@ function AppointmentRequestForm({
     const dateInput = {
       usesDateRange: selectedReasonConfig.usesDateRange,
       usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+      usesDaySwap: selectedReasonConfig.usesDaySwap,
       allowsExecutiveAssignment:
         selectedReasonConfig.allowsExecutiveAssignment,
       vacationStartDate: values.vacationStartDate,
@@ -451,6 +474,8 @@ function AppointmentRequestForm({
       permitEndDate: values.permitEndDate,
       permitDate: values.permitDate,
       appointmentDate: values.appointmentDate,
+      swapFromDate: values.swapFromDate,
+      swapToDate: values.swapToDate,
     };
 
     const ingressDate = getTodayValue();
@@ -653,6 +678,8 @@ function AppointmentRequestForm({
         permitDate: "",
         permitStartTime: "",
         permitEndTime: "",
+        swapFromDate: "",
+        swapToDate: "",
       }));
     }
   }, [activeReasons, values.appointmentReason]);
@@ -771,6 +798,12 @@ function AppointmentRequestForm({
     const appointmentDate = allowsExecutiveAssignment
       ? validateField("appointmentDate", values.appointmentDate, today, reasons)
       : "";
+    const swapFromDate = usesDaySwap
+      ? validateField("swapFromDate", values.swapFromDate, today, reasons)
+      : "";
+    const swapToDate = usesDaySwap
+      ? validateField("swapToDate", values.swapToDate, today, reasons)
+      : "";
 
     return {
       driverName: linkedVehicleNumber
@@ -832,6 +865,15 @@ function AppointmentRequestForm({
         values.permitEndTime <= values.permitStartTime
           ? "La hora hasta debe ser posterior a la hora desde."
           : permitEndTime,
+      swapFromDate,
+      swapToDate:
+        !swapToDate &&
+        usesDaySwap &&
+        values.swapFromDate &&
+        values.swapToDate &&
+        values.swapFromDate === values.swapToDate
+          ? "El día de reemplazo debe ser distinto al día que desea cambiar."
+          : swapToDate,
       email: linkedVehicleNumber
         ? validateField("email", values.email, today, reasons)
         : "",
@@ -839,7 +881,7 @@ function AppointmentRequestForm({
         ? validateField("phone", values.phone, today, reasons)
         : "",
     };
-  }, [today, usesDateRange, usesPermitDetails, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
+  }, [today, usesDateRange, usesPermitDetails, usesDaySwap, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
 
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
@@ -879,6 +921,10 @@ function AppointmentRequestForm({
             permitStartTime: "",
             permitEndTime: "",
           }
+        : {}),
+      ...(name === "appointmentReason" &&
+      !appointmentReasonUsesDaySwap(value, reasons)
+        ? { swapFromDate: "", swapToDate: "" }
         : {}),
       ...(name === "appointmentReason" &&
       !appointmentReasonAllowsExecutive(value, reasons)
@@ -929,6 +975,8 @@ function AppointmentRequestForm({
       permitDate: usesPermitDetails && values.permitType === "horas",
       permitStartTime: usesPermitDetails && values.permitType === "horas",
       permitEndTime: usesPermitDetails && values.permitType === "horas",
+      swapFromDate: usesDaySwap,
+      swapToDate: usesDaySwap,
       email: true,
       phone: true,
     });
@@ -1141,6 +1189,62 @@ function AppointmentRequestForm({
 
                 {reasonDateCheck.blocked ? (
                   <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4">
+                    {DRIVER_RESTRICTION_MESSAGE}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {usesDaySwap ? (
+              <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-[#173b68]">
+                    Día que desea cambiar
+                  </span>
+                  <input
+                    type="date"
+                    name="swapFromDate"
+                    required
+                    value={values.swapFromDate}
+                    min={today}
+                    onBlur={() => markFieldAsTouched("swapFromDate")}
+                    onChange={(event) =>
+                      updateField("swapFromDate", event.target.value)
+                    }
+                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("swapFromDate")}`}
+                  />
+                  {touched.swapFromDate && errors.swapFromDate ? (
+                    <span className="text-sm text-red-600">
+                      {errors.swapFromDate}
+                    </span>
+                  ) : null}
+                </label>
+
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-[#173b68]">
+                    Cambiar por este día
+                  </span>
+                  <input
+                    type="date"
+                    name="swapToDate"
+                    required
+                    value={values.swapToDate}
+                    min={today}
+                    onBlur={() => markFieldAsTouched("swapToDate")}
+                    onChange={(event) =>
+                      updateField("swapToDate", event.target.value)
+                    }
+                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("swapToDate")}`}
+                  />
+                  {touched.swapToDate && errors.swapToDate ? (
+                    <span className="text-sm text-red-600">
+                      {errors.swapToDate}
+                    </span>
+                  ) : null}
+                </label>
+
+                {reasonDateCheck.blocked ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4 sm:col-span-2">
                     {DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}

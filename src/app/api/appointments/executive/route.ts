@@ -50,6 +50,8 @@ type AppointmentCreateBody = {
   permitDate?: unknown;
   permitStartTime?: unknown;
   permitEndTime?: unknown;
+  swapFromDate?: unknown;
+  swapToDate?: unknown;
   ccOwnerEmail?: unknown;
 };
 
@@ -74,6 +76,17 @@ function resolveAppointmentDate(
   if (reasonConfig?.allowsExecutiveAssignment) {
     const requested =
       typeof body.appointmentDate === "string" ? body.appointmentDate.trim() : "";
+
+    if (!isValidAppointmentDate(requested) || requested < today) {
+      return null;
+    }
+
+    return requested;
+  }
+
+  if (reasonConfig?.usesDaySwap) {
+    const requested =
+      typeof body.swapToDate === "string" ? body.swapToDate.trim() : "";
 
     if (!isValidAppointmentDate(requested) || requested < today) {
       return null;
@@ -123,8 +136,12 @@ function validateExecutiveCreateBody(
     typeof body.permitStartTime === "string" ? body.permitStartTime : "";
   const permitEndTime =
     typeof body.permitEndTime === "string" ? body.permitEndTime : "";
+  const swapFromDate =
+    typeof body.swapFromDate === "string" ? body.swapFromDate : "";
+  const swapToDate = typeof body.swapToDate === "string" ? body.swapToDate : "";
   const usesDateRange = Boolean(reasonConfig?.usesDateRange);
   const usesPermitDetails = Boolean(reasonConfig?.usesPermitDetails);
+  const usesDaySwap = Boolean(reasonConfig?.usesDaySwap);
   const requiresExecutiveAssignment = Boolean(
     reasonConfig?.allowsExecutiveAssignment,
   );
@@ -192,6 +209,15 @@ function validateExecutiveCreateBody(
     }
   }
 
+  if (
+    usesDaySwap &&
+    (!isValidAppointmentDate(swapFromDate) ||
+      !isValidAppointmentDate(swapToDate) ||
+      swapFromDate === swapToDate)
+  ) {
+    return null;
+  }
+
   return {
     driverName: driverOwner.fullName,
     vehicleNumber: normalizeVehicleNumber(vehicleNumber),
@@ -206,6 +232,8 @@ function validateExecutiveCreateBody(
     permitStartTime:
       usesPermitDetails && permitType === "horas" ? permitStartTime : "",
     permitEndTime: usesPermitDetails && permitType === "horas" ? permitEndTime : "",
+    swapFromDate: usesDaySwap ? swapFromDate : "",
+    swapToDate: usesDaySwap ? swapToDate : "",
     appointmentReason,
     assignedExecutive: requiresExecutiveAssignment ? assignedExecutive : "",
     scheduledStartTime: requiresScheduledTimeRange ? scheduledStartTime : "",
@@ -394,6 +422,7 @@ export async function POST(request: NextRequest) {
     const dateInput = {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      usesDaySwap: reason.usesDaySwap,
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       vacationStartDate: appointment.vacationStartDate,
       vacationEndDate: appointment.vacationEndDate,
@@ -402,6 +431,8 @@ export async function POST(request: NextRequest) {
       permitEndDate: appointment.permitEndDate,
       permitDate: appointment.permitDate,
       appointmentDate: appointment.appointmentDate,
+      swapFromDate: appointment.swapFromDate,
+      swapToDate: appointment.swapToDate,
     };
 
     const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, ingressDate);
@@ -448,6 +479,12 @@ export async function POST(request: NextRequest) {
           ? toDateOnly(appointment.permitEndDate)
           : null,
         permitDate: appointment.permitDate ? toDateOnly(appointment.permitDate) : null,
+        swapFromDate: appointment.swapFromDate
+          ? toDateOnly(appointment.swapFromDate)
+          : null,
+        swapToDate: appointment.swapToDate
+          ? toDateOnly(appointment.swapToDate)
+          : null,
         assignedExecutive: appointment.assignedExecutive,
         scheduledStartTime: executiveSlot?.startTime ?? "",
         scheduledEndTime: executiveSlot?.endTime ?? "",

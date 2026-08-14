@@ -38,6 +38,12 @@ function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPay
       typeof payload.permitStartTime === "string") &&
     (payload.permitEndTime === undefined ||
       typeof payload.permitEndTime === "string") &&
+    (payload.reasonUsesDaySwap === undefined ||
+      typeof payload.reasonUsesDaySwap === "boolean") &&
+    (payload.swapFromDate === undefined ||
+      typeof payload.swapFromDate === "string") &&
+    (payload.swapToDate === undefined ||
+      typeof payload.swapToDate === "string") &&
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
     typeof payload.createdAt === "string"

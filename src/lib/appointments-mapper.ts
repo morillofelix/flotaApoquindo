@@ -35,6 +35,7 @@ export function toReasonConfig(
     serviceStartTime: string;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
+    usesDaySwap?: boolean;
     visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
@@ -58,6 +59,7 @@ export function toReasonConfig(
     serviceStartTime: reason.serviceStartTime,
     usesDateRange: reason.usesDateRange,
     usesPermitDetails: reason.usesPermitDetails,
+    usesDaySwap: Boolean(reason.usesDaySwap),
     visibleToDriver: reason.visibleToDriver !== false,
     isActive: reason.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
@@ -89,6 +91,8 @@ export function toAppointment(
     permitDate: Date | null;
     permitStartTime: string;
     permitEndTime: string;
+    swapFromDate: Date | null;
+    swapToDate: Date | null;
     appointmentReason: string;
     email: string;
     phone: string;
@@ -131,6 +135,8 @@ export function toAppointment(
     permitDate: value.permitDate ? formatDateOnly(value.permitDate) : "",
     permitStartTime: value.permitStartTime,
     permitEndTime: value.permitEndTime,
+    swapFromDate: value.swapFromDate ? formatDateOnly(value.swapFromDate) : "",
+    swapToDate: value.swapToDate ? formatDateOnly(value.swapToDate) : "",
     appointmentReason: value.appointmentReason,
     appointmentReasonLabel: getPermissionReasonLabel(
       value.appointmentReason,
@@ -148,6 +154,7 @@ export function toAppointment(
     reasonServiceStartTime: reasonConfig?.serviceStartTime ?? "",
     reasonUsesDateRange: Boolean(reasonConfig?.usesDateRange),
     reasonUsesPermitDetails: Boolean(reasonConfig?.usesPermitDetails),
+    reasonUsesDaySwap: Boolean(reasonConfig?.usesDaySwap),
     email: value.email,
     phone: value.phone,
     assignedExecutive: value.assignedExecutive,

@@ -40,6 +40,7 @@ export type AppointmentReasonConfig = {
   serviceStartTime: string;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  usesDaySwap: boolean;
   /** If true, the reason appears in the conductor app form. */
   visibleToDriver: boolean;
   isActive: boolean;
@@ -61,6 +62,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: true,
     usesPermitDetails: false,
+    usesDaySwap: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -79,6 +81,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: true,
     usesPermitDetails: false,
+    usesDaySwap: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -97,6 +100,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: false,
     usesPermitDetails: true,
+    usesDaySwap: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -115,6 +119,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     serviceStartTime: "",
     usesDateRange: false,
     usesPermitDetails: false,
+    usesDaySwap: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -238,6 +243,8 @@ export type Appointment = {
   permitDate: string;
   permitStartTime: string;
   permitEndTime: string;
+  swapFromDate: string;
+  swapToDate: string;
   appointmentReason: PermissionReason;
   appointmentReasonLabel: string;
   reasonAllowsExecutiveAssignment: boolean;
@@ -247,6 +254,7 @@ export type Appointment = {
   reasonServiceStartTime: string;
   reasonUsesDateRange: boolean;
   reasonUsesPermitDetails: boolean;
+  reasonUsesDaySwap: boolean;
   email: string;
   phone: string;
   assignedExecutive: Executive | "";
@@ -274,6 +282,7 @@ export type AppointmentEmailPayload = Pick<
   | "appointmentReasonLabel"
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
+  | "reasonUsesDaySwap"
   | "email"
   | "phone"
   | "createdAt"
@@ -289,6 +298,8 @@ export type AppointmentEmailPayload = Pick<
       | "permitDate"
       | "permitStartTime"
       | "permitEndTime"
+      | "swapFromDate"
+      | "swapToDate"
     >
   >;
 
@@ -389,4 +400,11 @@ export function appointmentReasonUsesPermitDetails(
   reasons = defaultAppointmentReasons,
 ) {
   return Boolean(getReasonConfig(value, reasons)?.usesPermitDetails);
+}
+
+export function appointmentReasonUsesDaySwap(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  return Boolean(getReasonConfig(value, reasons)?.usesDaySwap);
 }

@@ -79,6 +79,7 @@ type BusinessDayAdvanceMessageContext = {
   holidayDates?: Set<string>;
   usesDateRange?: boolean;
   usesPermitDetails?: boolean;
+  usesDaySwap?: boolean;
   allowsExecutiveAssignment?: boolean;
 };
 
@@ -107,12 +108,15 @@ export function getBusinessDayAdvanceMessage(
 export type ReasonStartDateInput = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  usesDaySwap?: boolean;
   allowsExecutiveAssignment?: boolean;
   vacationStartDate?: string;
   permitType?: string;
   permitStartDate?: string;
   permitDate?: string;
   appointmentDate?: string;
+  swapFromDate?: string;
+  swapToDate?: string;
 };
 
 export type WeekdayBusinessAdvanceRule = {
@@ -408,6 +412,10 @@ export function getReasonStartDate(input: ReasonStartDateInput) {
     return input.vacationStartDate?.trim() || null;
   }
 
+  if (input.usesDaySwap) {
+    return input.swapToDate?.trim() || input.swapFromDate?.trim() || null;
+  }
+
   if (input.usesPermitDetails) {
     if (input.permitType === "dias") {
       return input.permitStartDate?.trim() || null;
@@ -430,6 +438,7 @@ export function checkBusinessDayAdvance(
     weekdayBusinessAdvance: WeekdayBusinessAdvanceConfig;
     usesDateRange: boolean;
     usesPermitDetails: boolean;
+    usesDaySwap?: boolean;
     allowsExecutiveAssignment?: boolean;
   },
   ingressDate: string,
@@ -472,6 +481,7 @@ export function checkBusinessDayAdvance(
           holidayDates,
           usesDateRange: reason.usesDateRange,
           usesPermitDetails: reason.usesPermitDetails,
+          usesDaySwap: reason.usesDaySwap,
           allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
         }),
         minimumStartDate,
@@ -606,6 +616,12 @@ export function getReasonDatesToCheck(input: ReasonDateRangeInput) {
     return [];
   }
 
+  if (input.usesDaySwap) {
+    const from = input.swapFromDate?.trim() ?? "";
+    const to = input.swapToDate?.trim() ?? "";
+    return [from, to].filter(Boolean);
+  }
+
   if (input.usesPermitDetails) {
     if (input.permitType === "dias") {
       const start = input.permitStartDate?.trim() ?? "";
@@ -692,6 +708,7 @@ export function checkReasonDateRules(
             holidayDates,
             usesDateRange: input.usesDateRange,
             usesPermitDetails: input.usesPermitDetails,
+            usesDaySwap: input.usesDaySwap,
             allowsExecutiveAssignment: input.allowsExecutiveAssignment,
           }),
           minimumStartDate,

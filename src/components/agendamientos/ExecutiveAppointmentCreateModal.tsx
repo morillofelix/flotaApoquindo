@@ -7,6 +7,7 @@ import {
   appointmentReasonAllowsExecutive,
   appointmentReasonUsesDateRange,
   appointmentReasonUsesPermitDetails,
+  appointmentReasonUsesDaySwap,
   defaultAppointmentReasons,
   getSantiagoToday,
   checkReasonDateRules,
@@ -73,6 +74,8 @@ type FormValues = {
   permitDate: string;
   permitStartTime: string;
   permitEndTime: string;
+  swapFromDate: string;
+  swapToDate: string;
   ccOwnerEmail: boolean;
 };
 
@@ -91,6 +94,8 @@ const initialValues: FormValues = {
   permitDate: "",
   permitStartTime: "",
   permitEndTime: "",
+  swapFromDate: "",
+  swapToDate: "",
   ccOwnerEmail: false,
 };
 
@@ -151,6 +156,10 @@ export default function ExecutiveAppointmentCreateModal({
     values.appointmentReason,
     reasons,
   );
+  const usesDaySwap = appointmentReasonUsesDaySwap(
+    values.appointmentReason,
+    reasons,
+  );
   const allowsExecutiveAssignment = appointmentReasonAllowsExecutive(
     values.appointmentReason,
     reasons,
@@ -172,6 +181,7 @@ export default function ExecutiveAppointmentCreateModal({
     const dateInput = {
       usesDateRange: selectedReasonConfig.usesDateRange,
       usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+      usesDaySwap: selectedReasonConfig.usesDaySwap,
       allowsExecutiveAssignment:
         selectedReasonConfig.allowsExecutiveAssignment,
       vacationStartDate: values.vacationStartDate,
@@ -181,6 +191,8 @@ export default function ExecutiveAppointmentCreateModal({
       permitEndDate: values.permitEndDate,
       permitDate: values.permitDate,
       appointmentDate: values.appointmentDate,
+      swapFromDate: values.swapFromDate,
+      swapToDate: values.swapToDate,
     };
 
     const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, today);
@@ -498,6 +510,11 @@ export default function ExecutiveAppointmentCreateModal({
           nextValues.permitEndTime = "";
         }
 
+        if (!appointmentReasonUsesDaySwap(value, reasons)) {
+          nextValues.swapFromDate = "";
+          nextValues.swapToDate = "";
+        }
+
         if (!appointmentReasonAllowsExecutive(value, reasons)) {
           nextValues.appointmentDate = "";
           nextValues.assignedExecutive = "";
@@ -570,6 +587,14 @@ export default function ExecutiveAppointmentCreateModal({
         Boolean(values.assignedExecutive) &&
         Boolean(values.scheduledStartTime) &&
         Boolean(values.scheduledEndTime))) &&
+    (!usesDateRange ||
+      (Boolean(values.vacationStartDate) &&
+        Boolean(values.vacationEndDate) &&
+        values.vacationEndDate >= values.vacationStartDate)) &&
+    (!usesDaySwap ||
+      (Boolean(values.swapFromDate) &&
+        Boolean(values.swapToDate) &&
+        values.swapFromDate !== values.swapToDate)) &&
     !isSubmitting &&
     !isLoadingContext;
 
@@ -936,6 +961,39 @@ export default function ExecutiveAppointmentCreateModal({
                   </p>
                 )}
               </div>
+            ) : null}
+
+            {usesDaySwap ? (
+              <>
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Día que desea cambiar
+                  </span>
+                  <input
+                    type="date"
+                    value={values.swapFromDate}
+                    min={today}
+                    onChange={(event) =>
+                      updateField("swapFromDate", event.target.value)
+                    }
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                  />
+                </label>
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Cambiar por este día
+                  </span>
+                  <input
+                    type="date"
+                    value={values.swapToDate}
+                    min={today}
+                    onChange={(event) =>
+                      updateField("swapToDate", event.target.value)
+                    }
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                  />
+                </label>
+              </>
             ) : null}
 
             {usesDateRange ? (

@@ -119,8 +119,26 @@ export function getPermitDetail(appointment: Appointment) {
   return "";
 }
 
+export function getDaySwapDetail(appointment: Appointment) {
+  if (
+    !appointment.reasonUsesDaySwap ||
+    !appointment.swapFromDate ||
+    !appointment.swapToDate
+  ) {
+    return "";
+  }
+
+  return `Cambia el ${formatDate(appointment.swapFromDate)} por el ${formatDate(
+    appointment.swapToDate,
+  )}`;
+}
+
 export function getRequestDateDetail(appointment: Appointment) {
-  return getPermitDetail(appointment) || getAppointmentDateRange(appointment);
+  return (
+    getPermitDetail(appointment) ||
+    getAppointmentDateRange(appointment) ||
+    getDaySwapDetail(appointment)
+  );
 }
 
 /** Fecha que rige en calendario y operación (permiso, vacaciones o cita). */
@@ -233,11 +251,15 @@ function createExcelTable(
       const dateFrom =
         appointment.permitType === "dias"
           ? appointment.permitStartDate
-          : appointment.vacationStartDate;
+          : appointment.reasonUsesDaySwap
+            ? appointment.swapFromDate
+            : appointment.vacationStartDate;
       const dateTo =
         appointment.permitType === "dias"
           ? appointment.permitEndDate
-          : appointment.vacationEndDate;
+          : appointment.reasonUsesDaySwap
+            ? appointment.swapToDate
+            : appointment.vacationEndDate;
       const permitTypeLabel =
         appointment.permitType === "dias"
           ? "Por día"
@@ -342,7 +364,9 @@ export function appointmentAllowsExecutive(appointment: Appointment) {
 export function shouldSendDecisionEmail(appointment: Appointment) {
   return (
     (appointment.status === "aprobado" || appointment.status === "rechazado") &&
-    (appointment.reasonUsesDateRange || appointment.reasonUsesPermitDetails)
+    (appointment.reasonUsesDateRange ||
+      appointment.reasonUsesPermitDetails ||
+      appointment.reasonUsesDaySwap)
   );
 }
 
@@ -474,6 +498,7 @@ export async function sendDateChangeEmail(appointment: Appointment) {
         appointment.reasonAllowsExecutiveAssignment,
       reasonUsesDateRange: appointment.reasonUsesDateRange,
       reasonUsesPermitDetails: appointment.reasonUsesPermitDetails,
+      reasonUsesDaySwap: appointment.reasonUsesDaySwap,
       email: appointment.email,
       status: appointment.status,
       dateChangeMessage: appointment.dateChangeMessage,
@@ -485,6 +510,8 @@ export async function sendDateChangeEmail(appointment: Appointment) {
       permitDate: appointment.permitDate,
       permitStartTime: appointment.permitStartTime,
       permitEndTime: appointment.permitEndTime,
+      swapFromDate: appointment.swapFromDate,
+      swapToDate: appointment.swapToDate,
     }),
   });
 

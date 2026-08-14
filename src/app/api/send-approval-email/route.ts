@@ -21,6 +21,7 @@ type ApprovalEmailPayload = Pick<
   | "appointmentReasonLabel"
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
+  | "reasonUsesDaySwap"
   | "vacationStartDate"
   | "vacationEndDate"
   | "permitType"
@@ -29,6 +30,8 @@ type ApprovalEmailPayload = Pick<
   | "permitDate"
   | "permitStartTime"
   | "permitEndTime"
+  | "swapFromDate"
+  | "swapToDate"
   | "email"
   | "phone"
   | "status"
@@ -50,6 +53,7 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
     typeof payload.appointmentReasonLabel === "string" &&
     typeof payload.reasonUsesDateRange === "boolean" &&
     typeof payload.reasonUsesPermitDetails === "boolean" &&
+    typeof payload.reasonUsesDaySwap === "boolean" &&
     typeof payload.vacationStartDate === "string" &&
     typeof payload.vacationEndDate === "string" &&
     typeof payload.permitType === "string" &&
@@ -58,10 +62,14 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
     typeof payload.permitDate === "string" &&
     typeof payload.permitStartTime === "string" &&
     typeof payload.permitEndTime === "string" &&
+    typeof payload.swapFromDate === "string" &&
+    typeof payload.swapToDate === "string" &&
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
     (payload.status === "aprobado" || payload.status === "rechazado") &&
-    (payload.reasonUsesDateRange || payload.reasonUsesPermitDetails)
+    (payload.reasonUsesDateRange ||
+      payload.reasonUsesPermitDetails ||
+      payload.reasonUsesDaySwap)
   );
 }
 
@@ -125,12 +133,27 @@ function getPermitDetail(appointment: ApprovalEmailPayload) {
   return "";
 }
 
+function getDaySwapDetail(appointment: ApprovalEmailPayload) {
+  if (
+    !appointment.reasonUsesDaySwap ||
+    !appointment.swapFromDate ||
+    !appointment.swapToDate
+  ) {
+    return "";
+  }
+
+  return `Cambia el ${formatDate(appointment.swapFromDate)} por el ${formatDate(
+    appointment.swapToDate,
+  )}`;
+}
+
 function createEmailHtml(appointment: ApprovalEmailPayload) {
   const driverName = escapeHtml(appointment.driverName);
   const ticketId = escapeHtml(getAppointmentTicketLabel(appointment));
   const reason = escapeHtml(appointment.appointmentReasonLabel);
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
+  const daySwapDetail = getDaySwapDetail(appointment);
   const isApproved = appointment.status === "aprobado";
   const title = isApproved ? "Solicitud aprobada" : "Solicitud rechazada";
   const message = isApproved
@@ -151,6 +174,7 @@ function createEmailHtml(appointment: ApprovalEmailPayload) {
       <p><strong>Motivo:</strong> ${reason}</p>
       ${dateRange ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(dateRange)}</p>` : ""}
       ${permitDetail ? `<p><strong>Detalle permiso:</strong> ${escapeHtml(permitDetail)}</p>` : ""}
+      ${daySwapDetail ? `<p><strong>Cambio de día:</strong> ${escapeHtml(daySwapDetail)}</p>` : ""}
       <p style="margin-top: 20px;">Guarde este correo como respaldo de la aprobación.</p>
       ${getDriverPwaEmailBlock().html}
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
@@ -172,6 +196,7 @@ function createEmailText(appointment: ApprovalEmailPayload) {
   ];
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
+  const daySwapDetail = getDaySwapDetail(appointment);
 
   if (dateRange) {
     lines.push(`Rango de fechas: ${dateRange}`);
@@ -179,6 +204,10 @@ function createEmailText(appointment: ApprovalEmailPayload) {
 
   if (permitDetail) {
     lines.push(`Detalle permiso: ${permitDetail}`);
+  }
+
+  if (daySwapDetail) {
+    lines.push(`Cambio de día: ${daySwapDetail}`);
   }
 
   lines.push(

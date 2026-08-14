@@ -30,6 +30,7 @@ type ReasonForm = {
   serviceStartTime: string;
   usesDateRange: boolean;
   usesPermitDetails: boolean;
+  usesDaySwap: boolean;
   visibleToDriver: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
@@ -40,12 +41,14 @@ type ReasonBooleanField =
   | "allowsExecutiveAssignment"
   | "usesDateRange"
   | "usesPermitDetails"
+  | "usesDaySwap"
   | "visibleToDriver"
   | "isActive";
 
 const reasonFeatureFields: Array<[ReasonBooleanField, string]> = [
   ["usesDateRange", "Rango fechas"],
   ["usesPermitDetails", "Permiso horas/días"],
+  ["usesDaySwap", "Cambio de día"],
   ["visibleToDriver", "Visualiza conductor"],
   ["isActive", "Activo"],
 ];
@@ -60,6 +63,7 @@ const emptyReasonForm: ReasonForm = {
   serviceStartTime: "09:00",
   usesDateRange: false,
   usesPermitDetails: false,
+  usesDaySwap: false,
   visibleToDriver: true,
   isActive: true,
   restrictedWeekdays: [],
@@ -140,6 +144,7 @@ export default function MotivosPage() {
       serviceStartTime: reason.serviceStartTime || "09:00",
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      usesDaySwap: Boolean(reason.usesDaySwap),
       visibleToDriver: reason.visibleToDriver !== false,
       isActive: reason.isActive,
       restrictedWeekdays: reason.restrictedWeekdays,
@@ -358,6 +363,7 @@ export default function MotivosPage() {
                             : "",
                           reason.usesDateRange ? "Fechas" : "",
                           reason.usesPermitDetails ? "Horas/días" : "",
+                          reason.usesDaySwap ? "Cambio de día" : "",
                           reason.visibleToDriver === false
                             ? "Solo ejecutivo"
                             : "Conductor",
@@ -430,7 +436,7 @@ export default function MotivosPage() {
                           ...currentForm,
                           allowsExecutiveAssignment: event.target.checked,
                           ...(event.target.checked
-                            ? {}
+                            ? { usesDaySwap: false }
                             : {
                                 usesAppointmentDuration: false,
                                 usesServiceStartTime: false,
@@ -547,10 +553,38 @@ export default function MotivosPage() {
                         type="checkbox"
                         checked={reasonForm[field]}
                         onChange={(event) =>
-                          setReasonForm((currentForm) => ({
-                            ...currentForm,
-                            [field]: event.target.checked,
-                          }))
+                          setReasonForm((currentForm) => {
+                            const checked = event.target.checked;
+
+                            if (field === "usesDaySwap" && checked) {
+                              return {
+                                ...currentForm,
+                                usesDaySwap: true,
+                                usesDateRange: false,
+                                usesPermitDetails: false,
+                                allowsExecutiveAssignment: false,
+                                usesAppointmentDuration: false,
+                                usesServiceStartTime: false,
+                              };
+                            }
+
+                            if (
+                              (field === "usesDateRange" ||
+                                field === "usesPermitDetails") &&
+                              checked
+                            ) {
+                              return {
+                                ...currentForm,
+                                [field]: true,
+                                usesDaySwap: false,
+                              };
+                            }
+
+                            return {
+                              ...currentForm,
+                              [field]: checked,
+                            };
+                          })
                         }
                         className="h-4 w-4 accent-[#0b5cab]"
                       />

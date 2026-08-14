@@ -46,6 +46,8 @@ type PatchBody = {
   permitDate?: unknown;
   permitStartTime?: unknown;
   permitEndTime?: unknown;
+  swapFromDate?: unknown;
+  swapToDate?: unknown;
   acknowledgeDateChange?: unknown;
   acknowledgeDriverApproval?: unknown;
   rejectDriverApproval?: unknown;
@@ -86,6 +88,8 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
     typeof body.permitStartTime === "string" ? body.permitStartTime.trim() : "";
   const permitEndTime =
     typeof body.permitEndTime === "string" ? body.permitEndTime.trim() : "";
+  const swapFromDate = parseDateField(body.swapFromDate);
+  const swapToDate = parseDateField(body.swapToDate);
 
   if (appointmentDate) {
     patch.appointmentDate = appointmentDate;
@@ -139,6 +143,16 @@ function parseDatePatch(body: PatchBody): AppointmentDatePatch | null {
 
   if (permitEndTime) {
     patch.permitEndTime = permitEndTime;
+    hasPatch = true;
+  }
+
+  if (swapFromDate) {
+    patch.swapFromDate = swapFromDate;
+    hasPatch = true;
+  }
+
+  if (swapToDate) {
+    patch.swapToDate = swapToDate;
     hasPatch = true;
   }
 
@@ -201,6 +215,8 @@ function validateDatePatchForReason(
     permitStartDate: Date | null;
     permitEndDate: Date | null;
     permitDate: Date | null;
+    swapFromDate: Date | null;
+    swapToDate: Date | null;
   },
 ) {
   if (!reason) {
@@ -276,6 +292,25 @@ function validateDatePatchForReason(
       permitEndTime <= permitStartTime
     ) {
       return "Ingresa una fecha y horario de permiso válidos.";
+    }
+  }
+
+  if (patch.swapFromDate !== undefined || patch.swapToDate !== undefined) {
+    if (!reason.usesDaySwap) {
+      return "Este motivo no usa cambio de día.";
+    }
+
+    const from = patch.swapFromDate;
+    const to = patch.swapToDate;
+
+    if (
+      !from ||
+      !to ||
+      !isValidDateOnly(from) ||
+      !isValidDateOnly(to) ||
+      from === to
+    ) {
+      return "Ingresa dos días distintos para el cambio.";
     }
   }
 
@@ -531,6 +566,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     permitDate?: Date | null;
     permitStartTime?: string;
     permitEndTime?: string;
+    swapFromDate?: Date | null;
+    swapToDate?: Date | null;
     dateChangePending?: boolean;
     dateChangeMessage?: string;
   } = {};
@@ -643,6 +680,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             (datePatch.permitDate || datePatch.permitStartTime
               ? previousAppointment.permitEndTime
               : undefined),
+          swapFromDate:
+            datePatch.swapFromDate ??
+            (datePatch.swapToDate ? previousAppointment.swapFromDate : undefined),
+          swapToDate:
+            datePatch.swapToDate ??
+            (datePatch.swapFromDate ? previousAppointment.swapToDate : undefined),
         },
         reason,
         currentAppointment,
@@ -695,6 +738,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       if (datePatch.permitEndTime !== undefined) {
         data.permitEndTime = datePatch.permitEndTime;
+      }
+
+      if (datePatch.swapFromDate !== undefined) {
+        data.swapFromDate = toDateOnly(datePatch.swapFromDate);
+      }
+
+      if (datePatch.swapToDate !== undefined) {
+        data.swapToDate = toDateOnly(datePatch.swapToDate);
+        data.appointmentDate = toDateOnly(datePatch.swapToDate);
       }
 
       requiresCalendarCancel = shouldRescheduleExecutiveCalendar(previousAppointment);

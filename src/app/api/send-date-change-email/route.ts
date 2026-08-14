@@ -27,6 +27,9 @@ type DateChangeEmailPayload = Pick<
   | "reasonAllowsExecutiveAssignment"
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
+  | "reasonUsesDaySwap"
+  | "swapFromDate"
+  | "swapToDate"
   | "email"
   | "status"
 > & {
@@ -52,6 +55,8 @@ function isDateChangeEmailPayload(
     typeof payload.reasonAllowsExecutiveAssignment === "boolean" &&
     typeof payload.reasonUsesDateRange === "boolean" &&
     typeof payload.reasonUsesPermitDetails === "boolean" &&
+    (payload.reasonUsesDaySwap === undefined ||
+      typeof payload.reasonUsesDaySwap === "boolean") &&
     typeof payload.email === "string" &&
     typeof payload.dateChangeMessage === "string" &&
     payload.dateChangeMessage.trim().length > 0 &&

@@ -62,6 +62,16 @@ function getRequiredDateLabel(appointment: AppointmentEmailPayload) {
     )}`;
   }
 
+  if (
+    appointment.reasonUsesDaySwap &&
+    appointment.swapFromDate &&
+    appointment.swapToDate
+  ) {
+    return `Cambia el ${formatDate(appointment.swapFromDate)} por el ${formatDate(
+      appointment.swapToDate,
+    )}`;
+  }
+
   return formatDate(appointment.appointmentDate);
 }
 

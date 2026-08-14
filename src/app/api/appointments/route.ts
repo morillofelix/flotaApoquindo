@@ -48,6 +48,8 @@ type AppointmentCreateBody = {
   permitDate?: unknown;
   permitStartTime?: unknown;
   permitEndTime?: unknown;
+  swapFromDate?: unknown;
+  swapToDate?: unknown;
   email?: unknown;
   phone?: unknown;
 };
@@ -81,6 +83,17 @@ function resolveAppointmentDate(
     return requested;
   }
 
+  if (reasonConfig?.usesDaySwap) {
+    const requested =
+      typeof body.swapToDate === "string" ? body.swapToDate.trim() : "";
+
+    if (!isValidAppointmentDate(requested) || requested < today) {
+      return null;
+    }
+
+    return requested;
+  }
+
   return today;
 }
 
@@ -96,6 +109,7 @@ async function ensureDefaultReasons() {
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      usesDaySwap: reason.usesDaySwap,
       visibleToDriver: reason.visibleToDriver,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
@@ -114,6 +128,7 @@ function validateCreateBody(
   body: AppointmentCreateBody,
   reasonConfig: AppointmentReasonConfig | null,
   appointmentDate: string,
+  today: string,
 ) {
   const driverName =
     typeof body.driverName === "string" ? body.driverName.trim() : "";
@@ -135,10 +150,14 @@ function validateCreateBody(
     typeof body.permitStartTime === "string" ? body.permitStartTime : "";
   const permitEndTime =
     typeof body.permitEndTime === "string" ? body.permitEndTime : "";
+  const swapFromDate =
+    typeof body.swapFromDate === "string" ? body.swapFromDate : "";
+  const swapToDate = typeof body.swapToDate === "string" ? body.swapToDate : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
   const usesDateRange = Boolean(reasonConfig?.usesDateRange);
   const usesPermitDetails = Boolean(reasonConfig?.usesPermitDetails);
+  const usesDaySwap = Boolean(reasonConfig?.usesDaySwap);
 
   if (
     !driverName ||
@@ -187,6 +206,17 @@ function validateCreateBody(
     }
   }
 
+  if (
+    usesDaySwap &&
+    (!isValidAppointmentDate(swapFromDate) ||
+      !isValidAppointmentDate(swapToDate) ||
+      swapFromDate === swapToDate ||
+      swapFromDate < today ||
+      swapToDate < today)
+  ) {
+    return null;
+  }
+
   return {
     driverName,
     vehicleNumber: normalizeVehicleNumber(vehicleNumber),
@@ -201,6 +231,8 @@ function validateCreateBody(
     permitStartTime:
       usesPermitDetails && permitType === "horas" ? permitStartTime : "",
     permitEndTime: usesPermitDetails && permitType === "horas" ? permitEndTime : "",
+    swapFromDate: usesDaySwap ? swapFromDate : "",
+    swapToDate: usesDaySwap ? swapToDate : "",
     appointmentReason,
     email,
     phone,
@@ -297,6 +329,7 @@ export async function POST(request: NextRequest) {
     body,
     reason,
     resolveAppointmentDate(body, reason, ingressDate) ?? "",
+    ingressDate,
   );
 
   if (!appointment) {
@@ -331,6 +364,7 @@ export async function POST(request: NextRequest) {
     const dateInput = {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
+      usesDaySwap: reason.usesDaySwap,
       allowsExecutiveAssignment: reason.allowsExecutiveAssignment,
       vacationStartDate: appointment.vacationStartDate,
       vacationEndDate: appointment.vacationEndDate,
@@ -339,6 +373,8 @@ export async function POST(request: NextRequest) {
       permitEndDate: appointment.permitEndDate,
       permitDate: appointment.permitDate,
       appointmentDate: appointment.appointmentDate,
+      swapFromDate: appointment.swapFromDate,
+      swapToDate: appointment.swapToDate,
     };
 
     const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, ingressDate);
@@ -396,6 +432,12 @@ export async function POST(request: NextRequest) {
           ? toDateOnly(appointment.permitEndDate)
           : null,
         permitDate: appointment.permitDate ? toDateOnly(appointment.permitDate) : null,
+        swapFromDate: appointment.swapFromDate
+          ? toDateOnly(appointment.swapFromDate)
+          : null,
+        swapToDate: appointment.swapToDate
+          ? toDateOnly(appointment.swapToDate)
+          : null,
       },
     });
 

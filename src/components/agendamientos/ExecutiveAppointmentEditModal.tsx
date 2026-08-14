@@ -96,6 +96,8 @@ export default function ExecutiveAppointmentEditModal({
   const [permitDate, setPermitDate] = useState("");
   const [permitStartTime, setPermitStartTime] = useState("");
   const [permitEndTime, setPermitEndTime] = useState("");
+  const [swapFromDate, setSwapFromDate] = useState("");
+  const [swapToDate, setSwapToDate] = useState("");
   const [selectedFreeBlockKey, setSelectedFreeBlockKey] = useState<string | null>(
     null,
   );
@@ -131,6 +133,7 @@ export default function ExecutiveAppointmentEditModal({
   );
   const usesDateRange = Boolean(appointment?.reasonUsesDateRange);
   const usesPermitDetails = Boolean(appointment?.reasonUsesPermitDetails);
+  const usesDaySwap = Boolean(appointment?.reasonUsesDaySwap);
 
   const reasonDateCheck = useMemo(() => {
     if (!appointment || !selectedReasonConfig) {
@@ -140,6 +143,7 @@ export default function ExecutiveAppointmentEditModal({
     const dateInput = {
       usesDateRange: selectedReasonConfig.usesDateRange,
       usesPermitDetails: selectedReasonConfig.usesPermitDetails,
+      usesDaySwap: selectedReasonConfig.usesDaySwap,
       allowsExecutiveAssignment: selectedReasonConfig.allowsExecutiveAssignment,
       vacationStartDate,
       vacationEndDate,
@@ -148,6 +152,8 @@ export default function ExecutiveAppointmentEditModal({
       permitEndDate,
       permitDate,
       appointmentDate,
+      swapFromDate,
+      swapToDate,
     };
 
     const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, today);
@@ -171,6 +177,8 @@ export default function ExecutiveAppointmentEditModal({
     permitEndDate,
     permitStartDate,
     selectedReasonConfig,
+    swapFromDate,
+    swapToDate,
     today,
     vacationEndDate,
     vacationStartDate,
@@ -302,6 +310,8 @@ export default function ExecutiveAppointmentEditModal({
     setPermitDate(appointment.permitDate || "");
     setPermitStartTime(appointment.permitStartTime || "");
     setPermitEndTime(appointment.permitEndTime || "");
+    setSwapFromDate(appointment.swapFromDate || "");
+    setSwapToDate(appointment.swapToDate || "");
     setSelectedFreeBlockKey(null);
     setSubmitError("");
     setIsSubmitting(false);
@@ -405,7 +415,11 @@ export default function ExecutiveAppointmentEditModal({
                   Boolean(permitEndTime) &&
                   permitEndTime > permitStartTime
                 : false
-            : false),
+            : usesDaySwap
+              ? Boolean(swapFromDate) &&
+                Boolean(swapToDate) &&
+                swapFromDate !== swapToDate
+              : false),
   );
 
   async function handleSubmit() {
@@ -439,6 +453,9 @@ export default function ExecutiveAppointmentEditModal({
         patchBody.permitDate = permitDate;
         patchBody.permitStartTime = permitStartTime;
         patchBody.permitEndTime = permitEndTime;
+      } else if (usesDaySwap) {
+        patchBody.swapFromDate = swapFromDate;
+        patchBody.swapToDate = swapToDate;
       }
 
       const response = await fetch(`/api/appointments/${appointment.id}`, {
@@ -677,6 +694,41 @@ export default function ExecutiveAppointmentEditModal({
                     Selecciona fecha y ejecutivo para ver la disponibilidad del día.
                   </p>
                 )}
+              </>
+            ) : null}
+
+            {usesDaySwap ? (
+              <>
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Día que desea cambiar
+                  </span>
+                  <input
+                    type="date"
+                    value={swapFromDate}
+                    min={today}
+                    onChange={(event) => {
+                      setSwapFromDate(event.target.value);
+                      setSubmitError("");
+                    }}
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                  />
+                </label>
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Cambiar por este día
+                  </span>
+                  <input
+                    type="date"
+                    value={swapToDate}
+                    min={today}
+                    onChange={(event) => {
+                      setSwapToDate(event.target.value);
+                      setSubmitError("");
+                    }}
+                    className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
+                  />
+                </label>
               </>
             ) : null}
 

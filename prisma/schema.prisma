@@ -22,6 +22,8 @@ model Appointment {
   permitDate        DateTime? @db.Date
   permitStartTime   String   @default("")
   permitEndTime     String   @default("")
+  swapFromDate      DateTime? @db.Date
+  swapToDate        DateTime? @db.Date
   appointmentReason String
   email             String
   phone             String
@@ -58,6 +60,7 @@ model AppointmentReason {
   serviceStartTime           String   @default("")
   usesDateRange              Boolean  @default(false)
   usesPermitDetails          Boolean  @default(false)
+  usesDaySwap                Boolean  @default(false)
   visibleToDriver            Boolean  @default(true)
   isActive                   Boolean  @default(true)
   restrictedWeekdays         String   @default("")

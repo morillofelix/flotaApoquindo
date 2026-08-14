@@ -22,6 +22,8 @@ export type AppointmentDatePatch = {
   permitDate?: string;
   permitStartTime?: string;
   permitEndTime?: string;
+  swapFromDate?: string;
+  swapToDate?: string;
 };
 
 function parseDateOnly(dateValue: string) {
@@ -154,6 +156,10 @@ export function buildDateChangePreviewLabel(patch: AppointmentDatePatch) {
     return `Nuevo rango: ${formatDate(patch.permitStartDate)} al ${formatDate(patch.permitEndDate)}`;
   }
 
+  if (patch.swapFromDate && patch.swapToDate) {
+    return `Nuevo cambio: el ${formatDate(patch.swapFromDate)} por el ${formatDate(patch.swapToDate)}`;
+  }
+
   if (
     patch.permitDate &&
     patch.permitStartTime &&
@@ -183,7 +189,9 @@ export function buildDatePatchFromFieldChange(
     | "permitStartDate"
     | "permitDate"
     | "permitStartTime"
-    | "permitEndTime",
+    | "permitEndTime"
+    | "swapFromDate"
+    | "swapToDate",
   value: string,
 ): AppointmentDatePatch | null {
   if (field === "scheduledStartTime") {
@@ -278,6 +286,28 @@ export function buildDatePatchFromFieldChange(
     return buildPermitHorasPatch(appointment, { permitEndTime: value });
   }
 
+  if ((field === "swapFromDate" || field === "swapToDate") && reason?.usesDaySwap) {
+    const swapFromDate = field === "swapFromDate" ? value : appointment.swapFromDate;
+    const swapToDate = field === "swapToDate" ? value : appointment.swapToDate;
+
+    if (
+      !isValidDateOnly(swapFromDate) ||
+      !isValidDateOnly(swapToDate) ||
+      swapFromDate === swapToDate
+    ) {
+      return null;
+    }
+
+    if (
+      swapFromDate === appointment.swapFromDate &&
+      swapToDate === appointment.swapToDate
+    ) {
+      return null;
+    }
+
+    return { swapFromDate, swapToDate, appointmentDate: swapToDate };
+  }
+
   return null;
 }
 
@@ -333,6 +363,14 @@ export function appointmentDatesChanged(
     }
   }
 
+  if (
+    patch.swapFromDate !== undefined &&
+    (patch.swapFromDate !== appointment.swapFromDate ||
+      patch.swapToDate !== appointment.swapToDate)
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -362,6 +400,10 @@ export function getAdminDateChangeWarning(appointment: Appointment) {
 
   if (appointment.reasonUsesPermitDetails) {
     return "Se actualizará la fecha del permiso y se notificará al conductor del cambio.";
+  }
+
+  if (appointment.reasonUsesDaySwap) {
+    return "Se actualizarán los días del cambio (el día que se cambia y el día de reemplazo) y se notificará al conductor.";
   }
 
   return "Se actualizarán las fechas y se notificará al conductor.";
@@ -443,6 +485,17 @@ export function buildDateChangeMessage(
     }
 
     return `Tu permiso por horas fue actualizado. Antes: ${previousSummary}. Ahora: ${nextSummary}.`;
+  }
+
+  if (next.reasonUsesDaySwap) {
+    const previousSwap = `el ${formatDate(previous.swapFromDate)} por el ${formatDate(previous.swapToDate)}`;
+    const nextSwap = `el ${formatDate(next.swapFromDate)} por el ${formatDate(next.swapToDate)}`;
+
+    if (previousSwap === nextSwap) {
+      return "";
+    }
+
+    return `Tu cambio de día fue actualizado. Antes: ${previousSwap}. Ahora: ${nextSwap}.`;
   }
 
   return "Tu solicitud fue actualizada con nuevas fechas.";

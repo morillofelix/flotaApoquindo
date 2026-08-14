@@ -27,6 +27,7 @@ export function getHolidayRestrictedMessage(
     holidayName?: string;
     usesDateRange?: boolean;
     usesPermitDetails?: boolean;
+    usesDaySwap?: boolean;
     allowsExecutiveAssignment?: boolean;
   },
 ) {
@@ -130,6 +131,7 @@ export function checkHolidayRestrictedDates(
           holidayDates: holidayDateSet,
           usesDateRange: input.usesDateRange,
           usesPermitDetails: input.usesPermitDetails,
+          usesDaySwap: input.usesDaySwap,
           allowsExecutiveAssignment: input.allowsExecutiveAssignment,
         }),
         minimumStartDate,
