@@ -1,5 +1,4 @@
 import nodemailer from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 /** Casilla cPanel para citas, claves temporales y notificaciones de agendamientos. */
 const CITAS_SMTP_DEFAULTS = {
@@ -10,9 +9,6 @@ const CITAS_SMTP_DEFAULTS = {
 } as const;
 
 const SMTP_TIMEOUT_MS = 12_000;
-
-let cachedTransporter: nodemailer.Transporter<SMTPTransport.SentMessageInfo> | null =
-  null;
 
 export function getNotificaSmtpConfig() {
   const host = (
@@ -64,29 +60,19 @@ export function isNotificaSmtpConfigured() {
 }
 
 export function createNotificaTransporter() {
-  if (cachedTransporter) {
-    return cachedTransporter;
-  }
-
   const smtp = getNotificaSmtpConfig();
 
   if (!smtp) {
     throw new Error("Correo de notificaciones no configurado en el servidor.");
   }
 
-  const transporter = nodemailer.createTransport({
+  return nodemailer.createTransport({
     host: smtp.host,
     port: smtp.port,
     secure: smtp.secure,
     auth: smtp.auth,
-    pool: true,
-    maxConnections: 2,
-    maxMessages: 20,
     connectionTimeout: SMTP_TIMEOUT_MS,
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
   });
-
-  cachedTransporter = transporter;
-  return transporter;
 }
