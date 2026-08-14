@@ -1,8 +1,4 @@
-import {
-  type Appointment,
-  defaultExecutives,
-  getAppointmentTicketLabel,
-} from "@/lib/appointments";
+import { type Appointment, getAppointmentTicketLabel } from "@/lib/appointments";
 import {
   DEFAULT_APPOINTMENT_START_HOUR,
   DEFAULT_APPOINTMENT_START_MINUTE,
@@ -10,6 +6,7 @@ import {
   type ExecutiveLunchBreakConfig,
 } from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
+import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -17,8 +14,6 @@ import {
 import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
 
 const calendarTimezone = "America/Santiago";
-
-let executivesSeeded = false;
 
 export type ExecutiveEmailContext = {
   executiveEmail: string;
@@ -274,15 +269,7 @@ function createCalendarInvite(
 }
 
 async function ensureExecutivesSeeded() {
-  if (executivesSeeded) {
-    return;
-  }
-
-  await prisma.executive.createMany({
-    data: defaultExecutives,
-    skipDuplicates: true,
-  });
-  executivesSeeded = true;
+  await seedExecutivesIfEmpty();
 }
 
 export async function loadExecutiveEmailContext(

@@ -1,12 +1,11 @@
-const SW_VERSION = "2026-08-14-v10";
+const SW_VERSION = "2026-08-14-v11";
 const CACHE_NAME = `gestion-flota-${SW_VERSION}`;
 
 const PRECACHE_URLS = [
   "/manifest.webmanifest",
-  "/manifest-agendamientos.webmanifest",
-  "/pwa-192.png",
-  "/pwa-512.png",
-  "/favicon-32.png",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/icon-32.png",
   "/logo-gestion-flota-tna.png",
 ];
 
@@ -42,6 +41,17 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
+    return;
+  }
+
+  const url = new URL(event.request.url);
+
+  if (
+    url.pathname.endsWith(".png") ||
+    url.pathname.endsWith(".webmanifest") ||
+    url.pathname === "/sw.js"
+  ) {
+    event.respondWith(fetch(event.request, { cache: "reload" }));
     return;
   }
 

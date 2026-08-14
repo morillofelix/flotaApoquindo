@@ -1,4 +1,4 @@
-import { type AppointmentStatus, defaultExecutives } from "@/lib/appointments";
+import { type AppointmentStatus } from "@/lib/appointments";
 import {
   appointmentDatesChanged,
   buildCancellationMessage,
@@ -22,6 +22,7 @@ import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
+import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -176,10 +177,7 @@ async function resolveExecutiveAssignmentSlot(
 }
 
 async function ensureDefaultExecutives() {
-  await prisma.executive.createMany({
-    data: defaultExecutives,
-    skipDuplicates: true,
-  });
+  await seedExecutivesIfEmpty();
 }
 
 function assignmentErrorResponse(result: {

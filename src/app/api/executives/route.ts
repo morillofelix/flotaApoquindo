@@ -1,5 +1,6 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
-import { type ExecutiveConfig, defaultExecutives } from "@/lib/appointments";
+import { type ExecutiveConfig } from "@/lib/appointments";
+import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -93,22 +94,8 @@ function toExecutive(value: ExecutiveConfig): ExecutiveConfig {
   };
 }
 
-async function ensureDefaultExecutives() {
-  await prisma.executive.createMany({
-    data: defaultExecutives.map((executive) => ({
-      ...executive,
-      dailyLimitEnabled: executive.dailyLimitEnabled ?? false,
-      dailyLimitMax: executive.dailyLimitMax ?? null,
-      lunchBreakEnabled: executive.lunchBreakEnabled ?? false,
-      lunchBreakStart: executive.lunchBreakStart ?? "",
-      lunchBreakEnd: executive.lunchBreakEnd ?? "",
-    })),
-    skipDuplicates: true,
-  });
-}
-
 async function loadExecutives() {
-  await ensureDefaultExecutives();
+  await seedExecutivesIfEmpty();
 
   return prisma.executive.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -167,7 +154,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await ensureDefaultExecutives();
+  await seedExecutivesIfEmpty();
   const existingCount = await prisma.executive.count();
   const existingExecutive = await prisma.executive.findUnique({
     where: { name },

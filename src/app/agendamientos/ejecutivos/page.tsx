@@ -1,7 +1,7 @@
 "use client";
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
-import { type ExecutiveConfig, defaultExecutives } from "@/lib/appointments";
+import { type ExecutiveConfig } from "@/lib/appointments";
 import {
   downloadExecutivesExcel,
   loadExecutives,
@@ -38,7 +38,7 @@ const emptyExecutiveForm: ExecutiveForm = {
 
 export default function EjecutivosPage() {
   const [executiveOptions, setExecutiveOptions] =
-    useState<ExecutiveConfig[]>(defaultExecutives);
+    useState<ExecutiveConfig[]>([]);
   const [executiveForm, setExecutiveForm] =
     useState<ExecutiveForm>(emptyExecutiveForm);
   const [executiveSearch, setExecutiveSearch] = useState("");

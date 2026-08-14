@@ -1,6 +1,5 @@
 import {
   type Appointment,
-  defaultExecutives,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import {
@@ -10,6 +9,7 @@ import {
   type ExecutiveLunchBreakConfig,
 } from "@/lib/appointment-scheduling";
 import { prisma } from "@/lib/prisma";
+import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -247,10 +247,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await prisma.executive.createMany({
-    data: defaultExecutives,
-    skipDuplicates: true,
-  });
+  await seedExecutivesIfEmpty();
   const executive = await prisma.executive.findUnique({
     where: { name: body.assignedExecutive },
   });
