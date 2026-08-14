@@ -40,14 +40,14 @@ export default function PwaInstallLanding({
               Transportes Apoquindo
             </p>
             <h1 className="text-xl font-extrabold text-[#071c35]">
-              Instalar Agendamiento Apoquindo
+              Descargar app
             </h1>
           </div>
         </div>
 
         <p className="mb-5 text-sm leading-6 text-[#3d5268]">
-          Ábrelo en el teléfono e instala la app en la pantalla de inicio. Así
-          la usas como aplicación, no solo como página web.
+          Instala Agendamiento Apoquindo en tu teléfono. Si no quieres
+          instalarla, entra en la web.
         </p>
 
         {isInstalled ? (
@@ -58,8 +58,8 @@ export default function PwaInstallLanding({
 
         {isDesktop && !isInstalled ? (
           <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Abre este mismo enlace desde el celular (Chrome o Safari) para
-            instalarla. Desde el computador no se instala en el teléfono.
+            Abre este enlace desde el celular (Chrome o Safari) para descargar
+            la app. Desde el computador no se instala en el teléfono.
           </p>
         ) : null}
 
@@ -69,7 +69,7 @@ export default function PwaInstallLanding({
             onClick={() => void handleInstall()}
             className="mb-4 w-full rounded-full bg-[#0b5cab] px-5 py-3.5 text-sm font-bold text-white"
           >
-            Instalar acceso directo
+            Descargar app
           </button>
         ) : null}
 
@@ -94,7 +94,7 @@ export default function PwaInstallLanding({
           onClick={onContinueInBrowser}
           className="w-full rounded-full border-2 border-[#7a9fc4] bg-white px-5 py-3 text-sm font-bold text-[#071c35]"
         >
-          Abrir en la web (sin instalar)
+          Entrar en la web
         </button>
       </section>
     </main>

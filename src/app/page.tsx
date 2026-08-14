@@ -22,7 +22,6 @@ import DriverAccessLoginScreen, {
   type PublicDriverOwner,
 } from "@/components/DriverAccessLoginScreen";
 import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
-import PwaInstallLanding from "@/components/PwaInstallLanding";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
 import { sessionFetchInit } from "@/lib/admin-fetch";
@@ -273,14 +272,12 @@ export default function HomePage() {
   const [driverOwner, setDriverOwner] = useState<PublicDriverOwner | null>(null);
   const [pendingPasswordChange, setPendingPasswordChange] =
     useState<PendingPasswordChange | null>(null);
-  const [showInstallLanding, setShowInstallLanding] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const wantsInstall = params.get("instalar") === "1";
 
-    if (wantsInstall && !isStandaloneMode()) {
-      setShowInstallLanding(true);
+    if (params.get("instalar") === "1" && !isStandaloneMode()) {
+      window.location.replace("/instalar");
     }
   }, []);
 
@@ -316,17 +313,6 @@ export default function HomePage() {
       cancelled = true;
     };
   }, []);
-
-  function continueInBrowser() {
-    setShowInstallLanding(false);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("instalar");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-  }
-
-  if (showInstallLanding) {
-    return <PwaInstallLanding onContinueInBrowser={continueInBrowser} />;
-  }
 
   if (authView === "bootstrapping") {
     return null;

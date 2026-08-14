@@ -2,7 +2,9 @@
 
 import PasswordVisibilityButton from "@/components/PasswordVisibilityButton";
 import { UI_FIELD_FOCUS, UI_FIELD_SHADOW } from "@/lib/ui-borders";
+import { isStandaloneMode } from "@/lib/pwa-utils";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 
 const LOGIN_CARD_SHELL =
@@ -220,6 +222,15 @@ export default function DriverAccessLoginScreen({
             >
               {isLoggingIn ? "Validando..." : "Ingresar"}
             </button>
+
+            {!isStandaloneMode() ? (
+              <Link
+                href="/instalar"
+                className="flex h-12 w-full items-center justify-center rounded-2xl border-2 border-[#0b5cab] bg-white px-6 text-sm font-semibold text-[#0b5cab] transition hover:bg-[#eef4fb]"
+              >
+                Descargar app
+              </Link>
+            ) : null}
 
             <button
               type="button"
