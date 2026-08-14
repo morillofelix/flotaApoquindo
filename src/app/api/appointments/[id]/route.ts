@@ -52,6 +52,7 @@ type PatchBody = {
   acknowledgeDriverApproval?: unknown;
   rejectDriverApproval?: unknown;
   driverRejectionNote?: unknown;
+  rejectionMessage?: unknown;
 };
 
 const validStatuses: AppointmentStatus[] = [
@@ -570,6 +571,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     swapToDate?: Date | null;
     dateChangePending?: boolean;
     dateChangeMessage?: string;
+    rejectionMessage?: string;
   } = {};
 
   if (body.status !== undefined) {
@@ -584,6 +586,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     data.status = body.status as AppointmentStatus;
+
+    if (data.status === "rechazado") {
+      const rejectionMessage =
+        typeof body.rejectionMessage === "string"
+          ? body.rejectionMessage.trim()
+          : "";
+
+      if (rejectionMessage.length < 8 || rejectionMessage.length > 400) {
+        return NextResponse.json(
+          {
+            message:
+              "Ingresa el motivo del rechazo (entre 8 y 400 caracteres).",
+          },
+          { status: 400 },
+        );
+      }
+
+      data.rejectionMessage = rejectionMessage;
+    } else {
+      data.rejectionMessage = "";
+    }
   }
 
   if (body.assignedExecutive !== undefined) {

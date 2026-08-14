@@ -35,6 +35,7 @@ type ApprovalEmailPayload = Pick<
   | "email"
   | "phone"
   | "status"
+  | "rejectionMessage"
 >;
 
 function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
@@ -66,6 +67,8 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
     typeof payload.swapToDate === "string" &&
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
+    (payload.rejectionMessage === undefined ||
+      typeof payload.rejectionMessage === "string") &&
     (payload.status === "aprobado" || payload.status === "rechazado") &&
     (payload.reasonUsesDateRange ||
       payload.reasonUsesPermitDetails ||
@@ -154,6 +157,7 @@ function createEmailHtml(appointment: ApprovalEmailPayload) {
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
   const daySwapDetail = getDaySwapDetail(appointment);
+  const rejectionMessage = appointment.rejectionMessage?.trim() ?? "";
   const isApproved = appointment.status === "aprobado";
   const title = isApproved ? "Solicitud aprobada" : "Solicitud rechazada";
   const message = isApproved
@@ -175,6 +179,11 @@ function createEmailHtml(appointment: ApprovalEmailPayload) {
       ${dateRange ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(dateRange)}</p>` : ""}
       ${permitDetail ? `<p><strong>Detalle permiso:</strong> ${escapeHtml(permitDetail)}</p>` : ""}
       ${daySwapDetail ? `<p><strong>Cambio de día:</strong> ${escapeHtml(daySwapDetail)}</p>` : ""}
+      ${
+        !isApproved && rejectionMessage
+          ? `<p><strong>Motivo del rechazo:</strong> ${escapeHtml(rejectionMessage)}</p>`
+          : ""
+      }
       <p style="margin-top: 20px;">Guarde este correo como respaldo de la aprobación.</p>
       ${getDriverPwaEmailBlock().html}
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
@@ -197,6 +206,7 @@ function createEmailText(appointment: ApprovalEmailPayload) {
   const dateRange = getDateRange(appointment);
   const permitDetail = getPermitDetail(appointment);
   const daySwapDetail = getDaySwapDetail(appointment);
+  const rejectionMessage = appointment.rejectionMessage?.trim() ?? "";
 
   if (dateRange) {
     lines.push(`Rango de fechas: ${dateRange}`);
@@ -208,6 +218,10 @@ function createEmailText(appointment: ApprovalEmailPayload) {
 
   if (daySwapDetail) {
     lines.push(`Cambio de día: ${daySwapDetail}`);
+  }
+
+  if (!isApproved && rejectionMessage) {
+    lines.push(`Motivo del rechazo: ${rejectionMessage}`);
   }
 
   lines.push(

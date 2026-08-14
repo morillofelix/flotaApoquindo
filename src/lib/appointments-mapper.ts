@@ -107,6 +107,7 @@ export function toAppointment(
     driverApprovalPending: boolean;
     driverApprovalRejected: boolean;
     driverApprovalMessage: string;
+    rejectionMessage?: string;
     createdAt: Date;
   },
   reasonConfig?: AppointmentReasonConfig,
@@ -167,6 +168,7 @@ export function toAppointment(
     driverApprovalPending: value.driverApprovalPending,
     driverApprovalRejected: value.driverApprovalRejected ?? false,
     driverApprovalMessage: value.driverApprovalMessage,
+    rejectionMessage: value.rejectionMessage ?? "",
     status,
     createdAt: value.createdAt.toISOString(),
   };

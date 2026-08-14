@@ -25,6 +25,7 @@ export type PublicAppointmentSummary = {
   driverApprovalPending: boolean;
   driverApprovalRejected: boolean;
   driverApprovalMessage: string;
+  rejectionMessage: string;
   createdByType: string;
   createdByExecutiveName: string;
   createdAt: string;
@@ -84,6 +85,7 @@ function mapAppointmentRow(
     driverApprovalPending: boolean;
     driverApprovalRejected: boolean;
     driverApprovalMessage: string;
+    rejectionMessage?: string;
     createdByType: string;
     createdByExecutiveName: string;
     createdAt: Date;
@@ -144,6 +146,7 @@ function mapAppointmentRow(
     driverApprovalPending: appointment.driverApprovalPending,
     driverApprovalRejected: appointment.driverApprovalRejected,
     driverApprovalMessage: appointment.driverApprovalMessage,
+    rejectionMessage: appointment.rejectionMessage ?? "",
     createdByType: normalizeAppointmentCreatedByType(appointment.createdByType),
     createdByExecutiveName: appointment.createdByExecutiveName,
     createdAt: appointment.createdAt.toISOString(),
@@ -188,6 +191,7 @@ export async function GET(request: NextRequest) {
       driverApprovalPending: true,
       driverApprovalRejected: true,
       driverApprovalMessage: true,
+      rejectionMessage: true,
       createdByType: true,
       createdByExecutiveName: true,
       createdAt: true,
@@ -197,7 +201,11 @@ export async function GET(request: NextRequest) {
       prisma.appointment.findMany({
         where: {
           vehicleNumber: { in: vehicleCandidates },
-          OR: [{ driverApprovalPending: true }, { dateChangePending: true }],
+          OR: [
+            { driverApprovalPending: true },
+            { dateChangePending: true },
+            { status: "rechazado", NOT: { rejectionMessage: "" } },
+          ],
         },
         orderBy: { createdAt: "desc" },
         take: 10,

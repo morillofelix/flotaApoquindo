@@ -22,6 +22,7 @@ export type PublicAppointmentSummary = {
   driverApprovalPending: boolean;
   driverApprovalRejected: boolean;
   driverApprovalMessage: string;
+  rejectionMessage: string;
   createdByType: AppointmentCreatedByType;
   createdByExecutiveName: string;
   createdAt: string;
@@ -216,6 +217,18 @@ function PublicAppointmentHistoryContent({
                   </p>
                   <p className="mt-1 text-xs font-semibold leading-5 text-red-950">
                     {appointment.driverApprovalMessage}
+                  </p>
+                </div>
+              ) : null}
+
+              {appointment.status === "rechazado" &&
+              appointment.rejectionMessage.trim() ? (
+                <div className="rounded-xl border-2 border-red-300 bg-red-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-900">
+                    Solicitud rechazada
+                  </p>
+                  <p className="mt-1 text-xs font-medium leading-5 text-red-950">
+                    {appointment.rejectionMessage}
                   </p>
                 </div>
               ) : null}
