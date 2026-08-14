@@ -79,3 +79,8 @@ export function getDriverLoginUrl() {
 
   return DRIVER_APP_URL;
 }
+
+/** Pantalla de instalación PWA en el teléfono. */
+export function getDriverInstallUrl() {
+  return `${getDriverLoginUrl()}/?instalar=1`;
+}

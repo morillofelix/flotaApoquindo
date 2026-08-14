@@ -27,10 +27,12 @@ import { validatePermitHoursRange } from "@/lib/permit-time-rules";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeEmail } from "@/lib/password-utils";
+import { sendAppointmentTicketEmail } from "@/lib/appointment-ticket-email-server";
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type AppointmentCreateBody = {
   id?: unknown;
@@ -397,8 +399,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const payload = toAppointment(createdAppointment, reason ?? undefined);
+    let ticketEmailSent = false;
+
+    try {
+      await sendAppointmentTicketEmail(payload);
+      ticketEmailSent = true;
+    } catch (error) {
+      console.error("[email] ticket send failed:", error);
+    }
+
     return NextResponse.json(
-      { appointment: toAppointment(createdAppointment, reason ?? undefined) },
+      { appointment: payload, ticketEmailSent },
       { status: 201 },
     );
   } catch {

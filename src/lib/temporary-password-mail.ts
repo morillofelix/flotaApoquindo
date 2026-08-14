@@ -31,7 +31,6 @@ export async function sendTemporaryPasswordEmail(
   await transporter.sendMail({
     from: smtp.from,
     to: input.to,
-    bcc: smtp.auth.user,
     subject,
     text,
     html,

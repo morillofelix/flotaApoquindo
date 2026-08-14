@@ -20,8 +20,10 @@ import {
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { resolveExecutiveCreatorName } from "@/lib/executive-creator";
 import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
-import { queueExecutiveAssignmentEmails } from "@/lib/appointment-email-queue";
-import { shouldSendExecutiveAssignmentEmails } from "@/lib/appointment-emails-server";
+import {
+  sendExecutiveAssignmentEmailsServer,
+  shouldSendExecutiveAssignmentEmails,
+} from "@/lib/appointment-emails-server";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { readAdminSession } from "@/lib/driver-auth";
 import { findPropietarioByVehicleNumber } from "@/lib/propietario-vehicle-lookup";
@@ -31,6 +33,7 @@ import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type AppointmentCreateBody = {
   vehicleNumber?: unknown;
@@ -495,18 +498,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let emailsSent = false;
+
     if (shouldQueueEmails) {
-      queueExecutiveAssignmentEmails(
-        savedAppointment,
-        ownerCcEmail ? { ownerCcEmail } : undefined,
-      );
+      try {
+        await sendExecutiveAssignmentEmailsServer(
+          savedAppointment,
+          ownerCcEmail ? { ownerCcEmail } : undefined,
+        );
+        emailsSent = true;
+      } catch (error) {
+        console.error("[email] executive assignment failed:", error);
+        emailWarning =
+          emailWarning ||
+          "La solicitud se creó, pero el correo de confirmación tardó o falló. Puedes reenviarlo desde la tabla.";
+      }
     }
 
     return NextResponse.json(
       {
         appointment: savedAppointment,
         emailsQueued: shouldQueueEmails,
-        emailsSent: false,
+        emailsSent,
         emailWarning,
       },
       { status: 201 },

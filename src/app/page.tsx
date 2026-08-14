@@ -22,6 +22,7 @@ import DriverAccessLoginScreen, {
   type PublicDriverOwner,
 } from "@/components/DriverAccessLoginScreen";
 import DriverChangePasswordScreen from "@/components/DriverChangePasswordScreen";
+import PwaInstallLanding from "@/components/PwaInstallLanding";
 import PublicPageBanner from "@/components/PublicPageBanner";
 import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-client";
 import { sessionFetchInit } from "@/lib/admin-fetch";
@@ -37,6 +38,7 @@ import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
 } from "@/components/PublicAppointmentHistory";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { isStandaloneMode } from "@/lib/pwa-utils";
 import {
   UI_DIVIDER_BORDER,
   UI_FIELD_BORDER,
@@ -247,28 +249,16 @@ async function saveAppointment(newAppointment: AppointmentSubmission) {
     throw new Error("No se pudo registrar la solicitud.");
   }
 
-  const result = (await response.json()) as { appointment?: Appointment };
+  const result = (await response.json()) as {
+    appointment?: Appointment;
+    ticketEmailSent?: boolean;
+  };
 
   if (!result.appointment) {
     throw new Error("No se pudo obtener el ticket de la solicitud.");
   }
 
-  return result.appointment;
-}
-
-async function sendTicketEmail(newAppointment: Appointment) {
-  const response = await fetch("/api/send-ticket-email", {
-    ...sessionFetchInit,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(newAppointment),
-  });
-
-  if (!response.ok) {
-    throw new Error("No se pudo enviar el correo de confirmación.");
-  }
+  return result;
 }
 
 type AuthView = "bootstrapping" | "login" | "change-password" | "form";
@@ -283,6 +273,16 @@ export default function HomePage() {
   const [driverOwner, setDriverOwner] = useState<PublicDriverOwner | null>(null);
   const [pendingPasswordChange, setPendingPasswordChange] =
     useState<PendingPasswordChange | null>(null);
+  const [showInstallLanding, setShowInstallLanding] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const wantsInstall = params.get("instalar") === "1";
+
+    if (wantsInstall && !isStandaloneMode()) {
+      setShowInstallLanding(true);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,6 +316,17 @@ export default function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  function continueInBrowser() {
+    setShowInstallLanding(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("instalar");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  if (showInstallLanding) {
+    return <PwaInstallLanding onContinueInBrowser={continueInBrowser} />;
+  }
 
   if (authView === "bootstrapping") {
     return null;
@@ -947,16 +958,14 @@ function AppointmentRequestForm({
       const appointment = createAppointment(values, reasons);
 
       try {
-        const savedAppointment = await saveAppointment(appointment);
+        const saved = await saveAppointment(appointment);
+        const savedAppointment = saved.appointment;
 
-        try {
-          await sendTicketEmail(savedAppointment);
-          setEmailWarning("");
-        } catch {
-          setEmailWarning(
-            "La solicitud fue registrada, pero no se pudo enviar el correo de confirmación.",
-          );
-        }
+        setEmailWarning(
+          saved.ticketEmailSent === false
+            ? "La solicitud fue registrada, pero no se pudo enviar el correo de confirmación."
+            : "",
+        );
 
         setSuccessTicketId(getAppointmentTicketLabel(savedAppointment));
 

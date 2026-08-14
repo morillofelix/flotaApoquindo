@@ -6,6 +6,7 @@ import {
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type TemporaryPasswordBody = {
   driverOwnerId?: unknown;
