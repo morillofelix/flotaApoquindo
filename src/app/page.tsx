@@ -257,7 +257,10 @@ async function saveAppointment(newAppointment: AppointmentSubmission) {
     throw new Error("No se pudo obtener el ticket de la solicitud.");
   }
 
-  return result;
+  return {
+    appointment: result.appointment,
+    ticketEmailSent: result.ticketEmailSent,
+  };
 }
 
 type AuthView = "bootstrapping" | "login" | "change-password" | "form";
