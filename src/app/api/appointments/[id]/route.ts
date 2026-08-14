@@ -593,12 +593,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           ? body.rejectionMessage.trim()
           : "";
 
-      if (rejectionMessage.length < 8 || rejectionMessage.length > 400) {
+      if (rejectionMessage.length > 400) {
         return NextResponse.json(
-          {
-            message:
-              "Ingresa el motivo del rechazo (entre 8 y 400 caracteres).",
-          },
+          { message: "El motivo del rechazo no puede superar 400 caracteres." },
           { status: 400 },
         );
       }

@@ -152,7 +152,7 @@ export type PromptNoteOptions = {
 
 type PromptNoteState = PromptNoteOptions & {
   open: boolean;
-  resolve?: (value: string | null) => void;
+  resolve?: (value: { submitted: true; note: string } | null) => void;
 };
 
 const initialPromptState: PromptNoteState = {
@@ -180,7 +180,7 @@ export function useConfirmAction() {
   }, []);
 
   const promptNote = useCallback((options: PromptNoteOptions) => {
-    return new Promise<string | null>((resolve) => {
+    return new Promise<{ submitted: true; note: string } | null>((resolve) => {
       setPromptState({
         open: true,
         title: options.title,
@@ -203,7 +203,7 @@ export function useConfirmAction() {
     });
   }, []);
 
-  const closePrompt = useCallback((value: string | null) => {
+  const closePrompt = useCallback((value: { submitted: true; note: string } | null) => {
     setPromptState((current) => {
       current.resolve?.(value);
       return initialPromptState;
@@ -219,7 +219,7 @@ export function useConfirmAction() {
       />
       <PromptNoteDialog
         state={promptState}
-        onConfirm={(note) => closePrompt(note)}
+        onConfirm={(note) => closePrompt({ submitted: true, note })}
         onCancel={() => closePrompt(null)}
       />
     </>
@@ -239,11 +239,8 @@ function PromptNoteDialog({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [note, setNote] = useState("");
-  const [error, setError] = useState("");
-  const minLength = state.minLength ?? 8;
   const maxLength = state.maxLength ?? 400;
   const trimmed = note.trim();
-  const canSubmit = trimmed.length >= minLength;
 
   useEffect(() => {
     if (!state.open) {
@@ -251,7 +248,6 @@ function PromptNoteDialog({
     }
 
     setNote("");
-    setError("");
     const frame = window.requestAnimationFrame(() => {
       textareaRef.current?.focus();
     });
@@ -310,14 +306,13 @@ function PromptNoteDialog({
 
           <label className="mt-4 flex flex-col gap-1.5">
             <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-900 sm:text-[11px]">
-              Mensaje para el conductor
+              Mensaje para el conductor (opcional)
             </span>
             <textarea
               ref={textareaRef}
               value={note}
               onChange={(event) => {
                 setNote(event.target.value.slice(0, maxLength));
-                setError("");
               }}
               rows={4}
               maxLength={maxLength}
@@ -328,13 +323,9 @@ function PromptNoteDialog({
               className="min-h-[6.5rem] w-full resize-none rounded-2xl border border-red-200 bg-white px-3 py-2.5 text-sm leading-6 text-[#0f2747] outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-200"
             />
             <span className="text-[10px] text-slate-500">
-              Mínimo {minLength} caracteres · {trimmed.length}/{maxLength}
+              Opcional · {trimmed.length}/{maxLength}
             </span>
           </label>
-
-          {error ? (
-            <p className="mt-2 text-[11px] font-medium text-red-700">{error}</p>
-          ) : null}
 
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
@@ -346,17 +337,7 @@ function PromptNoteDialog({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (!canSubmit) {
-                  setError(
-                    `Escribe el motivo del rechazo (mínimo ${minLength} caracteres).`,
-                  );
-                  textareaRef.current?.focus();
-                  return;
-                }
-
-                onConfirm(trimmed);
-              }}
+              onClick={() => onConfirm(trimmed)}
               className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-600 px-5 text-sm font-semibold text-white shadow-md shadow-red-900/20 transition hover:bg-red-700 active:translate-y-px disabled:opacity-60"
             >
               {state.confirmLabel ?? "Rechazar solicitud"}

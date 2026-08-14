@@ -340,8 +340,8 @@ function AppointmentsPageContent() {
         },
         body: JSON.stringify({
           status,
-          ...(extra?.rejectionMessage
-            ? { rejectionMessage: extra.rejectionMessage }
+          ...(extra && "rejectionMessage" in extra
+            ? { rejectionMessage: extra.rejectionMessage ?? "" }
             : {}),
         }),
       });
@@ -446,23 +446,25 @@ function AppointmentsPageContent() {
     }
 
     if (nextStatus === "rechazado") {
-      const rejectionMessage = await promptNote({
+      const rejectionPrompt = await promptNote({
         title: "Rechazar solicitud",
         message:
-          "El conductor verá este mensaje en la app y en el correo de rechazo.",
+          "Puedes dejar un mensaje para el conductor. No es obligatorio: también puedes rechazar sin texto.",
         detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}.`,
         placeholder: "Ej: La fecha no está disponible. Solicite otro día hábil.",
         confirmLabel: "Rechazar solicitud",
         cancelLabel: "Volver",
-        minLength: 8,
+        minLength: 0,
         maxLength: 400,
       });
 
-      if (!rejectionMessage) {
+      if (!rejectionPrompt) {
         return;
       }
 
-      await updateStatus(appointment.id, nextStatus, { rejectionMessage });
+      await updateStatus(appointment.id, nextStatus, {
+        rejectionMessage: rejectionPrompt.note,
+      });
       return;
     }
 
@@ -1406,8 +1408,7 @@ function AppointmentsPageContent() {
                           )}
                         </td>
                         <td className="px-2.5 py-2 align-top">
-                          <div className="flex min-w-[7.5rem] flex-col gap-1.5">
-                            <AppointmentStatusControl
+                          <AppointmentStatusControl
                             appointment={appointment}
                             onRequestStatusChange={(currentAppointment, nextStatus) =>
                               void requestStatusChange(
@@ -1416,16 +1417,6 @@ function AppointmentsPageContent() {
                               )
                             }
                           />
-                            {appointment.status === "rechazado" &&
-                            appointment.rejectionMessage.trim() ? (
-                              <p
-                                title={appointment.rejectionMessage}
-                                className="max-w-[12rem] rounded-xl border border-red-100 bg-red-50 px-2 py-1.5 text-[10px] font-medium leading-4 text-red-900"
-                              >
-                                {appointment.rejectionMessage}
-                              </p>
-                            ) : null}
-                          </div>
                         </td>
                         <td className="px-1 py-2 align-top">
                           <div className="flex justify-center">
