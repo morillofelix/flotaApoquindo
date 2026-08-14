@@ -3,6 +3,9 @@ const PRODUCTION_APP_URL = "https://flota-apoquindo.vercel.app";
 /** Portal público de conductores (solicitud de citas). */
 export const DRIVER_APP_URL = PRODUCTION_APP_URL;
 
+/** Enlace fijo de instalación PWA. No depende de env ni de query params. */
+export const DRIVER_INSTALL_URL = `${PRODUCTION_APP_URL}/instalar`;
+
 /** Enlace oficial de ingreso administrativo (correos de acceso). */
 export const ADMIN_AGENDAMIENTOS_LOGIN_URL =
   "https://flota-apoquindo.vercel.app/agendamientos";
@@ -82,5 +85,5 @@ export function getDriverLoginUrl() {
 
 /** Pantalla de instalación PWA en el teléfono. */
 export function getDriverInstallUrl() {
-  return `${getDriverLoginUrl()}/instalar`;
+  return DRIVER_INSTALL_URL;
 }

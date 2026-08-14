@@ -74,7 +74,7 @@ export function createNotificaTransporter() {
     throw new Error("Correo de notificaciones no configurado en el servidor.");
   }
 
-  cachedTransporter = nodemailer.createTransport({
+  const transporter = nodemailer.createTransport({
     host: smtp.host,
     port: smtp.port,
     secure: smtp.secure,
@@ -87,5 +87,6 @@ export function createNotificaTransporter() {
     socketTimeout: SMTP_TIMEOUT_MS,
   });
 
-  return cachedTransporter;
+  cachedTransporter = transporter;
+  return transporter;
 }
