@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   type Appointment,
   type AppointmentStatus,
@@ -105,21 +106,16 @@ function StatusBadgeButton({
 
 function RejectionNoteButton({ message }: { message: string }) {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    function handlePointerDown(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
+    closeButtonRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -127,55 +123,85 @@ function RejectionNoteButton({ message }: { message: string }) {
       }
     }
 
-    window.addEventListener("mousedown", handlePointerDown);
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("mousedown", handlePointerDown);
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
 
+  const dialog =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            aria-labelledby="rejection-note-title"
+            aria-modal="true"
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-[#0f2747]/55 px-3 py-3 backdrop-blur-[2px] sm:items-center sm:px-4 sm:py-6"
+            role="dialog"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-2xl shadow-slate-900/25 sm:rounded-[24px]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-[#c5d8eb] bg-[#eef3f9] px-4 py-3.5 sm:px-5 sm:py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#0b5cab] sm:text-xs">
+                  Solicitud rechazada
+                </p>
+                <h2
+                  id="rejection-note-title"
+                  className="mt-1.5 font-heading text-lg font-semibold leading-tight text-[#0f2747] sm:mt-2 sm:text-xl"
+                >
+                  Motivo del rechazo
+                </h2>
+              </div>
+
+              <div className="px-4 py-4 sm:px-5 sm:py-5">
+                <p className="rounded-2xl border border-[#c5d8eb] bg-[#f8fbff] px-4 py-3 text-sm font-medium leading-6 text-[#0f2747]">
+                  {message}
+                </p>
+
+                <div className="mt-5 flex justify-end">
+                  <button
+                    ref={closeButtonRef}
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white shadow-md shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <>
       <button
         type="button"
         aria-label="Ver motivo del rechazo"
         title="Ver motivo del rechazo"
-        onClick={() => setOpen((current) => !current)}
-        className="inline-flex size-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100"
+        onClick={() => setOpen(true)}
+        className="inline-flex size-8 shrink-0 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white text-[#0b5cab] shadow-[0_1px_2px_rgba(15,39,71,0.06)] transition hover:border-[#0b5cab] hover:bg-[#eef6ff]"
       >
         <svg
           aria-hidden
           viewBox="0 0 24 24"
-          className="size-4"
+          className="size-[18px]"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 10h8M8 14h5"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 12c0 4.418-4.03 8-9 8-.9 0-1.76-.12-2.56-.35L3 21l1.55-3.72C3.58 16.08 3 14.11 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z"
-          />
+          <path d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
         </svg>
       </button>
-
-      {open ? (
-        <div className="absolute left-0 top-full z-40 mt-1 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-red-200 bg-white p-3 shadow-lg shadow-slate-300/40">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-800">
-            Motivo del rechazo
-          </p>
-          <p className="mt-1.5 text-xs font-medium leading-5 text-[#0f2747]">
-            {message}
-          </p>
-        </div>
-      ) : null}
-    </div>
+      {dialog}
+    </>
   );
 }
 
