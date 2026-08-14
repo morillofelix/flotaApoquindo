@@ -3,6 +3,7 @@ import {
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -151,6 +152,7 @@ function createEmailHtml(appointment: ApprovalEmailPayload) {
       ${dateRange ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(dateRange)}</p>` : ""}
       ${permitDetail ? `<p><strong>Detalle permiso:</strong> ${escapeHtml(permitDetail)}</p>` : ""}
       <p style="margin-top: 20px;">Guarde este correo como respaldo de la aprobación.</p>
+      ${getDriverPwaEmailBlock().html}
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
     </div>
   `;
@@ -182,6 +184,9 @@ function createEmailText(appointment: ApprovalEmailPayload) {
   lines.push(
     "",
     "Guarde este correo como respaldo de la aprobación.",
+    "",
+    getDriverPwaEmailBlock().text,
+    "",
     "Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.",
   );
 

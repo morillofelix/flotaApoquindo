@@ -2,6 +2,7 @@ import {
   type AppointmentEmailPayload,
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
+import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -106,6 +107,7 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
       <p><strong>Fecha requerida:</strong> ${requiredDate}</p>
       <p><strong>Motivo:</strong> ${appointmentReason}</p>
       <p style="margin-top: 20px;">Guarda este número de ticket para cualquier consulta o seguimiento.</p>
+      ${getDriverPwaEmailBlock().html}
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
     </div>
   `;
@@ -125,6 +127,9 @@ function createEmailText(appointment: AppointmentEmailPayload) {
     `Motivo: ${appointment.appointmentReasonLabel}`,
     "",
     "Guarda este número de ticket para cualquier consulta o seguimiento.",
+    "",
+    getDriverPwaEmailBlock().text,
+    "",
     "Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.",
   ].join("\n");
 }

@@ -14,6 +14,7 @@ import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
 } from "@/lib/notifica-smtp";
+import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
 
 const calendarTimezone = "America/Santiago";
 
@@ -406,6 +407,7 @@ export async function sendScheduledConfirmationEmail(
 
   const transporter = createNotificaTransporter();
   const cc = options?.cc?.trim();
+  const pwaBlock = getDriverPwaEmailBlock();
 
   return transporter.sendMail({
     from: smtp.from,
@@ -422,6 +424,7 @@ export async function sendScheduledConfirmationEmail(
         <p><strong>Motivo:</strong> ${escapeHtml(appointment.appointmentReasonLabel)}</p>
         <p><strong>Atención:</strong> ${escapeHtml(schedule.summaryLabel)}</p>
         <p><strong>Ejecutivo:</strong> ${escapeHtml(appointment.assignedExecutive)}</p>
+        ${pwaBlock.html}
       </div>
     `,
     text: [
@@ -434,6 +437,8 @@ export async function sendScheduledConfirmationEmail(
       `Motivo: ${appointment.appointmentReasonLabel}`,
       `Atención: ${schedule.summaryLabel}`,
       `Ejecutivo: ${appointment.assignedExecutive}`,
+      "",
+      pwaBlock.text,
     ].join("\n"),
   });
 }

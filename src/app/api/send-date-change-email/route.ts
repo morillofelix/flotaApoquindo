@@ -11,6 +11,7 @@ import {
   getNotificaSmtpConfig,
 } from "@/lib/notifica-smtp";
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
 import { NextResponse, type NextRequest } from "next/server";
 
 type DateChangeEmailPayload = Pick<
@@ -91,6 +92,7 @@ function createEmailHtml(appointment: DateChangeEmailPayload) {
           : ""
       }
       <p style="margin-top: 20px;">Si tienes dudas, contacta al departamento de flota.</p>
+      ${getDriverPwaEmailBlock().html}
     </div>
   `;
 }
@@ -116,7 +118,12 @@ function createEmailText(appointment: DateChangeEmailPayload) {
     );
   }
 
-  lines.push("", "Si tienes dudas, contacta al departamento de flota.");
+  lines.push(
+    "",
+    "Si tienes dudas, contacta al departamento de flota.",
+    "",
+    getDriverPwaEmailBlock().text,
+  );
 
   return lines.join("\n");
 }

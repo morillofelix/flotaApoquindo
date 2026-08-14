@@ -3,6 +3,7 @@ import {
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -81,6 +82,7 @@ function createEmailHtml(appointment: CancellationEmailPayload) {
       <p><strong>Fecha requerida:</strong> ${escapeHtml(formatDate(appointment.appointmentDate))}</p>
       <p><strong>Motivo:</strong> ${escapeHtml(appointment.appointmentReasonLabel)}</p>
       <p style="margin-top: 20px;">Si necesita una nueva cita, puede ingresar una nueva solicitud.</p>
+      ${getDriverPwaEmailBlock().html}
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
     </div>
   `;
@@ -99,6 +101,9 @@ function createEmailText(appointment: CancellationEmailPayload) {
     `Motivo: ${appointment.appointmentReasonLabel}`,
     "",
     "Si necesita una nueva cita, puede ingresar una nueva solicitud.",
+    "",
+    getDriverPwaEmailBlock().text,
+    "",
     "Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.",
   ].join("\n");
 }
