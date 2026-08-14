@@ -29,11 +29,11 @@ export default function PwaInstallLanding({
       <section className="w-full max-w-md rounded-[24px] border-2 border-[#7a9fc4] bg-white p-6 shadow-lg shadow-slate-400/30 sm:p-8">
         <div className="mb-5 flex items-center gap-3">
           <Image
-            src="/pwa-192.png"
-            alt=""
-            width={48}
-            height={48}
-            className="rounded-xl"
+            src="/logo-gestion-flota-tna.png"
+            alt="Gestión Flota TNA"
+            width={72}
+            height={72}
+            className="h-[72px] w-[72px] rounded-xl border border-[#d8e2ef] bg-white object-contain p-1"
           />
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0b5cab]">

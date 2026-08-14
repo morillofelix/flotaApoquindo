@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-08-14-v9";
+const SW_VERSION = "2026-08-14-v10";
 const CACHE_NAME = `gestion-flota-${SW_VERSION}`;
 
 const PRECACHE_URLS = [

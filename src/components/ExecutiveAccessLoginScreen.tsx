@@ -168,15 +168,15 @@ export default function ExecutiveAccessLoginScreen({
         className={`w-full max-w-md ${LOGIN_CARD_SHELL} p-5 sm:rounded-[28px] sm:p-8`}
       >
         <div className="mb-7 border-b-2 border-[#9fb8d9] pb-6 text-center">
-          <div className="mx-auto mb-5 flex w-fit items-center justify-center rounded-2xl border-2 border-[#7a9fc4] bg-white px-5 py-3.5">
+          <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#7a9fc4] bg-white p-2 sm:h-36 sm:w-36">
             <Image
               src="/logo-gestion-flota-tna.png"
               alt="Gestión Flota TNA - Transportes Apoquindo"
-              width={1024}
-              height={1024}
+              width={512}
+              height={512}
               priority
               unoptimized
-              className="h-24 w-auto max-w-[min(100%,14rem)] object-contain sm:h-28"
+              className="h-full w-full object-contain"
             />
           </div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0b5cab]">

@@ -9,6 +9,7 @@ import {
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ExecutiveForm = {
@@ -45,6 +46,7 @@ export default function EjecutivosPage() {
   const [executiveError, setExecutiveError] = useState("");
   const [isSavingExecutive, setIsSavingExecutive] = useState(false);
   const [isListPanelCollapsed, setIsListPanelCollapsed] = useState(false);
+  const { confirm, dialog } = useConfirmAction();
 
   const reloadExecutives = useCallback(async () => {
     const loadedExecutives = await loadExecutives();
@@ -221,6 +223,57 @@ export default function EjecutivosPage() {
       );
     } finally {
       setIsSavingExecutive(false);
+    }
+  }
+
+  async function removeExecutive() {
+    if (!selectedExecutiveId) {
+      setExecutiveError("Selecciona un ejecutivo para eliminar.");
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Eliminar ejecutivo",
+      message: `¿Deseas eliminar a ${executiveForm.name.trim() || "este ejecutivo"}?`,
+      detail: "Esta acción no se puede deshacer. El ejecutivo dejará de aparecer para derivaciones.",
+      confirmLabel: "Sí, eliminar",
+      cancelLabel: "No",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setExecutiveMessage("");
+    setExecutiveError("");
+
+    try {
+      const response = await fetch(
+        `/api/executives?id=${encodeURIComponent(selectedExecutiveId)}`,
+        {
+          ...adminFetchInit,
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        throw new Error(data?.message ?? "No se pudo eliminar el ejecutivo.");
+      }
+
+      const loadedExecutives = await loadExecutives();
+      setExecutiveOptions(loadedExecutives);
+      setExecutiveForm(emptyExecutiveForm);
+      setExecutiveMessage("Ejecutivo eliminado correctamente.");
+    } catch (error) {
+      setExecutiveError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar el ejecutivo.",
+      );
     }
   }
 
@@ -575,7 +628,16 @@ export default function EjecutivosPage() {
                 </p>
               ) : null}
 
-              <div className="mt-5 flex justify-end gap-2">
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                {selectedExecutiveId ? (
+                  <button
+                    type="button"
+                    onClick={() => void removeExecutive()}
+                    className="inline-flex h-9 items-center justify-center rounded-2xl bg-red-600 px-4 text-xs font-semibold text-white transition hover:bg-red-700 active:translate-y-px"
+                  >
+                    Eliminar
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={resetExecutiveForm}
@@ -596,6 +658,7 @@ export default function EjecutivosPage() {
           </div>
         </div>
       </section>
+      {dialog}
     </main>
   );
 }

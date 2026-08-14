@@ -207,6 +207,33 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  const unauthorized = requireAdminPermission(request, "ejecutivos");
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const id = request.nextUrl.searchParams.get("id")?.trim() ?? "";
+
+  if (!id) {
+    return NextResponse.json(
+      { message: "Selecciona un ejecutivo para eliminar." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    await prisma.executive.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json(
+      { message: "No se pudo eliminar el ejecutivo." },
+      { status: 500 },
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   const unauthorized = requireAdminPermission(request, "ejecutivos");
 
