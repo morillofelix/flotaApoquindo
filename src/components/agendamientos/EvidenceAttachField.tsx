@@ -1,7 +1,6 @@
 "use client";
 
 import { compressAppointmentEvidenceFile } from "@/lib/appointment-evidence-client";
-import { UI_FIELD_BORDER } from "@/lib/ui-borders";
 import { useId, useState } from "react";
 
 type EvidenceAttachFieldProps = {
@@ -23,7 +22,8 @@ export default function EvidenceAttachField({
   onChange,
   onBlur,
 }: EvidenceAttachFieldProps) {
-  const inputId = useId();
+  const cameraInputId = useId();
+  const galleryInputId = useId();
   const [isProcessing, setIsProcessing] = useState(false);
   const [processError, setProcessError] = useState("");
   const previewSrc = data
@@ -56,6 +56,12 @@ export default function EvidenceAttachField({
     }
   }
 
+  function resetInput(input: HTMLInputElement | null) {
+    if (input) {
+      input.value = "";
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-[#9fb8d9] bg-[#f8fbff] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
       <div className="flex items-center justify-between gap-2">
@@ -71,7 +77,7 @@ export default function EvidenceAttachField({
         </span>
       </div>
       <p className="mt-1 text-[11px] leading-4 text-slate-500">
-        Toma una foto o elige una de la galería. Se envía con la solicitud.
+        Toma la foto ahora o elige una de la galería.
       </p>
 
       {previewSrc ? (
@@ -100,23 +106,44 @@ export default function EvidenceAttachField({
           </div>
         </div>
       ) : (
-        <label
-          htmlFor={inputId}
-          className={`mt-2.5 flex h-11 cursor-pointer items-center justify-center rounded-2xl border border-dashed ${UI_FIELD_BORDER} bg-white px-3 text-sm font-semibold text-[#173b68]`}
-        >
-          {isProcessing ? "Preparando foto..." : "Elegir o tomar foto"}
-        </label>
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <label
+            htmlFor={cameraInputId}
+            className="flex h-11 cursor-pointer items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-2 text-center text-sm font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]"
+          >
+            {isProcessing ? "Preparando..." : "Tomar foto"}
+          </label>
+          <label
+            htmlFor={galleryInputId}
+            className="flex h-11 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-[#9fb8d9] bg-white px-2 text-center text-sm font-semibold text-[#173b68]"
+          >
+            Galería
+          </label>
+        </div>
       )}
 
       <input
-        id={inputId}
+        id={cameraInputId}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/*"
+        accept="image/*"
+        capture="environment"
         className="sr-only"
         disabled={isProcessing}
         onChange={(event) => {
           const file = event.target.files?.[0];
-          event.target.value = "";
+          resetInput(event.currentTarget);
+          void handleFile(file);
+        }}
+      />
+      <input
+        id={galleryInputId}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        disabled={isProcessing}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          resetInput(event.currentTarget);
           void handleFile(file);
         }}
       />
