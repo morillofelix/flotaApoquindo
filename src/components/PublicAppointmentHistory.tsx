@@ -118,7 +118,7 @@ function PublicAppointmentHistoryContent({
         {appointments.map((appointment) => (
           <li
             key={appointment.id}
-            className={`rounded-xl border border-[#c5d8eb] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,39,71,0.04)] ${publicStatusCardAccent[appointment.status]}`}
+            className={`min-w-0 overflow-hidden rounded-xl border border-[#c5d8eb] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,39,71,0.04)] ${publicStatusCardAccent[appointment.status]}`}
           >
             <div className="flex flex-col gap-2.5">
               {appointment.driverApprovalPending &&
@@ -227,7 +227,7 @@ function PublicAppointmentHistoryContent({
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
                     Observación
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-xs font-medium leading-5 text-amber-950">
+                  <p className="mt-1 break-words whitespace-pre-wrap text-xs font-medium leading-5 text-amber-950">
                     {appointment.observation}
                   </p>
                 </div>
@@ -239,7 +239,7 @@ function PublicAppointmentHistoryContent({
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-900">
                     Solicitud rechazada
                   </p>
-                  <p className="mt-1 text-xs font-medium leading-5 text-red-950">
+                  <p className="mt-1 break-words text-xs font-medium leading-5 text-red-950">
                     {appointment.rejectionMessage}
                   </p>
                 </div>
@@ -323,7 +323,7 @@ function PublicAppointmentHistoryContent({
                     {appointment.ticketLabel}
                   </span>
                   <span className="text-xs text-slate-400">·</span>
-                  <span className="text-sm font-medium text-[#173b68]">
+                  <span className="min-w-0 break-words text-sm font-medium text-[#173b68]">
                     {appointment.appointmentReasonLabel}
                   </span>
                 </div>
@@ -506,7 +506,7 @@ export default function PublicAppointmentHistory({
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className={`relative z-10 w-full max-w-md rounded-2xl ${UI_PANEL_BORDER} bg-white p-4 shadow-2xl shadow-slate-900/20 sm:p-5`}
+            className={`relative z-10 w-full min-w-0 max-w-md overflow-x-hidden rounded-2xl ${UI_PANEL_BORDER} bg-white p-4 shadow-2xl shadow-slate-900/20 sm:p-5`}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>

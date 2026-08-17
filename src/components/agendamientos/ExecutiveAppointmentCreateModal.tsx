@@ -1178,12 +1178,12 @@ export default function ExecutiveAppointmentCreateModal({
             ) : null}
 
             {requiresObservation ? (
-              <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 sm:col-span-2">
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#173b68]">
+              <label className="flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 sm:col-span-2">
+                <span className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-xs font-semibold text-[#173b68]">
                     ¿Por qué se solicita?
                   </span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
                     Obligatorio
                   </span>
                 </span>
@@ -1196,7 +1196,7 @@ export default function ExecutiveAppointmentCreateModal({
                     updateField("observation", event.target.value)
                   }
                   placeholder="Escribe brevemente el motivo de esta solicitud"
-                  className="min-h-[4.75rem] resize-none rounded-xl border border-[#9fb8d9] bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                  className="min-h-[4.75rem] w-full min-w-0 resize-none rounded-xl border border-[#9fb8d9] bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                 />
                 <span className="text-right text-[11px] text-slate-500">
                   {values.observation.trim().length}/
@@ -1206,7 +1206,7 @@ export default function ExecutiveAppointmentCreateModal({
             ) : null}
 
             {allowsAttachment ? (
-              <div className="sm:col-span-2">
+              <div className="min-w-0 w-full sm:col-span-2">
                 <EvidenceAttachField
                   required={requiresAttachment}
                   data={values.evidenceImageData}

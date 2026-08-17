@@ -82,7 +82,6 @@ export async function compressAppointmentEvidenceFile(
     throw new Error("Adjunta una foto JPG o PNG.");
   }
 
-  const originalName = file.name.trim() || "evidencia.jpg";
   const dataUrl = await readFileAsDataUrl(file);
   const image = await loadImage(dataUrl);
   const longestEdge = Math.max(image.width, image.height) || 1;
@@ -114,11 +113,9 @@ export async function compressAppointmentEvidenceFile(
     throw new Error("La foto sigue siendo muy pesada. Prueba con otra más cercana o menos nítida.");
   }
 
-  const safeName = originalName.replace(/\.[^.]+$/, "") || "evidencia";
-
   return {
     data: parsed.data,
-    fileName: `${safeName}.jpg`.slice(0, 120),
+    fileName: "evidencia.jpg",
     mimeType: "image/jpeg",
   };
 }

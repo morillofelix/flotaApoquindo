@@ -1151,11 +1151,11 @@ function AppointmentRequestForm({
         </div>
       </div>
 
-      <div className="flex-1 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-0 sm:px-6 md:px-8">
+      <div className="min-w-0 flex-1 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-0 sm:px-6 md:px-8">
         <form
           noValidate
           onSubmit={handleSubmit}
-          className={`mx-auto w-full max-w-2xl rounded-[18px] ${formPanelBorderClass} bg-white p-4 shadow-sm shadow-slate-300/25 sm:rounded-[20px] sm:p-5 md:max-w-3xl`}
+          className={`mx-auto w-full min-w-0 max-w-2xl overflow-x-hidden rounded-[18px] ${formPanelBorderClass} bg-white p-4 shadow-sm shadow-slate-300/25 sm:rounded-[20px] sm:p-5 md:max-w-3xl`}
         >
           <div className="space-y-3">
             <div className="flex items-start gap-2">
@@ -1168,7 +1168,7 @@ function AppointmentRequestForm({
                     type="text"
                     readOnly
                     value={driverOwner.vehicleNumber}
-                    className={`h-10 rounded-xl ${formFieldBorderClass} bg-[#f8fbff] px-3 text-sm font-semibold text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)]`}
+                    className={`h-10 w-full min-w-0 rounded-xl ${formFieldBorderClass} bg-[#f8fbff] px-3 text-sm font-semibold text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)]`}
                   />
                 </label>
               </div>
@@ -1189,29 +1189,31 @@ function AppointmentRequestForm({
               />
             </div>
 
-            <div className={`rounded-xl ${formPanelBorderClass} bg-[#f8fbff] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]`}>
-              <dl className="grid gap-0 text-sm">
-                <div className={`grid grid-cols-[7.5rem_1fr] items-start gap-2 border-b ${formDividerBorderClass} py-2.5`}>
+            <div className={`min-w-0 overflow-hidden rounded-xl ${formPanelBorderClass} bg-[#f8fbff] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]`}>
+              <dl className="grid min-w-0 gap-0 text-sm">
+                <div className={`grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] items-start gap-2 border-b ${formDividerBorderClass} py-2.5`}>
                   <dt className="text-xs font-medium text-slate-500">Conductor</dt>
-                  <dd className="font-medium text-[#0f2747]">
+                  <dd className="min-w-0 break-words font-medium text-[#0f2747]">
                     {values.driverName || "—"}
                   </dd>
                 </div>
-                <div className={`grid grid-cols-[7.5rem_1fr] items-start gap-2 border-b ${formDividerBorderClass} py-2.5`}>
+                <div className={`grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] items-start gap-2 border-b ${formDividerBorderClass} py-2.5`}>
                   <dt className="text-xs font-medium text-slate-500">Correo</dt>
-                  <dd className="break-all font-medium text-[#0f2747]">
+                  <dd className="min-w-0 break-all font-medium text-[#0f2747]">
                     {values.email || "—"}
                   </dd>
                 </div>
-                <div className="grid grid-cols-[7.5rem_1fr] items-start gap-2 py-2.5">
+                <div className="grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] items-start gap-2 py-2.5">
                   <dt className="text-xs font-medium text-slate-500">Teléfono</dt>
-                  <dd className="font-medium text-[#0f2747]">{values.phone || "—"}</dd>
+                  <dd className="min-w-0 break-all font-medium text-[#0f2747]">
+                    {values.phone || "—"}
+                  </dd>
                 </div>
               </dl>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <span className="text-xs font-semibold text-[#173b68]">
                 Motivo de la cita
@@ -1224,7 +1226,7 @@ function AppointmentRequestForm({
                 onChange={(event) =>
                   updateField("appointmentReason", event.target.value)
                 }
-                className={`h-10 rounded-xl ${formFieldBorderClass} bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("appointmentReason")}`}
+                className={`h-10 w-full min-w-0 rounded-xl ${formFieldBorderClass} bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("appointmentReason")}`}
               >
                 <option value="">Selecciona una opción</option>
                 {activeReasons.map((reason) => (
@@ -1256,7 +1258,7 @@ function AppointmentRequestForm({
                     onChange={(event) =>
                       updateField("appointmentDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("appointmentDate")}`}
+                    className={`h-12 w-full min-w-0 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("appointmentDate")}`}
                   />
                   <p className="text-[11px] leading-5 text-slate-500">
                     Día en que necesitas ir a la empresa para este trámite. La
@@ -1279,7 +1281,7 @@ function AppointmentRequestForm({
             ) : null}
 
             {usesDaySwap ? (
-              <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
+              <div className={`grid min-w-0 gap-4 overflow-x-hidden rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
                     Día que desea cambiar
@@ -1294,7 +1296,7 @@ function AppointmentRequestForm({
                     onChange={(event) =>
                       updateField("swapFromDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("swapFromDate")}`}
+                    className={`h-12 w-full min-w-0 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("swapFromDate")}`}
                   />
                   {touched.swapFromDate && errors.swapFromDate ? (
                     <span className="text-sm text-red-600">
@@ -1317,7 +1319,7 @@ function AppointmentRequestForm({
                     onChange={(event) =>
                       updateField("swapToDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("swapToDate")}`}
+                    className={`h-12 w-full min-w-0 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("swapToDate")}`}
                   />
                   {touched.swapToDate && errors.swapToDate ? (
                     <span className="text-sm text-red-600">
@@ -1335,7 +1337,7 @@ function AppointmentRequestForm({
             ) : null}
 
             {usesDateRange ? (
-              <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
+              <div className={`grid min-w-0 gap-4 overflow-x-hidden rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
                     Fecha desde
@@ -1350,7 +1352,7 @@ function AppointmentRequestForm({
                     onChange={(event) =>
                       updateField("vacationStartDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("vacationStartDate")}`}
+                    className={`h-12 w-full min-w-0 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("vacationStartDate")}`}
                   />
                   {touched.vacationStartDate && errors.vacationStartDate ? (
                     <span className="text-sm text-red-600">
@@ -1373,7 +1375,7 @@ function AppointmentRequestForm({
                     onChange={(event) =>
                       updateField("vacationEndDate", event.target.value)
                     }
-                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("vacationEndDate")}`}
+                    className={`h-12 w-full min-w-0 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("vacationEndDate")}`}
                   />
                   {touched.vacationEndDate && errors.vacationEndDate ? (
                     <span className="text-sm text-red-600">
@@ -1391,7 +1393,7 @@ function AppointmentRequestForm({
             ) : null}
 
             {usesPermitDetails ? (
-              <div className={`grid gap-4 rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2`}>
+              <div className={`grid min-w-0 gap-4 overflow-x-hidden rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2`}>
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
                     Tipo de permiso
@@ -1404,7 +1406,7 @@ function AppointmentRequestForm({
                     onChange={(event) =>
                       updateField("permitType", event.target.value)
                     }
-                    className={`h-12 rounded-2xl ${formFieldBorderClass} bg-white px-4 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("permitType")}`}
+                    className={`h-12 w-full min-w-0 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitType")}`}
                   >
                     <option value="">Selecciona una opción</option>
                     <option value="dias">Por día</option>
@@ -1560,13 +1562,13 @@ function AppointmentRequestForm({
             ) : null}
 
             {requiresObservation ? (
-              <div className="sm:col-span-2">
-                <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#173b68]">
+              <div className="min-w-0 w-full sm:col-span-2">
+                <label className="flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                  <span className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-xs font-semibold text-[#173b68]">
                       ¿Por qué lo solicitas?
                     </span>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
                       Obligatorio
                     </span>
                   </span>
@@ -1581,17 +1583,19 @@ function AppointmentRequestForm({
                       updateField("observation", event.target.value)
                     }
                     placeholder="Escribe brevemente el motivo de esta solicitud"
-                    className={`min-h-[4.75rem] resize-none rounded-xl ${formFieldBorderClass} bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("observation")}`}
+                    className={`min-h-[4.75rem] w-full min-w-0 resize-none rounded-xl ${formFieldBorderClass} bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("observation")}`}
                   />
-                  <span className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                    <span>Este texto llegará con tu solicitud.</span>
-                    <span>
+                  <span className="flex min-w-0 items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="min-w-0 truncate">
+                      Este texto llegará con tu solicitud.
+                    </span>
+                    <span className="shrink-0">
                       {values.observation.trim().length}/
                       {APPOINTMENT_OBSERVATION_MAX_LENGTH}
                     </span>
                   </span>
                   {touched.observation && errors.observation ? (
-                    <span className="text-sm text-red-600">
+                    <span className="break-words text-sm text-red-600">
                       {errors.observation}
                     </span>
                   ) : null}
@@ -1600,7 +1604,7 @@ function AppointmentRequestForm({
             ) : null}
 
             {allowsAttachment ? (
-              <div className="sm:col-span-2">
+              <div className="min-w-0 w-full sm:col-span-2">
                 <EvidenceAttachField
                   required={requiresAttachment}
                   data={values.evidenceImageData}
@@ -1625,8 +1629,8 @@ function AppointmentRequestForm({
           </div>
 
           {showSuccess ? (
-            <div className="mt-6 space-y-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
-              <p>
+            <div className="mt-6 min-w-0 space-y-3 overflow-hidden rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+              <p className="break-words">
                 Solicitud registrada correctamente. Tu número de ticket es{" "}
                 <strong>{successTicketId}</strong>. Puedes usarlo para hacer
                 seguimiento de tu solicitud.
@@ -1642,19 +1646,19 @@ function AppointmentRequestForm({
           ) : null}
 
           {emailWarning ? (
-            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            <div className="mt-3 min-w-0 break-words rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
               {emailWarning}
             </div>
           ) : null}
 
           {submitError ? (
-            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            <div className="mt-3 min-w-0 break-words rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {submitError}
             </div>
           ) : null}
 
-          <div className={`mt-8 flex flex-col gap-4 border-t ${formDividerBorderClass} pt-6 sm:flex-row sm:items-center sm:justify-between`}>
-            <p className="text-sm text-slate-600">
+          <div className={`mt-8 flex min-w-0 flex-col gap-4 border-t ${formDividerBorderClass} pt-6 sm:flex-row sm:items-center sm:justify-between`}>
+            <p className="min-w-0 text-sm leading-5 text-slate-600">
               Este botón valida los campos de la solicitud.
             </p>
             <button
