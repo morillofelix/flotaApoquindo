@@ -32,6 +32,8 @@ type ReasonForm = {
   usesPermitDetails: boolean;
   usesDaySwap: boolean;
   requiresObservation: boolean;
+  allowsAttachment: boolean;
+  requiresAttachment: boolean;
   visibleToDriver: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
@@ -43,16 +45,13 @@ type ReasonBooleanField =
   | "usesDateRange"
   | "usesPermitDetails"
   | "usesDaySwap"
-  | "requiresObservation"
-  | "visibleToDriver"
-  | "isActive";
+  | "visibleToDriver";
 
 const reasonFeatureFields: Array<[ReasonBooleanField, string]> = [
   ["usesDateRange", "Rango fechas"],
   ["usesPermitDetails", "Permiso horas/días"],
   ["usesDaySwap", "Cambio de día"],
   ["visibleToDriver", "Visualiza conductor"],
-  ["isActive", "Activo"],
 ];
 
 const emptyReasonForm: ReasonForm = {
@@ -67,6 +66,8 @@ const emptyReasonForm: ReasonForm = {
   usesPermitDetails: false,
   usesDaySwap: false,
   requiresObservation: false,
+  allowsAttachment: false,
+  requiresAttachment: false,
   visibleToDriver: true,
   isActive: true,
   restrictedWeekdays: [],
@@ -149,6 +150,8 @@ export default function MotivosPage() {
       usesPermitDetails: reason.usesPermitDetails,
       usesDaySwap: Boolean(reason.usesDaySwap),
       requiresObservation: Boolean(reason.requiresObservation),
+      allowsAttachment: Boolean(reason.allowsAttachment),
+      requiresAttachment: Boolean(reason.allowsAttachment && reason.requiresAttachment),
       visibleToDriver: reason.visibleToDriver !== false,
       isActive: reason.isActive,
       restrictedWeekdays: reason.restrictedWeekdays,
@@ -369,6 +372,11 @@ export default function MotivosPage() {
                           reason.usesPermitDetails ? "Horas/días" : "",
                           reason.usesDaySwap ? "Cambio de día" : "",
                           reason.requiresObservation ? "Observación" : "",
+                          reason.allowsAttachment
+                            ? reason.requiresAttachment
+                              ? "Adjuntar obligatorio"
+                              : "Adjuntar"
+                            : "",
                           reason.visibleToDriver === false
                             ? "Solo ejecutivo"
                             : "Conductor",
@@ -410,6 +418,21 @@ export default function MotivosPage() {
                   Configura cómo se comporta este motivo en el formulario.
                 </p>
               </div>
+
+              <label className="mb-3 flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+                Activo
+                <input
+                  type="checkbox"
+                  checked={reasonForm.isActive}
+                  onChange={(event) =>
+                    setReasonForm((currentForm) => ({
+                      ...currentForm,
+                      isActive: event.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 accent-[#0b5cab]"
+                />
+              </label>
 
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs font-semibold text-[#173b68]">
@@ -547,27 +570,6 @@ export default function MotivosPage() {
                   ) : null}
                 </div>
 
-                <label className="flex min-h-10 flex-col justify-center gap-1 rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-xs font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
-                  <span className="flex items-center justify-between gap-3">
-                    Observación
-                    <input
-                      type="checkbox"
-                      checked={reasonForm.requiresObservation}
-                      onChange={(event) =>
-                        setReasonForm((currentForm) => ({
-                          ...currentForm,
-                          requiresObservation: event.target.checked,
-                        }))
-                      }
-                      className="h-4 w-4 accent-[#0b5cab]"
-                    />
-                  </span>
-                  <span className="text-[11px] font-normal leading-4 text-slate-500">
-                    Si está activo, el conductor debe escribir por qué solicita
-                    este motivo.
-                  </span>
-                </label>
-
                 <div className="grid grid-cols-2 gap-2">
                 {reasonFeatureFields.map(([field, label]) => (
                   <label
@@ -621,6 +623,74 @@ export default function MotivosPage() {
                     />
                   </label>
                 ))}
+                </div>
+
+                <label className="flex min-h-10 flex-col justify-center gap-1 rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-xs font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+                  <span className="flex items-center justify-between gap-3">
+                    Observación
+                    <input
+                      type="checkbox"
+                      checked={reasonForm.requiresObservation}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => ({
+                          ...currentForm,
+                          requiresObservation: event.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 accent-[#0b5cab]"
+                    />
+                  </span>
+                  <span className="text-[11px] font-normal leading-4 text-slate-500">
+                    El conductor escribe por qué solicita, al final, antes de
+                    validar.
+                  </span>
+                </label>
+
+                <div className="overflow-hidden rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+                  <label className="flex h-10 items-center justify-between px-3 text-xs font-semibold text-[#173b68]">
+                    Adjuntar
+                    <input
+                      type="checkbox"
+                      checked={reasonForm.allowsAttachment}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => ({
+                          ...currentForm,
+                          allowsAttachment: event.target.checked,
+                          requiresAttachment: event.target.checked
+                            ? currentForm.requiresAttachment
+                            : false,
+                        }))
+                      }
+                      className="h-4 w-4 accent-[#0b5cab]"
+                    />
+                  </label>
+                  {reasonForm.allowsAttachment ? (
+                    <div className="border-t border-[#c5d8eb] bg-[#f8fbff] px-3 py-2.5">
+                      <label className="flex items-center justify-between gap-3 text-xs font-semibold text-[#173b68]">
+                        Obligatorio
+                        <input
+                          type="checkbox"
+                          checked={reasonForm.requiresAttachment}
+                          onChange={(event) =>
+                            setReasonForm((currentForm) => ({
+                              ...currentForm,
+                              requiresAttachment: event.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 accent-[#0b5cab]"
+                        />
+                      </label>
+                      <p className="mt-1 text-[11px] font-normal leading-4 text-slate-500">
+                        Si está activo, no puede agendar sin una foto. Si no, la
+                        evidencia queda opcional.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="border-t border-[#c5d8eb] px-3 py-2 text-[11px] font-normal leading-4 text-slate-500">
+                      Actívalo para pedir una foto al final, antes de validar la
+                      cita.
+                    </p>
+                  )}
                 </div>
               </div>
 

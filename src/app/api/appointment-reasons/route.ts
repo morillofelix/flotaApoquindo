@@ -32,6 +32,8 @@ type ReasonBody = {
   usesPermitDetails?: unknown;
   usesDaySwap?: unknown;
   requiresObservation?: unknown;
+  allowsAttachment?: unknown;
+  requiresAttachment?: unknown;
   visibleToDriver?: unknown;
   isActive?: unknown;
   restrictedWeekdays?: unknown;
@@ -66,6 +68,8 @@ function toReason(
     usesPermitDetails: boolean;
     usesDaySwap?: boolean;
     requiresObservation?: boolean;
+    allowsAttachment?: boolean;
+    requiresAttachment?: boolean;
     visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
@@ -88,6 +92,8 @@ function toReason(
     usesPermitDetails: value.usesPermitDetails,
     usesDaySwap: Boolean(value.usesDaySwap),
     requiresObservation: Boolean(value.requiresObservation),
+    allowsAttachment: Boolean(value.allowsAttachment),
+    requiresAttachment: Boolean(value.allowsAttachment && value.requiresAttachment),
     visibleToDriver: value.visibleToDriver !== false,
     isActive: value.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(value.restrictedWeekdays),
@@ -192,6 +198,8 @@ async function ensureDefaultReasons() {
       usesPermitDetails: reason.usesPermitDetails,
       usesDaySwap: reason.usesDaySwap,
       requiresObservation: reason.requiresObservation,
+      allowsAttachment: reason.allowsAttachment,
+      requiresAttachment: reason.requiresAttachment,
       visibleToDriver: reason.visibleToDriver,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
@@ -384,6 +392,9 @@ export async function POST(request: NextRequest) {
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       usesDaySwap: getBoolean(body.usesDaySwap),
       requiresObservation: getBoolean(body.requiresObservation),
+      allowsAttachment: getBoolean(body.allowsAttachment),
+      requiresAttachment:
+        getBoolean(body.allowsAttachment) && getBoolean(body.requiresAttachment),
       visibleToDriver:
         body.visibleToDriver === undefined ? true : getBoolean(body.visibleToDriver),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
@@ -463,6 +474,9 @@ export async function PATCH(request: NextRequest) {
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         usesDaySwap: getBoolean(body.usesDaySwap),
         requiresObservation: getBoolean(body.requiresObservation),
+        allowsAttachment: getBoolean(body.allowsAttachment),
+        requiresAttachment:
+          getBoolean(body.allowsAttachment) && getBoolean(body.requiresAttachment),
         visibleToDriver: getBoolean(body.visibleToDriver),
         isActive: getBoolean(body.isActive),
         restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),

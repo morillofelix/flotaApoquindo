@@ -48,6 +48,7 @@ import AppointmentRowActions, {
 } from "@/components/agendamientos/AppointmentRowActions";
 import AppointmentStatusControl from "@/components/agendamientos/AppointmentStatusControl";
 import NotePeekButton from "@/components/agendamientos/NotePeekButton";
+import EvidencePeekButton from "@/components/agendamientos/EvidencePeekButton";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -1361,6 +1362,12 @@ function AppointmentsPageContent() {
                                 eyebrow="Solicitud"
                                 title="Observación del conductor"
                                 ariaLabel="Ver observación del motivo"
+                              />
+                            ) : null}
+                            {appointment.hasEvidenceImage ? (
+                              <EvidencePeekButton
+                                appointmentId={appointment.id}
+                                fileName={appointment.evidenceImageFileName}
                               />
                             ) : null}
                           </span>

@@ -5,6 +5,7 @@ import {
   defaultAppointmentReasons,
   validateAppointmentObservation,
 } from "@/lib/appointments";
+import { validateAppointmentEvidence } from "@/lib/appointment-evidence";
 import {
   getSantiagoToday,
   serializeRestrictedWeekdays,
@@ -52,6 +53,9 @@ type AppointmentCreateBody = {
   swapFromDate?: unknown;
   swapToDate?: unknown;
   observation?: unknown;
+  evidenceImageData?: unknown;
+  evidenceImageFileName?: unknown;
+  evidenceImageMimeType?: unknown;
   email?: unknown;
   phone?: unknown;
 };
@@ -164,6 +168,19 @@ function validateCreateBody(
     body.observation,
     Boolean(reasonConfig?.requiresObservation),
   );
+  const evidenceCheck = validateAppointmentEvidence(
+    {
+      data: body.evidenceImageData,
+      fileName: body.evidenceImageFileName,
+      mimeType: body.evidenceImageMimeType,
+    },
+    {
+      allowed: Boolean(reasonConfig?.allowsAttachment),
+      required: Boolean(
+        reasonConfig?.allowsAttachment && reasonConfig?.requiresAttachment,
+      ),
+    },
+  );
 
   if (
     !driverName ||
@@ -174,7 +191,8 @@ function validateCreateBody(
     !reasonConfig.visibleToDriver ||
     !email ||
     !phone ||
-    !observationCheck.ok
+    !observationCheck.ok ||
+    !evidenceCheck.ok
   ) {
     return null;
   }
@@ -241,6 +259,9 @@ function validateCreateBody(
     swapFromDate: usesDaySwap ? swapFromDate : "",
     swapToDate: usesDaySwap ? swapToDate : "",
     observation: observationCheck.value,
+    evidenceImageFileName: evidenceCheck.value.fileName,
+    evidenceImageMimeType: evidenceCheck.value.mimeType,
+    evidenceImageData: evidenceCheck.value.data,
     appointmentReason,
     email,
     phone,
@@ -259,6 +280,7 @@ export async function GET(request: NextRequest) {
     const reasons = await prisma.appointmentReason.findMany();
     const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));
     const appointments = await prisma.appointment.findMany({
+      omit: { evidenceImageData: true },
       orderBy: { createdAt: "desc" },
     });
     const driverOwners = await prisma.driverOwner.findMany({

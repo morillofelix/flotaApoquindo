@@ -37,6 +37,8 @@ export function toReasonConfig(
     usesPermitDetails: boolean;
     usesDaySwap?: boolean;
     requiresObservation?: boolean;
+    allowsAttachment?: boolean;
+    requiresAttachment?: boolean;
     visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
@@ -62,6 +64,8 @@ export function toReasonConfig(
     usesPermitDetails: reason.usesPermitDetails,
     usesDaySwap: Boolean(reason.usesDaySwap),
     requiresObservation: Boolean(reason.requiresObservation),
+    allowsAttachment: Boolean(reason.allowsAttachment),
+    requiresAttachment: Boolean(reason.allowsAttachment && reason.requiresAttachment),
     visibleToDriver: reason.visibleToDriver !== false,
     isActive: reason.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
@@ -111,6 +115,8 @@ export function toAppointment(
     driverApprovalMessage: string;
     rejectionMessage?: string;
     observation?: string;
+    evidenceImageFileName?: string;
+    evidenceImageData?: string | null;
     createdAt: Date;
   },
   reasonConfig?: AppointmentReasonConfig,
@@ -160,7 +166,15 @@ export function toAppointment(
     reasonUsesPermitDetails: Boolean(reasonConfig?.usesPermitDetails),
     reasonUsesDaySwap: Boolean(reasonConfig?.usesDaySwap),
     reasonRequiresObservation: Boolean(reasonConfig?.requiresObservation),
+    reasonAllowsAttachment: Boolean(reasonConfig?.allowsAttachment),
+    reasonRequiresAttachment: Boolean(
+      reasonConfig?.allowsAttachment && reasonConfig?.requiresAttachment,
+    ),
     observation: value.observation ?? "",
+    hasEvidenceImage: Boolean(
+      value.evidenceImageFileName?.trim() || value.evidenceImageData?.trim(),
+    ),
+    evidenceImageFileName: value.evidenceImageFileName ?? "",
     email: value.email,
     phone: value.phone,
     assignedExecutive: value.assignedExecutive,

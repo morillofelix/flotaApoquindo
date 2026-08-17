@@ -18,6 +18,7 @@ import {
   type PermitType,
   validateAppointmentObservation,
 } from "@/lib/appointments";
+import { validateAppointmentEvidence } from "@/lib/appointment-evidence";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { resolveExecutiveCreatorName } from "@/lib/executive-creator";
 import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
@@ -54,6 +55,9 @@ type AppointmentCreateBody = {
   swapFromDate?: unknown;
   swapToDate?: unknown;
   observation?: unknown;
+  evidenceImageData?: unknown;
+  evidenceImageFileName?: unknown;
+  evidenceImageMimeType?: unknown;
   ccOwnerEmail?: unknown;
 };
 
@@ -148,6 +152,19 @@ function validateExecutiveCreateBody(
     body.observation,
     Boolean(reasonConfig?.requiresObservation),
   );
+  const evidenceCheck = validateAppointmentEvidence(
+    {
+      data: body.evidenceImageData,
+      fileName: body.evidenceImageFileName,
+      mimeType: body.evidenceImageMimeType,
+    },
+    {
+      allowed: Boolean(reasonConfig?.allowsAttachment),
+      required: Boolean(
+        reasonConfig?.allowsAttachment && reasonConfig?.requiresAttachment,
+      ),
+    },
+  );
   const requiresExecutiveAssignment = Boolean(
     reasonConfig?.allowsExecutiveAssignment,
   );
@@ -177,7 +194,8 @@ function validateExecutiveCreateBody(
       (!isValidTime(scheduledStartTime) ||
         !isValidTime(scheduledEndTime) ||
         scheduledEndTime <= scheduledStartTime)) ||
-    !observationCheck.ok
+    !observationCheck.ok ||
+    !evidenceCheck.ok
   ) {
     return null;
   }
@@ -242,6 +260,9 @@ function validateExecutiveCreateBody(
     swapFromDate: usesDaySwap ? swapFromDate : "",
     swapToDate: usesDaySwap ? swapToDate : "",
     observation: observationCheck.value,
+    evidenceImageFileName: evidenceCheck.value.fileName,
+    evidenceImageMimeType: evidenceCheck.value.mimeType,
+    evidenceImageData: evidenceCheck.value.data,
     appointmentReason,
     assignedExecutive: requiresExecutiveAssignment ? assignedExecutive : "",
     scheduledStartTime: requiresScheduledTimeRange ? scheduledStartTime : "",

@@ -9,6 +9,8 @@ import {
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDaySwap,
   appointmentReasonRequiresObservation,
+  appointmentReasonAllowsAttachment,
+  appointmentReasonRequiresAttachment,
   APPOINTMENT_OBSERVATION_MAX_LENGTH,
   validateAppointmentObservation,
   defaultAppointmentReasons,
@@ -38,6 +40,8 @@ import {
   getReasonAppointmentDurationMinutes,
 } from "@/lib/appointment-scheduling";
 import ExecutiveAvailabilityPanel from "@/components/agendamientos/ExecutiveAvailabilityPanel";
+import EvidenceAttachField from "@/components/agendamientos/EvidenceAttachField";
+import { validateAppointmentEvidence } from "@/lib/appointment-evidence";
 import TimeSelectField from "@/components/TimeSelectField";
 import { useEffect, useId, useMemo, useState } from "react";
 
@@ -80,6 +84,9 @@ type FormValues = {
   swapFromDate: string;
   swapToDate: string;
   observation: string;
+  evidenceImageData: string;
+  evidenceImageFileName: string;
+  evidenceImageMimeType: string;
   ccOwnerEmail: boolean;
 };
 
@@ -101,6 +108,9 @@ const initialValues: FormValues = {
   swapFromDate: "",
   swapToDate: "",
   observation: "",
+  evidenceImageData: "",
+  evidenceImageFileName: "",
+  evidenceImageMimeType: "",
   ccOwnerEmail: false,
 };
 
@@ -166,6 +176,14 @@ export default function ExecutiveAppointmentCreateModal({
     reasons,
   );
   const requiresObservation = appointmentReasonRequiresObservation(
+    values.appointmentReason,
+    reasons,
+  );
+  const allowsAttachment = appointmentReasonAllowsAttachment(
+    values.appointmentReason,
+    reasons,
+  );
+  const requiresAttachment = appointmentReasonRequiresAttachment(
     values.appointmentReason,
     reasons,
   );
@@ -528,6 +546,12 @@ export default function ExecutiveAppointmentCreateModal({
           nextValues.observation = "";
         }
 
+        if (!appointmentReasonAllowsAttachment(value, reasons)) {
+          nextValues.evidenceImageData = "";
+          nextValues.evidenceImageFileName = "";
+          nextValues.evidenceImageMimeType = "";
+        }
+
         if (!appointmentReasonAllowsExecutive(value, reasons)) {
           nextValues.appointmentDate = "";
           nextValues.assignedExecutive = "";
@@ -610,6 +634,15 @@ export default function ExecutiveAppointmentCreateModal({
         values.swapFromDate !== values.swapToDate)) &&
     (!requiresObservation ||
       validateAppointmentObservation(values.observation, true).ok) &&
+    (!allowsAttachment ||
+      validateAppointmentEvidence(
+        {
+          data: values.evidenceImageData,
+          fileName: values.evidenceImageFileName,
+          mimeType: values.evidenceImageMimeType,
+        },
+        { allowed: true, required: requiresAttachment },
+      ).ok) &&
     !isSubmitting &&
     !isLoadingContext;
 
@@ -841,34 +874,6 @@ export default function ExecutiveAppointmentCreateModal({
                 ))}
               </select>
             </label>
-
-            {requiresObservation ? (
-              <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 sm:col-span-2">
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#173b68]">
-                    ¿Por qué se solicita?
-                  </span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
-                    Obligatorio
-                  </span>
-                </span>
-                <textarea
-                  required
-                  rows={3}
-                  maxLength={APPOINTMENT_OBSERVATION_MAX_LENGTH}
-                  value={values.observation}
-                  onChange={(event) =>
-                    updateField("observation", event.target.value)
-                  }
-                  placeholder="Escribe brevemente el motivo de esta solicitud"
-                  className="min-h-[4.75rem] resize-none rounded-xl border border-[#9fb8d9] bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
-                />
-                <span className="text-right text-[11px] text-slate-500">
-                  {values.observation.trim().length}/
-                  {APPOINTMENT_OBSERVATION_MAX_LENGTH}
-                </span>
-              </label>
-            ) : null}
 
             {allowsExecutiveAssignment ? (
               <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
@@ -1169,6 +1174,54 @@ export default function ExecutiveAppointmentCreateModal({
                     </div>
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {requiresObservation ? (
+              <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 sm:col-span-2">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    ¿Por qué se solicita?
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                    Obligatorio
+                  </span>
+                </span>
+                <textarea
+                  required
+                  rows={3}
+                  maxLength={APPOINTMENT_OBSERVATION_MAX_LENGTH}
+                  value={values.observation}
+                  onChange={(event) =>
+                    updateField("observation", event.target.value)
+                  }
+                  placeholder="Escribe brevemente el motivo de esta solicitud"
+                  className="min-h-[4.75rem] resize-none rounded-xl border border-[#9fb8d9] bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                />
+                <span className="text-right text-[11px] text-slate-500">
+                  {values.observation.trim().length}/
+                  {APPOINTMENT_OBSERVATION_MAX_LENGTH}
+                </span>
+              </label>
+            ) : null}
+
+            {allowsAttachment ? (
+              <div className="sm:col-span-2">
+                <EvidenceAttachField
+                  required={requiresAttachment}
+                  data={values.evidenceImageData}
+                  fileName={values.evidenceImageFileName}
+                  mimeType={values.evidenceImageMimeType}
+                  onChange={(next) => {
+                    setValues((currentValues) => ({
+                      ...currentValues,
+                      evidenceImageData: next.data,
+                      evidenceImageFileName: next.fileName,
+                      evidenceImageMimeType: next.mimeType,
+                    }));
+                    setSubmitError("");
+                  }}
+                />
               </div>
             ) : null}
 

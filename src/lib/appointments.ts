@@ -42,6 +42,8 @@ export type AppointmentReasonConfig = {
   usesPermitDetails: boolean;
   usesDaySwap: boolean;
   requiresObservation: boolean;
+  allowsAttachment: boolean;
+  requiresAttachment: boolean;
   /** If true, the reason appears in the conductor app form. */
   visibleToDriver: boolean;
   isActive: boolean;
@@ -65,6 +67,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: false,
     usesDaySwap: false,
     requiresObservation: false,
+    allowsAttachment: false,
+    requiresAttachment: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -85,6 +89,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: false,
     usesDaySwap: false,
     requiresObservation: false,
+    allowsAttachment: false,
+    requiresAttachment: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -105,6 +111,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: true,
     usesDaySwap: false,
     requiresObservation: false,
+    allowsAttachment: false,
+    requiresAttachment: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -125,6 +133,8 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesPermitDetails: false,
     usesDaySwap: false,
     requiresObservation: false,
+    allowsAttachment: false,
+    requiresAttachment: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -261,7 +271,11 @@ export type Appointment = {
   reasonUsesPermitDetails: boolean;
   reasonUsesDaySwap: boolean;
   reasonRequiresObservation: boolean;
+  reasonAllowsAttachment: boolean;
+  reasonRequiresAttachment: boolean;
   observation: string;
+  hasEvidenceImage: boolean;
+  evidenceImageFileName: string;
   email: string;
   phone: string;
   assignedExecutive: Executive | "";
@@ -423,6 +437,21 @@ export function appointmentReasonRequiresObservation(
   reasons = defaultAppointmentReasons,
 ) {
   return Boolean(getReasonConfig(value, reasons)?.requiresObservation);
+}
+
+export function appointmentReasonAllowsAttachment(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  return Boolean(getReasonConfig(value, reasons)?.allowsAttachment);
+}
+
+export function appointmentReasonRequiresAttachment(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  const reason = getReasonConfig(value, reasons);
+  return Boolean(reason?.allowsAttachment && reason.requiresAttachment);
 }
 
 export const APPOINTMENT_OBSERVATION_MIN_LENGTH = 8;

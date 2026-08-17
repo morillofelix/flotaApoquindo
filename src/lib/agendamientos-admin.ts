@@ -165,6 +165,8 @@ export function downloadAppointmentReasonsExcel(
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesPermitDetails))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesDaySwap))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.requiresObservation))}</td>
+          <td>${escapeExcelHtml(formatExcelBoolean(reason.allowsAttachment))}</td>
+          <td>${escapeExcelHtml(formatExcelBoolean(reason.requiresAttachment))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.visibleToDriver !== false))}</td>
           <td>${escapeExcelHtml(formatExcelActiveStatus(reason.isActive))}</td>
           <td>${escapeExcelHtml(formatRestrictedWeekdays(reason.restrictedWeekdays))}</td>
@@ -190,6 +192,8 @@ export function downloadAppointmentReasonsExcel(
               <th>Permiso horas/días</th>
               <th>Cambio de día</th>
               <th>Observación</th>
+              <th>Adjuntar</th>
+              <th>Adjunto obligatorio</th>
               <th>Visualiza conductor</th>
               <th>Estado</th>
               <th>Días restringidos</th>

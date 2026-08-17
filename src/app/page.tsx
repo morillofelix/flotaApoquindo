@@ -7,6 +7,8 @@ import {
   appointmentReasonUsesDateRange,
   appointmentReasonUsesDaySwap,
   appointmentReasonRequiresObservation,
+  appointmentReasonAllowsAttachment,
+  appointmentReasonRequiresAttachment,
   appointmentReasonAllowsExecutive,
   APPOINTMENT_OBSERVATION_MAX_LENGTH,
   validateAppointmentObservation,
@@ -47,6 +49,8 @@ import {
   UI_FIELD_BORDER,
   UI_PANEL_BORDER,
 } from "@/lib/ui-borders";
+import EvidenceAttachField from "@/components/agendamientos/EvidenceAttachField";
+import { validateAppointmentEvidence } from "@/lib/appointment-evidence";
 
 type FormValues = {
   driverName: string;
@@ -64,6 +68,9 @@ type FormValues = {
   swapFromDate: string;
   swapToDate: string;
   observation: string;
+  evidenceImageData: string;
+  evidenceImageFileName: string;
+  evidenceImageMimeType: string;
   email: string;
   phone: string;
 };
@@ -86,6 +93,9 @@ const initialValues: FormValues = {
   swapFromDate: "",
   swapToDate: "",
   observation: "",
+  evidenceImageData: "",
+  evidenceImageFileName: "",
+  evidenceImageMimeType: "",
   email: "",
   phone: "",
 };
@@ -174,6 +184,9 @@ type AppointmentSubmission = Omit<
   | "reasonUsesPermitDetails"
   | "reasonUsesDaySwap"
   | "reasonRequiresObservation"
+  | "reasonAllowsAttachment"
+  | "reasonRequiresAttachment"
+  | "hasEvidenceImage"
   | "assignedExecutive"
   | "scheduledStartTime"
   | "scheduledEndTime"
@@ -187,7 +200,10 @@ type AppointmentSubmission = Omit<
   | "rejectionMessage"
   | "createdAt"
   | "status"
->;
+> & {
+  evidenceImageData: string;
+  evidenceImageMimeType: string;
+};
 
 function createAppointment(
   values: FormValues,
@@ -206,6 +222,10 @@ function createAppointment(
     reasons,
   );
   const requiresObservation = appointmentReasonRequiresObservation(
+    values.appointmentReason,
+    reasons,
+  );
+  const allowsAttachment = appointmentReasonAllowsAttachment(
     values.appointmentReason,
     reasons,
   );
@@ -250,6 +270,9 @@ function createAppointment(
     swapFromDate: usesDaySwap ? values.swapFromDate : "",
     swapToDate: usesDaySwap ? values.swapToDate : "",
     observation: requiresObservation ? values.observation.trim() : "",
+    evidenceImageFileName: allowsAttachment ? values.evidenceImageFileName : "",
+    evidenceImageData: allowsAttachment ? values.evidenceImageData : "",
+    evidenceImageMimeType: allowsAttachment ? values.evidenceImageMimeType : "",
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
@@ -456,6 +479,14 @@ function AppointmentRequestForm({
     reasons,
   );
   const requiresObservation = appointmentReasonRequiresObservation(
+    values.appointmentReason,
+    reasons,
+  );
+  const allowsAttachment = appointmentReasonAllowsAttachment(
+    values.appointmentReason,
+    reasons,
+  );
+  const requiresAttachment = appointmentReasonRequiresAttachment(
     values.appointmentReason,
     reasons,
   );
@@ -697,6 +728,9 @@ function AppointmentRequestForm({
         swapFromDate: "",
         swapToDate: "",
         observation: "",
+        evidenceImageData: "",
+        evidenceImageFileName: "",
+        evidenceImageMimeType: "",
       }));
     }
   }, [activeReasons, values.appointmentReason]);
@@ -825,6 +859,14 @@ function AppointmentRequestForm({
       values.observation,
       requiresObservation,
     );
+    const evidenceCheck = validateAppointmentEvidence(
+      {
+        data: values.evidenceImageData,
+        fileName: values.evidenceImageFileName,
+        mimeType: values.evidenceImageMimeType,
+      },
+      { allowed: allowsAttachment, required: requiresAttachment },
+    );
 
     return {
       driverName: linkedVehicleNumber
@@ -896,6 +938,9 @@ function AppointmentRequestForm({
           ? "El día de reemplazo debe ser distinto al día que desea cambiar."
           : swapToDate,
       observation: observationCheck.ok ? "" : observationCheck.message,
+      evidenceImageData: evidenceCheck.ok ? "" : evidenceCheck.message,
+      evidenceImageFileName: "",
+      evidenceImageMimeType: "",
       email: linkedVehicleNumber
         ? validateField("email", values.email, today, reasons)
         : "",
@@ -903,7 +948,7 @@ function AppointmentRequestForm({
         ? validateField("phone", values.phone, today, reasons)
         : "",
     };
-  }, [today, usesDateRange, usesPermitDetails, usesDaySwap, requiresObservation, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
+  }, [today, usesDateRange, usesPermitDetails, usesDaySwap, requiresObservation, allowsAttachment, requiresAttachment, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
 
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
@@ -956,6 +1001,14 @@ function AppointmentRequestForm({
       !appointmentReasonRequiresObservation(value, reasons)
         ? { observation: "" }
         : {}),
+      ...(name === "appointmentReason" &&
+      !appointmentReasonAllowsAttachment(value, reasons)
+        ? {
+            evidenceImageData: "",
+            evidenceImageFileName: "",
+            evidenceImageMimeType: "",
+          }
+        : {}),
       ...(name === "permitType" && value === "dias"
         ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
         : {}),
@@ -1004,6 +1057,9 @@ function AppointmentRequestForm({
       swapFromDate: usesDaySwap,
       swapToDate: usesDaySwap,
       observation: requiresObservation,
+      evidenceImageData: allowsAttachment,
+      evidenceImageFileName: false,
+      evidenceImageMimeType: false,
       email: true,
       phone: true,
     });
@@ -1183,46 +1239,6 @@ function AppointmentRequestForm({
                 </span>
               ) : null}
             </label>
-
-            {requiresObservation ? (
-              <div className="sm:col-span-2">
-                <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#173b68]">
-                      ¿Por qué lo solicitas?
-                    </span>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
-                      Obligatorio
-                    </span>
-                  </span>
-                  <textarea
-                    name="observation"
-                    required
-                    rows={3}
-                    maxLength={APPOINTMENT_OBSERVATION_MAX_LENGTH}
-                    value={values.observation}
-                    onBlur={() => markFieldAsTouched("observation")}
-                    onChange={(event) =>
-                      updateField("observation", event.target.value)
-                    }
-                    placeholder="Escribe brevemente el motivo de esta solicitud"
-                    className={`min-h-[4.75rem] resize-none rounded-xl ${formFieldBorderClass} bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("observation")}`}
-                  />
-                  <span className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                    <span>Este texto llegará con tu solicitud.</span>
-                    <span>
-                      {values.observation.trim().length}/
-                      {APPOINTMENT_OBSERVATION_MAX_LENGTH}
-                    </span>
-                  </span>
-                  {touched.observation && errors.observation ? (
-                    <span className="text-sm text-red-600">
-                      {errors.observation}
-                    </span>
-                  ) : null}
-                </label>
-              </div>
-            ) : null}
 
             {allowsExecutiveAssignment ? (
               <div className={`rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2`}>
@@ -1540,6 +1556,70 @@ function AppointmentRequestForm({
                     {DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {requiresObservation ? (
+              <div className="sm:col-span-2">
+                <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      ¿Por qué lo solicitas?
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                      Obligatorio
+                    </span>
+                  </span>
+                  <textarea
+                    name="observation"
+                    required
+                    rows={3}
+                    maxLength={APPOINTMENT_OBSERVATION_MAX_LENGTH}
+                    value={values.observation}
+                    onBlur={() => markFieldAsTouched("observation")}
+                    onChange={(event) =>
+                      updateField("observation", event.target.value)
+                    }
+                    placeholder="Escribe brevemente el motivo de esta solicitud"
+                    className={`min-h-[4.75rem] resize-none rounded-xl ${formFieldBorderClass} bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("observation")}`}
+                  />
+                  <span className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span>Este texto llegará con tu solicitud.</span>
+                    <span>
+                      {values.observation.trim().length}/
+                      {APPOINTMENT_OBSERVATION_MAX_LENGTH}
+                    </span>
+                  </span>
+                  {touched.observation && errors.observation ? (
+                    <span className="text-sm text-red-600">
+                      {errors.observation}
+                    </span>
+                  ) : null}
+                </label>
+              </div>
+            ) : null}
+
+            {allowsAttachment ? (
+              <div className="sm:col-span-2">
+                <EvidenceAttachField
+                  required={requiresAttachment}
+                  data={values.evidenceImageData}
+                  fileName={values.evidenceImageFileName}
+                  mimeType={values.evidenceImageMimeType}
+                  error={
+                    touched.evidenceImageData ? errors.evidenceImageData : ""
+                  }
+                  onBlur={() => markFieldAsTouched("evidenceImageData")}
+                  onChange={(next) => {
+                    setValues((currentValues) => ({
+                      ...currentValues,
+                      evidenceImageData: next.data,
+                      evidenceImageFileName: next.fileName,
+                      evidenceImageMimeType: next.mimeType,
+                    }));
+                    resetSubmissionState();
+                  }}
+                />
               </div>
             ) : null}
           </div>
