@@ -6,7 +6,10 @@ import {
   appointmentReasonUsesPermitDetails,
   appointmentReasonUsesDateRange,
   appointmentReasonUsesDaySwap,
+  appointmentReasonRequiresObservation,
   appointmentReasonAllowsExecutive,
+  APPOINTMENT_OBSERVATION_MAX_LENGTH,
+  validateAppointmentObservation,
   defaultAppointmentReasons,
   getAppointmentTicketLabel,
   getSantiagoToday,
@@ -60,6 +63,7 @@ type FormValues = {
   permitEndTime: string;
   swapFromDate: string;
   swapToDate: string;
+  observation: string;
   email: string;
   phone: string;
 };
@@ -81,6 +85,7 @@ const initialValues: FormValues = {
   permitEndTime: "",
   swapFromDate: "",
   swapToDate: "",
+  observation: "",
   email: "",
   phone: "",
 };
@@ -168,6 +173,7 @@ type AppointmentSubmission = Omit<
   | "reasonUsesDateRange"
   | "reasonUsesPermitDetails"
   | "reasonUsesDaySwap"
+  | "reasonRequiresObservation"
   | "assignedExecutive"
   | "scheduledStartTime"
   | "scheduledEndTime"
@@ -196,6 +202,10 @@ function createAppointment(
     reasons,
   );
   const usesDaySwap = appointmentReasonUsesDaySwap(
+    values.appointmentReason,
+    reasons,
+  );
+  const requiresObservation = appointmentReasonRequiresObservation(
     values.appointmentReason,
     reasons,
   );
@@ -239,6 +249,7 @@ function createAppointment(
         : "",
     swapFromDate: usesDaySwap ? values.swapFromDate : "",
     swapToDate: usesDaySwap ? values.swapToDate : "",
+    observation: requiresObservation ? values.observation.trim() : "",
     appointmentReason: values.appointmentReason as PermissionReason,
     email: values.email.trim(),
     phone: values.phone.trim(),
@@ -441,6 +452,10 @@ function AppointmentRequestForm({
     reasons,
   );
   const usesDaySwap = appointmentReasonUsesDaySwap(
+    values.appointmentReason,
+    reasons,
+  );
+  const requiresObservation = appointmentReasonRequiresObservation(
     values.appointmentReason,
     reasons,
   );
@@ -681,6 +696,7 @@ function AppointmentRequestForm({
         permitEndTime: "",
         swapFromDate: "",
         swapToDate: "",
+        observation: "",
       }));
     }
   }, [activeReasons, values.appointmentReason]);
@@ -805,6 +821,10 @@ function AppointmentRequestForm({
     const swapToDate = usesDaySwap
       ? validateField("swapToDate", values.swapToDate, today, reasons)
       : "";
+    const observationCheck = validateAppointmentObservation(
+      values.observation,
+      requiresObservation,
+    );
 
     return {
       driverName: linkedVehicleNumber
@@ -875,6 +895,7 @@ function AppointmentRequestForm({
         values.swapFromDate === values.swapToDate
           ? "El día de reemplazo debe ser distinto al día que desea cambiar."
           : swapToDate,
+      observation: observationCheck.ok ? "" : observationCheck.message,
       email: linkedVehicleNumber
         ? validateField("email", values.email, today, reasons)
         : "",
@@ -882,7 +903,7 @@ function AppointmentRequestForm({
         ? validateField("phone", values.phone, today, reasons)
         : "",
     };
-  }, [today, usesDateRange, usesPermitDetails, usesDaySwap, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
+  }, [today, usesDateRange, usesPermitDetails, usesDaySwap, requiresObservation, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
 
   const isFormValid =
     Object.values(errors).every((error) => !error) &&
@@ -931,6 +952,10 @@ function AppointmentRequestForm({
       !appointmentReasonAllowsExecutive(value, reasons)
         ? { appointmentDate: "" }
         : {}),
+      ...(name === "appointmentReason" &&
+      !appointmentReasonRequiresObservation(value, reasons)
+        ? { observation: "" }
+        : {}),
       ...(name === "permitType" && value === "dias"
         ? { permitDate: "", permitStartTime: "", permitEndTime: "" }
         : {}),
@@ -978,6 +1003,7 @@ function AppointmentRequestForm({
       permitEndTime: usesPermitDetails && values.permitType === "horas",
       swapFromDate: usesDaySwap,
       swapToDate: usesDaySwap,
+      observation: requiresObservation,
       email: true,
       phone: true,
     });
@@ -1157,6 +1183,46 @@ function AppointmentRequestForm({
                 </span>
               ) : null}
             </label>
+
+            {requiresObservation ? (
+              <div className="sm:col-span-2">
+                <label className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-[#173b68]">
+                      ¿Por qué lo solicitas?
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                      Obligatorio
+                    </span>
+                  </span>
+                  <textarea
+                    name="observation"
+                    required
+                    rows={3}
+                    maxLength={APPOINTMENT_OBSERVATION_MAX_LENGTH}
+                    value={values.observation}
+                    onBlur={() => markFieldAsTouched("observation")}
+                    onChange={(event) =>
+                      updateField("observation", event.target.value)
+                    }
+                    placeholder="Escribe brevemente el motivo de esta solicitud"
+                    className={`min-h-[4.75rem] resize-none rounded-xl ${formFieldBorderClass} bg-white px-3 py-2.5 text-sm leading-5 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 ${fieldStatus("observation")}`}
+                  />
+                  <span className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span>Este texto llegará con tu solicitud.</span>
+                    <span>
+                      {values.observation.trim().length}/
+                      {APPOINTMENT_OBSERVATION_MAX_LENGTH}
+                    </span>
+                  </span>
+                  {touched.observation && errors.observation ? (
+                    <span className="text-sm text-red-600">
+                      {errors.observation}
+                    </span>
+                  ) : null}
+                </label>
+              </div>
+            ) : null}
 
             {allowsExecutiveAssignment ? (
               <div className={`rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2`}>

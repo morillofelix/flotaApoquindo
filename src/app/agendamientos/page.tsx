@@ -47,6 +47,7 @@ import AppointmentRowActions, {
   canResendAppointmentReminder,
 } from "@/components/agendamientos/AppointmentRowActions";
 import AppointmentStatusControl from "@/components/agendamientos/AppointmentStatusControl";
+import NotePeekButton from "@/components/agendamientos/NotePeekButton";
 import ExecutiveDailyLimitAlert from "@/components/agendamientos/ExecutiveDailyLimitAlert";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -1351,7 +1352,18 @@ function AppointmentsPageContent() {
                           {formatCreatedAt(appointment.createdAt)}
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
-                          {appointment.appointmentReasonLabel}
+                          <span className="inline-flex items-center gap-1.5">
+                            {appointment.appointmentReasonLabel}
+                            {appointment.observation.trim() ? (
+                              <NotePeekButton
+                                tone="amber"
+                                message={appointment.observation}
+                                eyebrow="Solicitud"
+                                title="Observación del conductor"
+                                ariaLabel="Ver observación del motivo"
+                              />
+                            ) : null}
+                          </span>
                         </td>
                                                 <td className="px-2.5 py-2 text-slate-700">
                           {getRequiredDateSummary(appointment) ? (

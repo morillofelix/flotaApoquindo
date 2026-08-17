@@ -31,6 +31,7 @@ type ReasonBody = {
   usesDateRange?: unknown;
   usesPermitDetails?: unknown;
   usesDaySwap?: unknown;
+  requiresObservation?: unknown;
   visibleToDriver?: unknown;
   isActive?: unknown;
   restrictedWeekdays?: unknown;
@@ -64,6 +65,7 @@ function toReason(
     usesDateRange: boolean;
     usesPermitDetails: boolean;
     usesDaySwap?: boolean;
+    requiresObservation?: boolean;
     visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
@@ -85,6 +87,7 @@ function toReason(
     usesDateRange: value.usesDateRange,
     usesPermitDetails: value.usesPermitDetails,
     usesDaySwap: Boolean(value.usesDaySwap),
+    requiresObservation: Boolean(value.requiresObservation),
     visibleToDriver: value.visibleToDriver !== false,
     isActive: value.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(value.restrictedWeekdays),
@@ -188,6 +191,7 @@ async function ensureDefaultReasons() {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       usesDaySwap: reason.usesDaySwap,
+      requiresObservation: reason.requiresObservation,
       visibleToDriver: reason.visibleToDriver,
       isActive: reason.isActive,
       restrictedWeekdays: serializeRestrictedWeekdays(reason.restrictedWeekdays),
@@ -379,6 +383,7 @@ export async function POST(request: NextRequest) {
       usesDateRange: getBoolean(body.usesDateRange),
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       usesDaySwap: getBoolean(body.usesDaySwap),
+      requiresObservation: getBoolean(body.requiresObservation),
       visibleToDriver:
         body.visibleToDriver === undefined ? true : getBoolean(body.visibleToDriver),
       isActive: body.isActive === undefined ? true : getBoolean(body.isActive),
@@ -457,6 +462,7 @@ export async function PATCH(request: NextRequest) {
         usesDateRange: getBoolean(body.usesDateRange),
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         usesDaySwap: getBoolean(body.usesDaySwap),
+        requiresObservation: getBoolean(body.requiresObservation),
         visibleToDriver: getBoolean(body.visibleToDriver),
         isActive: getBoolean(body.isActive),
         restrictedWeekdays: serializeRestrictedWeekdays(restrictedWeekdays),

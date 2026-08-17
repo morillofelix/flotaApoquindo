@@ -16,6 +16,7 @@ import {
   getAppointmentTicketLabel,
   type AppointmentReasonConfig,
   type PermitType,
+  validateAppointmentObservation,
 } from "@/lib/appointments";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { resolveExecutiveCreatorName } from "@/lib/executive-creator";
@@ -52,6 +53,7 @@ type AppointmentCreateBody = {
   permitEndTime?: unknown;
   swapFromDate?: unknown;
   swapToDate?: unknown;
+  observation?: unknown;
   ccOwnerEmail?: unknown;
 };
 
@@ -142,6 +144,10 @@ function validateExecutiveCreateBody(
   const usesDateRange = Boolean(reasonConfig?.usesDateRange);
   const usesPermitDetails = Boolean(reasonConfig?.usesPermitDetails);
   const usesDaySwap = Boolean(reasonConfig?.usesDaySwap);
+  const observationCheck = validateAppointmentObservation(
+    body.observation,
+    Boolean(reasonConfig?.requiresObservation),
+  );
   const requiresExecutiveAssignment = Boolean(
     reasonConfig?.allowsExecutiveAssignment,
   );
@@ -170,7 +176,8 @@ function validateExecutiveCreateBody(
     (requiresScheduledTimeRange &&
       (!isValidTime(scheduledStartTime) ||
         !isValidTime(scheduledEndTime) ||
-        scheduledEndTime <= scheduledStartTime))
+        scheduledEndTime <= scheduledStartTime)) ||
+    !observationCheck.ok
   ) {
     return null;
   }
@@ -234,6 +241,7 @@ function validateExecutiveCreateBody(
     permitEndTime: usesPermitDetails && permitType === "horas" ? permitEndTime : "",
     swapFromDate: usesDaySwap ? swapFromDate : "",
     swapToDate: usesDaySwap ? swapToDate : "",
+    observation: observationCheck.value,
     appointmentReason,
     assignedExecutive: requiresExecutiveAssignment ? assignedExecutive : "",
     scheduledStartTime: requiresScheduledTimeRange ? scheduledStartTime : "",

@@ -116,6 +116,11 @@ function createEmailHtml(appointment: AppointmentEmailPayload) {
       <p><strong>Fecha de registro:</strong> ${registrationDate}</p>
       <p><strong>Fecha requerida:</strong> ${requiredDate}</p>
       <p><strong>Motivo:</strong> ${appointmentReason}</p>
+      ${
+        appointment.observation?.trim()
+          ? `<p><strong>Observación:</strong> ${escapeHtml(appointment.observation.trim())}</p>`
+          : ""
+      }
       <p style="margin-top: 20px;">Guarda este número de ticket para cualquier consulta o seguimiento.</p>
       ${getDriverPwaEmailBlock().html}
       <p style="color: #53657a; font-size: 13px;">Este correo fue generado automáticamente por el sistema de agendamientos de Transportes Apoquindo.</p>
@@ -135,6 +140,9 @@ function createEmailText(appointment: AppointmentEmailPayload) {
     `Fecha de registro: ${formatCreatedAt(appointment.createdAt)}`,
     `Fecha requerida: ${getRequiredDateLabel(appointment)}`,
     `Motivo: ${appointment.appointmentReasonLabel}`,
+    appointment.observation?.trim()
+      ? `Observación: ${appointment.observation.trim()}`
+      : "",
     "",
     "Guarda este número de ticket para cualquier consulta o seguimiento.",
     "",

@@ -3,6 +3,7 @@ import {
   type AppointmentReasonConfig,
   type PermitType,
   defaultAppointmentReasons,
+  validateAppointmentObservation,
 } from "@/lib/appointments";
 import {
   getSantiagoToday,
@@ -50,6 +51,7 @@ type AppointmentCreateBody = {
   permitEndTime?: unknown;
   swapFromDate?: unknown;
   swapToDate?: unknown;
+  observation?: unknown;
   email?: unknown;
   phone?: unknown;
 };
@@ -158,6 +160,10 @@ function validateCreateBody(
   const usesDateRange = Boolean(reasonConfig?.usesDateRange);
   const usesPermitDetails = Boolean(reasonConfig?.usesPermitDetails);
   const usesDaySwap = Boolean(reasonConfig?.usesDaySwap);
+  const observationCheck = validateAppointmentObservation(
+    body.observation,
+    Boolean(reasonConfig?.requiresObservation),
+  );
 
   if (
     !driverName ||
@@ -167,7 +173,8 @@ function validateCreateBody(
     !reasonConfig.isActive ||
     !reasonConfig.visibleToDriver ||
     !email ||
-    !phone
+    !phone ||
+    !observationCheck.ok
   ) {
     return null;
   }
@@ -233,6 +240,7 @@ function validateCreateBody(
     permitEndTime: usesPermitDetails && permitType === "horas" ? permitEndTime : "",
     swapFromDate: usesDaySwap ? swapFromDate : "",
     swapToDate: usesDaySwap ? swapToDate : "",
+    observation: observationCheck.value,
     appointmentReason,
     email,
     phone,

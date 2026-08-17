@@ -23,6 +23,7 @@ export type PublicAppointmentSummary = {
   driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   rejectionMessage: string;
+  observation: string;
   createdByType: AppointmentCreatedByType;
   createdByExecutiveName: string;
   createdAt: string;
@@ -217,6 +218,17 @@ function PublicAppointmentHistoryContent({
                   </p>
                   <p className="mt-1 text-xs font-semibold leading-5 text-red-950">
                     {appointment.driverApprovalMessage}
+                  </p>
+                </div>
+              ) : null}
+
+              {appointment.observation.trim() ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
+                    Observación
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-xs font-medium leading-5 text-amber-950">
+                    {appointment.observation}
                   </p>
                 </div>
               ) : null}

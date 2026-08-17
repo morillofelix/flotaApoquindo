@@ -281,6 +281,7 @@ function createExcelTable(
           )}</td>
           <td>${escapeHtml(getRequiredDateSummary(appointment) || "No aplica")}</td>
           <td>${escapeHtml(appointment.appointmentReasonLabel)}</td>
+          <td>${escapeHtml(appointment.observation.trim() || "—")}</td>
           <td>${escapeHtml(appointment.permitDate || "No aplica")}</td>
           <td>${escapeHtml(permitTypeLabel || "No aplica")}</td>
           <td>${escapeHtml(dateFrom || "No aplica")}</td>
@@ -312,6 +313,7 @@ function createExcelTable(
               <th>Turno</th>
               <th>Fecha requerida</th>
               <th>Motivo</th>
+              <th>Observación</th>
               <th>Fecha permiso</th>
               <th>Tipo permiso</th>
               <th>Fecha desde</th>

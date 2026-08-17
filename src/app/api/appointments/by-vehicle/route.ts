@@ -26,6 +26,7 @@ export type PublicAppointmentSummary = {
   driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   rejectionMessage: string;
+  observation: string;
   createdByType: string;
   createdByExecutiveName: string;
   createdAt: string;
@@ -86,6 +87,7 @@ function mapAppointmentRow(
     driverApprovalRejected: boolean;
     driverApprovalMessage: string;
     rejectionMessage?: string;
+    observation?: string;
     createdByType: string;
     createdByExecutiveName: string;
     createdAt: Date;
@@ -147,6 +149,7 @@ function mapAppointmentRow(
     driverApprovalRejected: appointment.driverApprovalRejected,
     driverApprovalMessage: appointment.driverApprovalMessage,
     rejectionMessage: appointment.rejectionMessage ?? "",
+    observation: appointment.observation ?? "",
     createdByType: normalizeAppointmentCreatedByType(appointment.createdByType),
     createdByExecutiveName: appointment.createdByExecutiveName,
     createdAt: appointment.createdAt.toISOString(),
@@ -192,6 +195,7 @@ export async function GET(request: NextRequest) {
       driverApprovalRejected: true,
       driverApprovalMessage: true,
       rejectionMessage: true,
+      observation: true,
       createdByType: true,
       createdByExecutiveName: true,
       createdAt: true,

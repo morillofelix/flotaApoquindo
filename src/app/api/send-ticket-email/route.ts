@@ -44,6 +44,8 @@ function isAppointmentEmailPayload(value: unknown): value is AppointmentEmailPay
       typeof payload.swapFromDate === "string") &&
     (payload.swapToDate === undefined ||
       typeof payload.swapToDate === "string") &&
+    (payload.observation === undefined ||
+      typeof payload.observation === "string") &&
     typeof payload.email === "string" &&
     typeof payload.phone === "string" &&
     typeof payload.createdAt === "string"

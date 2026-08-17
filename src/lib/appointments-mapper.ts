@@ -36,6 +36,7 @@ export function toReasonConfig(
     usesDateRange: boolean;
     usesPermitDetails: boolean;
     usesDaySwap?: boolean;
+    requiresObservation?: boolean;
     visibleToDriver?: boolean;
     isActive: boolean;
     restrictedWeekdays: string;
@@ -60,6 +61,7 @@ export function toReasonConfig(
     usesDateRange: reason.usesDateRange,
     usesPermitDetails: reason.usesPermitDetails,
     usesDaySwap: Boolean(reason.usesDaySwap),
+    requiresObservation: Boolean(reason.requiresObservation),
     visibleToDriver: reason.visibleToDriver !== false,
     isActive: reason.isActive,
     restrictedWeekdays: parseRestrictedWeekdays(reason.restrictedWeekdays),
@@ -108,6 +110,7 @@ export function toAppointment(
     driverApprovalRejected: boolean;
     driverApprovalMessage: string;
     rejectionMessage?: string;
+    observation?: string;
     createdAt: Date;
   },
   reasonConfig?: AppointmentReasonConfig,
@@ -156,6 +159,8 @@ export function toAppointment(
     reasonUsesDateRange: Boolean(reasonConfig?.usesDateRange),
     reasonUsesPermitDetails: Boolean(reasonConfig?.usesPermitDetails),
     reasonUsesDaySwap: Boolean(reasonConfig?.usesDaySwap),
+    reasonRequiresObservation: Boolean(reasonConfig?.requiresObservation),
+    observation: value.observation ?? "",
     email: value.email,
     phone: value.phone,
     assignedExecutive: value.assignedExecutive,

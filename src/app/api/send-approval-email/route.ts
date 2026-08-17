@@ -32,6 +32,7 @@ type ApprovalEmailPayload = Pick<
   | "permitEndTime"
   | "swapFromDate"
   | "swapToDate"
+  | "observation"
   | "email"
   | "phone"
   | "status"
@@ -69,6 +70,8 @@ function isApprovalEmailPayload(value: unknown): value is ApprovalEmailPayload {
     typeof payload.phone === "string" &&
     (payload.rejectionMessage === undefined ||
       typeof payload.rejectionMessage === "string") &&
+    (payload.observation === undefined ||
+      typeof payload.observation === "string") &&
     (payload.status === "aprobado" || payload.status === "rechazado") &&
     (payload.reasonUsesDateRange ||
       payload.reasonUsesPermitDetails ||
@@ -176,6 +179,11 @@ function createEmailHtml(appointment: ApprovalEmailPayload) {
       <p><strong>Conductor:</strong> ${driverName}</p>
       <p><strong>Móvil:</strong> ${escapeHtml(appointment.vehicleNumber)}</p>
       <p><strong>Motivo:</strong> ${reason}</p>
+      ${
+        appointment.observation?.trim()
+          ? `<p><strong>Observación:</strong> ${escapeHtml(appointment.observation.trim())}</p>`
+          : ""
+      }
       ${dateRange ? `<p><strong>Rango de fechas:</strong> ${escapeHtml(dateRange)}</p>` : ""}
       ${permitDetail ? `<p><strong>Detalle permiso:</strong> ${escapeHtml(permitDetail)}</p>` : ""}
       ${daySwapDetail ? `<p><strong>Cambio de día:</strong> ${escapeHtml(daySwapDetail)}</p>` : ""}
@@ -207,6 +215,11 @@ function createEmailText(appointment: ApprovalEmailPayload) {
   const permitDetail = getPermitDetail(appointment);
   const daySwapDetail = getDaySwapDetail(appointment);
   const rejectionMessage = appointment.rejectionMessage?.trim() ?? "";
+  const observation = appointment.observation?.trim() ?? "";
+
+  if (observation) {
+    lines.push(`Observación: ${observation}`);
+  }
 
   if (dateRange) {
     lines.push(`Rango de fechas: ${dateRange}`);

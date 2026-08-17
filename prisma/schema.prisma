@@ -39,6 +39,7 @@ model Appointment {
   driverApprovalRejected     Boolean  @default(false)
   driverApprovalMessage      String   @default("")
   rejectionMessage           String   @default("")
+  observation                String   @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -62,6 +63,7 @@ model AppointmentReason {
   usesDateRange              Boolean  @default(false)
   usesPermitDetails          Boolean  @default(false)
   usesDaySwap                Boolean  @default(false)
+  requiresObservation        Boolean  @default(false)
   visibleToDriver            Boolean  @default(true)
   isActive                   Boolean  @default(true)
   restrictedWeekdays         String   @default("")

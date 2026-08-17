@@ -41,6 +41,7 @@ export type AppointmentReasonConfig = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   usesDaySwap: boolean;
+  requiresObservation: boolean;
   /** If true, the reason appears in the conductor app form. */
   visibleToDriver: boolean;
   isActive: boolean;
@@ -63,6 +64,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: true,
     usesPermitDetails: false,
     usesDaySwap: false,
+    requiresObservation: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -82,6 +84,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: true,
     usesPermitDetails: false,
     usesDaySwap: false,
+    requiresObservation: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -101,6 +104,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: false,
     usesPermitDetails: true,
     usesDaySwap: false,
+    requiresObservation: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -120,6 +124,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesDateRange: false,
     usesPermitDetails: false,
     usesDaySwap: false,
+    requiresObservation: false,
     visibleToDriver: true,
     isActive: true,
     restrictedWeekdays: [],
@@ -255,6 +260,8 @@ export type Appointment = {
   reasonUsesDateRange: boolean;
   reasonUsesPermitDetails: boolean;
   reasonUsesDaySwap: boolean;
+  reasonRequiresObservation: boolean;
+  observation: string;
   email: string;
   phone: string;
   assignedExecutive: Executive | "";
@@ -301,6 +308,7 @@ export type AppointmentEmailPayload = Pick<
       | "permitEndTime"
       | "swapFromDate"
       | "swapToDate"
+      | "observation"
     >
   >;
 
@@ -408,4 +416,52 @@ export function appointmentReasonUsesDaySwap(
   reasons = defaultAppointmentReasons,
 ) {
   return Boolean(getReasonConfig(value, reasons)?.usesDaySwap);
+}
+
+export function appointmentReasonRequiresObservation(
+  value: string,
+  reasons = defaultAppointmentReasons,
+) {
+  return Boolean(getReasonConfig(value, reasons)?.requiresObservation);
+}
+
+export const APPOINTMENT_OBSERVATION_MIN_LENGTH = 8;
+export const APPOINTMENT_OBSERVATION_MAX_LENGTH = 400;
+
+export function normalizeAppointmentObservation(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function validateAppointmentObservation(
+  value: unknown,
+  required: boolean,
+) {
+  const observation = normalizeAppointmentObservation(value);
+
+  if (!required) {
+    return { ok: true as const, value: "" };
+  }
+
+  if (!observation) {
+    return {
+      ok: false as const,
+      message: "Escribe el motivo de esta solicitud.",
+    };
+  }
+
+  if (observation.length < APPOINTMENT_OBSERVATION_MIN_LENGTH) {
+    return {
+      ok: false as const,
+      message: "Describe un poco más el motivo de esta solicitud.",
+    };
+  }
+
+  if (observation.length > APPOINTMENT_OBSERVATION_MAX_LENGTH) {
+    return {
+      ok: false as const,
+      message: `La observación no puede superar ${APPOINTMENT_OBSERVATION_MAX_LENGTH} caracteres.`,
+    };
+  }
+
+  return { ok: true as const, value: observation };
 }

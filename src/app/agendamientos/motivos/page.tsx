@@ -31,6 +31,7 @@ type ReasonForm = {
   usesDateRange: boolean;
   usesPermitDetails: boolean;
   usesDaySwap: boolean;
+  requiresObservation: boolean;
   visibleToDriver: boolean;
   isActive: boolean;
   restrictedWeekdays: WeekdayKey[];
@@ -42,6 +43,7 @@ type ReasonBooleanField =
   | "usesDateRange"
   | "usesPermitDetails"
   | "usesDaySwap"
+  | "requiresObservation"
   | "visibleToDriver"
   | "isActive";
 
@@ -64,6 +66,7 @@ const emptyReasonForm: ReasonForm = {
   usesDateRange: false,
   usesPermitDetails: false,
   usesDaySwap: false,
+  requiresObservation: false,
   visibleToDriver: true,
   isActive: true,
   restrictedWeekdays: [],
@@ -145,6 +148,7 @@ export default function MotivosPage() {
       usesDateRange: reason.usesDateRange,
       usesPermitDetails: reason.usesPermitDetails,
       usesDaySwap: Boolean(reason.usesDaySwap),
+      requiresObservation: Boolean(reason.requiresObservation),
       visibleToDriver: reason.visibleToDriver !== false,
       isActive: reason.isActive,
       restrictedWeekdays: reason.restrictedWeekdays,
@@ -364,6 +368,7 @@ export default function MotivosPage() {
                           reason.usesDateRange ? "Fechas" : "",
                           reason.usesPermitDetails ? "Horas/días" : "",
                           reason.usesDaySwap ? "Cambio de día" : "",
+                          reason.requiresObservation ? "Observación" : "",
                           reason.visibleToDriver === false
                             ? "Solo ejecutivo"
                             : "Conductor",
@@ -542,61 +547,81 @@ export default function MotivosPage() {
                   ) : null}
                 </div>
 
+                <label className="flex min-h-10 flex-col justify-center gap-1 rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-xs font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+                  <span className="flex items-center justify-between gap-3">
+                    Observación
+                    <input
+                      type="checkbox"
+                      checked={reasonForm.requiresObservation}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => ({
+                          ...currentForm,
+                          requiresObservation: event.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 accent-[#0b5cab]"
+                    />
+                  </span>
+                  <span className="text-[11px] font-normal leading-4 text-slate-500">
+                    Si está activo, el conductor debe escribir por qué solicita
+                    este motivo.
+                  </span>
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
                 {reasonFeatureFields.map(([field, label]) => (
                   <label
                     key={field}
-                    className="flex min-h-10 flex-col justify-center gap-1 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 py-2 text-xs font-semibold text-[#173b68]"
+                    title={
+                      field === "visibleToDriver"
+                        ? "Si está activo, el conductor lo ve al agendar. Si no, solo aparece para el ejecutivo."
+                        : undefined
+                    }
+                    className="flex min-h-10 items-center justify-between gap-2 rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-xs font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]"
                   >
-                    <span className="flex items-center justify-between gap-3">
-                      {label}
-                      <input
-                        type="checkbox"
-                        checked={reasonForm[field]}
-                        onChange={(event) =>
-                          setReasonForm((currentForm) => {
-                            const checked = event.target.checked;
+                    <span className="leading-4">{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={reasonForm[field]}
+                      onChange={(event) =>
+                        setReasonForm((currentForm) => {
+                          const checked = event.target.checked;
 
-                            if (field === "usesDaySwap" && checked) {
-                              return {
-                                ...currentForm,
-                                usesDaySwap: true,
-                                usesDateRange: false,
-                                usesPermitDetails: false,
-                                allowsExecutiveAssignment: false,
-                                usesAppointmentDuration: false,
-                                usesServiceStartTime: false,
-                              };
-                            }
-
-                            if (
-                              (field === "usesDateRange" ||
-                                field === "usesPermitDetails") &&
-                              checked
-                            ) {
-                              return {
-                                ...currentForm,
-                                [field]: true,
-                                usesDaySwap: false,
-                              };
-                            }
-
+                          if (field === "usesDaySwap" && checked) {
                             return {
                               ...currentForm,
-                              [field]: checked,
+                              usesDaySwap: true,
+                              usesDateRange: false,
+                              usesPermitDetails: false,
+                              allowsExecutiveAssignment: false,
+                              usesAppointmentDuration: false,
+                              usesServiceStartTime: false,
                             };
-                          })
-                        }
-                        className="h-4 w-4 accent-[#0b5cab]"
-                      />
-                    </span>
-                    {field === "visibleToDriver" ? (
-                      <span className="text-[11px] font-normal leading-4 text-slate-500">
-                        Si está activo, el conductor lo ve al agendar. Si no, solo
-                        aparece para el ejecutivo.
-                      </span>
-                    ) : null}
+                          }
+
+                          if (
+                            (field === "usesDateRange" ||
+                              field === "usesPermitDetails") &&
+                            checked
+                          ) {
+                            return {
+                              ...currentForm,
+                              [field]: true,
+                              usesDaySwap: false,
+                            };
+                          }
+
+                          return {
+                            ...currentForm,
+                            [field]: checked,
+                          };
+                        })
+                      }
+                      className="h-4 w-4 shrink-0 accent-[#0b5cab]"
+                    />
                   </label>
                 ))}
+                </div>
               </div>
 
               <div className="mt-4 rounded-2xl border border-[#b7cce4] bg-white p-3">
