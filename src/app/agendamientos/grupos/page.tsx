@@ -167,36 +167,45 @@ export default function GruposPage() {
             </label>
           </div>
 
-          <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
-            {filtered.map((group) => (
-              <button
-                key={group.id}
-                type="button"
-                onClick={() =>
-                  setForm({
-                    id: group.id,
-                    code: group.code,
-                    name: group.name,
-                    isActive: group.isActive,
-                  })
-                }
-                className={uiListRowClass(form.id === group.id)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 text-left">
-                    <p className="font-semibold text-[#0f2747]">{group.name}</p>
-                    <p className="text-xs text-slate-500">{group.code}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      {group.driversCount ?? 0} conductores ·{" "}
-                      {group.subgroupsCount ?? 0} subgrupos
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
+          <div className="overflow-hidden">
+            <div className="grid grid-cols-[1.2fr_1fr_0.7fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+              <span>Nombre</span>
+              <span>Detalle</span>
+              <span>Estado</span>
+            </div>
+            <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
+              {filtered.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  aria-selected={form.id === group.id}
+                  onClick={() =>
+                    setForm({
+                      id: group.id,
+                      code: group.code,
+                      name: group.name,
+                      isActive: group.isActive,
+                    })
+                  }
+                  className={uiListRowClass(
+                    form.id === group.id,
+                    "grid w-full grid-cols-[1.2fr_1fr_0.7fr] gap-2 px-3 py-2 text-left text-xs",
+                  )}
+                >
+                  <span>
+                    <strong className="block text-[#0f2747]">{group.name}</strong>
+                    <span className="text-slate-500">{group.code}</span>
+                  </span>
+                  <span className="text-slate-600">
+                    {group.driversCount ?? 0} conductores ·{" "}
+                    {group.subgroupsCount ?? 0} subgrupos
+                  </span>
+                  <span className="flex flex-col items-start gap-1">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                      className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                         group.isActive
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-slate-200 text-slate-600"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       {group.isActive ? "Activo" : "Inactivo"}
@@ -219,15 +228,15 @@ export default function GruposPage() {
                     >
                       {group.isActive ? "Inactivar" : "Activar"}
                     </span>
-                  </div>
-                </div>
-              </button>
-            ))}
-            {!filtered.length ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">
-                No hay grupos para mostrar.
-              </p>
-            ) : null}
+                  </span>
+                </button>
+              ))}
+              {!filtered.length ? (
+                <p className="px-4 py-8 text-center text-sm text-slate-500">
+                  No hay grupos para mostrar.
+                </p>
+              ) : null}
+            </div>
           </div>
         </section>
 

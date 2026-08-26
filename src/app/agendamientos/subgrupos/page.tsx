@@ -229,39 +229,52 @@ export default function SubgruposPage() {
             </label>
           </div>
 
-          <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
-            {filtered.map((subgroup) => (
-              <button
-                key={subgroup.id}
-                type="button"
-                onClick={() =>
-                  setForm({
-                    id: subgroup.id,
-                    code: subgroup.code,
-                    name: subgroup.name,
-                    type: subgroup.type,
-                    groupId: subgroup.groupId,
-                    isActive: subgroup.isActive,
-                  })
-                }
-                className={uiListRowClass(form.id === subgroup.id)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 text-left">
-                    <p className="font-semibold text-[#0f2747]">{subgroup.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {subgroup.groupName} · {subgroup.typeLabel} · {subgroup.code}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      {subgroup.assignmentsCount ?? 0} asignaciones
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
+          <div className="overflow-hidden">
+            <div className="grid grid-cols-[1.1fr_1.2fr_0.7fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0f2747]">
+              <span>Nombre</span>
+              <span>Detalle</span>
+              <span>Estado</span>
+            </div>
+            <div className="max-h-[70dvh] overflow-auto divide-y divide-[#c5d8eb]">
+              {filtered.map((subgroup) => (
+                <button
+                  key={subgroup.id}
+                  type="button"
+                  aria-selected={form.id === subgroup.id}
+                  onClick={() =>
+                    setForm({
+                      id: subgroup.id,
+                      code: subgroup.code,
+                      name: subgroup.name,
+                      type: subgroup.type,
+                      groupId: subgroup.groupId,
+                      isActive: subgroup.isActive,
+                    })
+                  }
+                  className={uiListRowClass(
+                    form.id === subgroup.id,
+                    "grid w-full grid-cols-[1.1fr_1.2fr_0.7fr] gap-2 px-3 py-2 text-left text-xs",
+                  )}
+                >
+                  <span>
+                    <strong className="block text-[#0f2747]">{subgroup.name}</strong>
+                    <span className="text-slate-500">{subgroup.code}</span>
+                  </span>
+                  <span className="text-slate-600">
+                    {[
+                      subgroup.groupName,
+                      subgroup.typeLabel,
+                      `${subgroup.assignmentsCount ?? 0} asignaciones`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                  <span className="flex flex-col items-start gap-1">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                      className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                         subgroup.isActive
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-slate-200 text-slate-600"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       {subgroup.isActive ? "Activo" : "Inactivo"}
@@ -284,15 +297,15 @@ export default function SubgruposPage() {
                     >
                       {subgroup.isActive ? "Inactivar" : "Activar"}
                     </span>
-                  </div>
-                </div>
-              </button>
-            ))}
-            {!filtered.length ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">
-                No hay subgrupos para mostrar.
-              </p>
-            ) : null}
+                  </span>
+                </button>
+              ))}
+              {!filtered.length ? (
+                <p className="px-4 py-8 text-center text-sm text-slate-500">
+                  No hay subgrupos para mostrar.
+                </p>
+              ) : null}
+            </div>
           </div>
         </section>
 
