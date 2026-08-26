@@ -135,6 +135,106 @@ function baseStatusCodeFromShift(
   return baseCode;
 }
 
+type ShiftWithRules = {
+  id: string;
+  code: string;
+  name: string;
+  groupId: string | null;
+  categorySubgroupId: string | null;
+  saturdayRule: string;
+  sundayRule: string;
+  holidayRule: string;
+  isActive: boolean;
+  dayRules: Array<{
+    weekday: number;
+    works: boolean;
+    defaultStatusCode: string;
+  }>;
+};
+
+type DriverAssignmentWithShift = {
+  id: string;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  shiftDefinition: ShiftWithRules | null;
+};
+
+/**
+ * Resuelve el turno del móvil:
+ * 1) asignación explícita vigente
+ * 2) coincidencia por Grupo + Categoría del conductor (ej. Diurno + A → TA)
+ * 3) coincidencia por solo Grupo (turno sin categoría)
+ */
+function resolveShiftForDriver(options: {
+  date: Date;
+  groupId: string | null;
+  categorySubgroupId: string | null;
+  assignments: DriverAssignmentWithShift[];
+  shifts: ShiftWithRules[];
+}) {
+  const assignment = options.assignments.find(
+    (item) =>
+      item.effectiveFrom <= options.date &&
+      (!item.effectiveTo || item.effectiveTo >= options.date) &&
+      item.shiftDefinition,
+  );
+  if (assignment?.shiftDefinition) {
+    return {
+      assignmentId: assignment.id,
+      shift: assignment.shiftDefinition,
+      source: "assignment" as const,
+    };
+  }
+
+  const activeShifts = options.shifts.filter((shift) => shift.isActive);
+  if (options.groupId && options.categorySubgroupId) {
+    const exact = activeShifts.find(
+      (shift) =>
+        shift.groupId === options.groupId &&
+        shift.categorySubgroupId === options.categorySubgroupId,
+    );
+    if (exact) {
+      return {
+        assignmentId: null as string | null,
+        shift: exact,
+        source: "group_category" as const,
+      };
+    }
+  }
+
+  if (options.groupId) {
+    const byGroup = activeShifts.find(
+      (shift) =>
+        shift.groupId === options.groupId && !shift.categorySubgroupId,
+    );
+    if (byGroup) {
+      return {
+        assignmentId: null as string | null,
+        shift: byGroup,
+        source: "group" as const,
+      };
+    }
+  }
+
+  return {
+    assignmentId: null as string | null,
+    shift: null,
+    source: "default" as const,
+  };
+}
+
+function categoryIdFromDriver(driver: {
+  subgroupAssignments?: Array<{
+    subgroup: { id: string; type: string };
+  }>;
+}) {
+  return (
+    driver.subgroupAssignments?.find(
+      (item) => item.subgroup.type === "CATEGORY",
+    )?.subgroup.id ?? null
+  );
+}
+
 function buildDriverWhere(scope?: GenerateScope): Prisma.DriverOwnerWhereInput {
   const where: Prisma.DriverOwnerWhereInput = {
     isActive: true,
@@ -245,7 +345,7 @@ export async function generateMonthlySchedule(
   const batchSize = Math.max(5, options.batchSize ?? DRIVER_BATCH_SIZE);
   const mode = options.scope?.mode ?? "all";
 
-  const [monthly, statuses, holidays] = await Promise.all([
+  const [monthly, statuses, holidays, catalogShifts] = await Promise.all([
     prisma.monthlySchedule.upsert({
       where: { year_month: { year: options.year, month: options.month } },
       create: {
@@ -268,6 +368,10 @@ export async function generateMonthlySchedule(
         date: { gte: firstDate, lte: lastDate },
       },
     }),
+    prisma.shiftDefinition.findMany({
+      where: { isActive: true },
+      include: { dayRules: true },
+    }),
   ]);
 
   const statusByCode = new Map(statuses.map((status) => [status.code, status]));
@@ -281,6 +385,11 @@ export async function generateMonthlySchedule(
     where: buildDriverWhere(options.scope),
     include: {
       group: true,
+      subgroupAssignments: {
+        include: {
+          subgroup: { select: { id: true, type: true, code: true, name: true } },
+        },
+      },
       shiftAssignments: {
         where: {
           isActive: true,
@@ -343,6 +452,49 @@ export async function generateMonthlySchedule(
     percent: 0,
     message: `Preparando ${drivers.length} conductores…`,
   });
+
+  // Si no hay asignación explícita, materializa una desde Grupo + Categoría
+  // (ej. Diurno + A → turno TA) para que la matriz muestre el turno y el
+  // cálculo use las reglas Lun–Dom del mantenedor.
+  let assignmentsFromClassification = 0;
+  for (const driver of drivers) {
+    const hasCoveringAssignment = driver.shiftAssignments.some(
+      (item) =>
+        item.shiftDefinition &&
+        item.effectiveFrom <= lastDate &&
+        (!item.effectiveTo || item.effectiveTo >= firstDate),
+    );
+    if (hasCoveringAssignment) continue;
+
+    const resolved = resolveShiftForDriver({
+      date: firstDate,
+      groupId: driver.groupId,
+      categorySubgroupId: categoryIdFromDriver(driver),
+      assignments: [],
+      shifts: catalogShifts,
+    });
+    if (!resolved.shift) continue;
+
+    const created = await prisma.driverShiftAssignment.create({
+      data: {
+        driverOwnerId: driver.id,
+        shiftDefinitionId: resolved.shift.id,
+        effectiveFrom: firstDate,
+        isActive: true,
+        observation: `Asignación automática por ${
+          resolved.source === "group_category"
+            ? "grupo + categoría"
+            : "grupo"
+        } al generar planificación ${options.year}-${String(options.month).padStart(2, "0")}.`,
+        createdByEmail: options.generatedByEmail.trim().toLowerCase(),
+      },
+      include: {
+        shiftDefinition: { include: { dayRules: true } },
+      },
+    });
+    driver.shiftAssignments = [created, ...driver.shiftAssignments];
+    assignmentsFromClassification += 1;
+  }
 
   const vehicleNumbers = drivers.map((driver) => driver.vehicleNumber);
   const driverIds = drivers.map((driver) => driver.id);
@@ -426,6 +578,7 @@ export async function generateMonthlySchedule(
     blockedDays: 0,
     holidayDays: 0,
     batches: 0,
+    assignmentsFromClassification,
   };
 
   const batchCount = Math.ceil(drivers.length / batchSize);
@@ -456,14 +609,18 @@ export async function generateMonthlySchedule(
         const dayIdsForEventRefresh: string[] = [];
 
         for (const driver of batch) {
+          const categorySubgroupId = categoryIdFromDriver(driver);
           for (const date of monthDates) {
             const dateKey = date.toISOString().slice(0, 10);
-            const assignment = driver.shiftAssignments.find(
-              (item) =>
-                item.effectiveFrom <= date &&
-                (!item.effectiveTo || item.effectiveTo >= date),
-            );
-            const shift = assignment?.shiftDefinition;
+            const resolved = resolveShiftForDriver({
+              date,
+              groupId: driver.groupId,
+              categorySubgroupId,
+              assignments: driver.shiftAssignments,
+              shifts: catalogShifts,
+            });
+            const assignmentId = resolved.assignmentId;
+            const shift = resolved.shift;
             const baseCode = baseStatusCodeFromShift(date, shift);
             const baseStatus =
               statusByCode.get(baseCode) ?? statusByCode.get("TRABAJA")!;
@@ -528,7 +685,7 @@ export async function generateMonthlySchedule(
                 date,
                 driverOwnerId: driver.id,
                 vehicleNumber: driver.vehicleNumber,
-                shiftAssignmentId: assignment?.id ?? null,
+                shiftAssignmentId: assignmentId,
                 baseStatusId: baseStatus.id,
                 effectiveStatusId: effectiveStatus.id,
                 appointmentId: dayAppointments[0]?.id ?? null,
@@ -548,7 +705,7 @@ export async function generateMonthlySchedule(
                   data: {
                     monthlyScheduleId: monthly.id,
                     vehicleNumber: driver.vehicleNumber,
-                    shiftAssignmentId: assignment?.id ?? null,
+                    shiftAssignmentId: assignmentId,
                     baseStatusId: baseStatus.id,
                     effectiveStatusId: effectiveStatus.id,
                     appointmentId: dayAppointments[0]?.id ?? null,

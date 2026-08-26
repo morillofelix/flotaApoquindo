@@ -181,7 +181,14 @@ export default function ConductoresPage() {
   );
   const [classificationHint, setClassificationHint] = useState("");
   const [shiftDefinitions, setShiftDefinitions] = useState<
-    Array<{ id: string; code: string; name: string; isActive: boolean }>
+    Array<{
+      id: string;
+      code: string;
+      name: string;
+      isActive: boolean;
+      groupId?: string | null;
+      categorySubgroupId?: string | null;
+    }>
   >([]);
   const [assignedShiftDefinitionId, setAssignedShiftDefinitionId] =
     useState("");
@@ -318,6 +325,30 @@ export default function ConductoresPage() {
       driverSubgroups,
     ],
   );
+
+  const inferredShiftByClassification = useMemo(() => {
+    if (assignedShiftDefinitionId) return null;
+    if (!driverOwnerForm.groupId) return null;
+    const active = shiftDefinitions.filter((shift) => shift.isActive);
+    const exact = active.find(
+      (shift) =>
+        shift.groupId === driverOwnerForm.groupId &&
+        shift.categorySubgroupId === driverOwnerForm.categorySubgroupId &&
+        Boolean(driverOwnerForm.categorySubgroupId),
+    );
+    if (exact) return exact;
+    return (
+      active.find(
+        (shift) =>
+          shift.groupId === driverOwnerForm.groupId && !shift.categorySubgroupId,
+      ) ?? null
+    );
+  }, [
+    assignedShiftDefinitionId,
+    driverOwnerForm.categorySubgroupId,
+    driverOwnerForm.groupId,
+    shiftDefinitions,
+  ]);
 
   const filteredDriverOwners = useMemo(() => {
     const normalizedSearch = driverOwnerSearch.trim();
@@ -2040,6 +2071,20 @@ export default function ConductoresPage() {
                       El cambio de turno se guarda con historial desde hoy y no
                       altera meses ya generados hasta regenerar.
                     </p>
+                    {inferredShiftByClassification ? (
+                      <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
+                        Sin turno explícito: al generar la planificación se usará{" "}
+                        <strong>
+                          {inferredShiftByClassification.name} (
+                          {inferredShiftByClassification.code})
+                        </strong>{" "}
+                        por coincidencia de grupo
+                        {driverOwnerForm.categorySubgroupId
+                          ? " + categoría"
+                          : ""}
+                        .
+                      </p>
+                    ) : null}
                     {driverOwnerForm.id ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
