@@ -85,11 +85,6 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
         isActive: (pathname) => pathname.startsWith("/agendamientos/turnos"),
       },
       {
-        label: "Patrones",
-        href: "/agendamientos/patrones",
-        isActive: (pathname) => pathname.startsWith("/agendamientos/patrones"),
-      },
-      {
         label: "Estados operativos",
         href: "/agendamientos/estados-operativos",
         isActive: (pathname) =>
@@ -183,7 +178,6 @@ export function isFlotaPath(pathname: string) {
     pathname.startsWith("/agendamientos/grupos") ||
     pathname.startsWith("/agendamientos/subgrupos") ||
     pathname.startsWith("/agendamientos/turnos") ||
-    pathname.startsWith("/agendamientos/patrones") ||
     pathname.startsWith("/agendamientos/estados-operativos") ||
     pathname.startsWith("/agendamientos/motivos-bloqueo") ||
     pathname.startsWith("/agendamientos/planificacion-mensual")

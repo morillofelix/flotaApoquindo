@@ -127,9 +127,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!shiftDefinitionId && !patternId) {
+    if (!shiftDefinitionId) {
       return NextResponse.json(
-        { message: "Selecciona un turno o un patrón." },
+        { message: "Selecciona un turno operativo." },
         { status: 400 },
       );
     }

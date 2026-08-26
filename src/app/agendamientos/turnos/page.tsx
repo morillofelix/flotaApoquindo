@@ -435,7 +435,9 @@ export default function TurnosPage() {
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
             Ejemplo: grupo Diurno + categoría A = turno “Diurno A”. La categoría
-            es opcional si el turno aplica a todo el grupo.
+            es opcional si el turno aplica a todo el grupo. La grilla Lun–Dom de
+            abajo es la que se repite en la planificación mensual al asignar este
+            turno al conductor.
           </p>
           <Field label="Observación" className="mt-3">
             <textarea

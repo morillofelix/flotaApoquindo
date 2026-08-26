@@ -162,7 +162,7 @@ export default function PlanificacionMensualPage() {
       </section>
       {message && <p className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
       {error && <p className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {!loading && !data?.schedule ? <section className="rounded-[22px] border border-[#b7cce4] bg-white p-12 text-center shadow-lg shadow-slate-300/20"><h2 className="font-heading text-xl font-semibold text-[#0f2747]">Este mes aún no tiene planificación</h2><p className="mt-2 text-sm text-slate-500">Genera la matriz a partir de los turnos, bloqueos y solicitudes vigentes.</p><button type="button" disabled={busy} onClick={() => void generate(false)} className={`${buttonClass} mt-5`}>Generar mes</button></section> : null}
+      {!loading && !data?.schedule ? <section className="rounded-[22px] border border-[#b7cce4] bg-white p-12 text-center shadow-lg shadow-slate-300/20"><h2 className="font-heading text-xl font-semibold text-[#0f2747]">Este mes aún no tiene planificación</h2><p className="mt-2 text-sm text-slate-500">Genera la matriz con las reglas Lun–Dom del turno asignado a cada conductor, más bloqueos y solicitudes vigentes.</p><button type="button" disabled={busy} onClick={() => void generate(false)} className={`${buttonClass} mt-5`}>Generar mes</button></section> : null}
       {data?.schedule ? <section className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25">
         <div className="max-h-[68dvh] overflow-auto">
           <table className="border-separate border-spacing-0 text-xs">

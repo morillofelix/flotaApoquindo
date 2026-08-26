@@ -29,16 +29,49 @@ function isoWeekday(date: Date) {
   return day === 0 ? 7 : day;
 }
 
-function differenceInDays(date: Date, base: Date) {
-  return Math.floor(
-    (Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
-      Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate())) /
-      86_400_000,
-  );
-}
+/** Estado base del día según las reglas del turno (Lun–Dom). Sin patrón separado. */
+function baseStatusCodeFromShift(
+  date: Date,
+  shift:
+    | {
+        saturdayRule: string;
+        sundayRule: string;
+        dayRules: Array<{
+          weekday: number;
+          works: boolean;
+          defaultStatusCode: string;
+        }>;
+      }
+    | null
+    | undefined,
+) {
+  const weekday = isoWeekday(date);
+  let baseCode = weekday >= 6 ? "LIBRE" : "TRABAJA";
 
-function positiveModulo(value: number, divisor: number) {
-  return ((value % divisor) + divisor) % divisor;
+  if (!shift) {
+    return baseCode;
+  }
+
+  const rule = shift.dayRules.find((item) => item.weekday === weekday);
+  if (rule) {
+    return rule.defaultStatusCode || (rule.works ? "TRABAJA" : "LIBRE");
+  }
+
+  if (
+    (weekday === 6 && shift.saturdayRule === "work") ||
+    (weekday === 7 && shift.sundayRule === "work")
+  ) {
+    return "TRABAJA";
+  }
+
+  if (
+    (weekday === 6 && shift.saturdayRule === "free") ||
+    (weekday === 7 && shift.sundayRule === "free")
+  ) {
+    return "LIBRE";
+  }
+
+  return baseCode;
 }
 
 export async function generateMonthlySchedule(
@@ -91,9 +124,8 @@ export async function generateMonthlySchedule(
           },
           include: {
             shiftDefinition: {
-              include: { dayRules: true, pattern: { include: { days: true } } },
+              include: { dayRules: true },
             },
-            pattern: { include: { days: true } },
           },
           orderBy: { effectiveFrom: "desc" },
         },
@@ -190,41 +222,7 @@ export async function generateMonthlySchedule(
               (!item.effectiveTo || item.effectiveTo >= date),
           );
           const shift = assignment?.shiftDefinition;
-          const pattern = assignment?.pattern ?? shift?.pattern;
-          let baseCode = isoWeekday(date) >= 6 ? "LIBRE" : "TRABAJA";
-
-          if (pattern && pattern.cycleLengthDays > 0) {
-            const baseDate =
-              pattern.baseDate ??
-              shift?.cycleStartDate ??
-              assignment?.effectiveFrom ??
-              firstDate;
-            const offset = positiveModulo(
-              differenceInDays(date, baseDate),
-              pattern.cycleLengthDays,
-            );
-            baseCode =
-              pattern.days.find((item) => item.dayOffset === offset)?.statusCode ??
-              baseCode;
-          } else if (shift) {
-            const rule = shift.dayRules.find(
-              (item) => item.weekday === isoWeekday(date),
-            );
-            if (rule) {
-              baseCode = rule.defaultStatusCode || (rule.works ? "TRABAJA" : "LIBRE");
-            } else if (
-              (isoWeekday(date) === 6 && shift.saturdayRule === "work") ||
-              (isoWeekday(date) === 7 && shift.sundayRule === "work")
-            ) {
-              baseCode = "TRABAJA";
-            } else if (
-              (isoWeekday(date) === 6 && shift.saturdayRule === "free") ||
-              (isoWeekday(date) === 7 && shift.sundayRule === "free")
-            ) {
-              baseCode = "LIBRE";
-            }
-          }
-
+          const baseCode = baseStatusCodeFromShift(date, shift);
           const baseStatus = statusByCode.get(baseCode) ?? statusByCode.get("TRABAJA")!;
           const candidates = [baseStatus];
           const isHoliday = holidayDates.has(dateKey);
