@@ -43,6 +43,12 @@ model Appointment {
   evidenceImageFileName      String   @default("")
   evidenceImageMimeType      String   @default("")
   evidenceImageData          String   @default("") @db.Text
+  driverGroupCodeSnapshot           String @default("")
+  driverGroupNameSnapshot           String @default("")
+  driverCategoryCodeSnapshot        String @default("")
+  driverCategoryNameSnapshot        String @default("")
+  driverThursdayGroupCodeSnapshot   String @default("")
+  driverThursdayGroupNameSnapshot   String @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -102,6 +108,58 @@ model Executive {
   @@index([sortOrder])
 }
 
+model DriverGroup {
+  id        String           @id @default(uuid())
+  code      String           @unique
+  name      String
+  isActive  Boolean          @default(true)
+  sortOrder Int              @default(0)
+  subgroups DriverSubgroup[]
+  drivers   DriverOwner[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+enum DriverSubgroupType {
+  CATEGORY
+  THURSDAY_GROUP
+}
+
+model DriverSubgroup {
+  id          String                     @id @default(uuid())
+  code        String
+  name        String
+  type        DriverSubgroupType
+  isActive    Boolean                    @default(true)
+  sortOrder   Int                        @default(0)
+  groupId     String
+  group       DriverGroup                @relation(fields: [groupId], references: [id])
+  assignments DriverSubgroupAssignment[]
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@unique([groupId, type, code])
+  @@index([groupId, type, isActive])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model DriverSubgroupAssignment {
+  id         String         @id @default(uuid())
+  driverId   String
+  subgroupId String
+  driver     DriverOwner    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  subgroup   DriverSubgroup @relation(fields: [subgroupId], references: [id])
+  createdAt  DateTime       @default(now())
+
+  @@unique([driverId, subgroupId])
+  @@index([driverId])
+  @@index([subgroupId])
+}
+
 model DriverOwner {
   id                     String    @id @default(uuid())
   vehicleNumber          String    @unique
@@ -118,6 +176,9 @@ model DriverOwner {
   isPropietario          Boolean   @default(false)
   municipalLicense       String    @default("")
   shifts                 String    @default("")
+  groupId                String?
+  group                  DriverGroup? @relation(fields: [groupId], references: [id])
+  subgroupAssignments    DriverSubgroupAssignment[]
   emergencyContactName   String    @default("")
   emergencyContactEmail  String    @default("")
   emergencyContactPhone  String    @default("")
@@ -136,6 +197,7 @@ model DriverOwner {
   @@index([fullName])
   @@index([recordStatus])
   @@index([licensePlate])
+  @@index([groupId])
 }
 
 model Propietario {

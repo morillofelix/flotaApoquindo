@@ -8,6 +8,13 @@ import {
   normalizeVehicleNumber,
   parseDateValue,
 } from "@/lib/driver-owners";
+import {
+  backfillDriverGroupsFromShifts,
+  ensureDefaultDriverGroups,
+  resolveSubgroupIdsForDriver,
+  shiftTypeFromGroupCode,
+  syncDriverSubgroupAssignments,
+} from "@/lib/driver-groups";
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -30,6 +37,9 @@ type DriverOwnerBody = {
   isPropietario?: unknown;
   municipalLicense?: unknown;
   shifts?: unknown;
+  groupId?: unknown;
+  categorySubgroupId?: unknown;
+  thursdayGroupSubgroupId?: unknown;
   emergencyContactName?: unknown;
   emergencyContactEmail?: unknown;
   emergencyContactPhone?: unknown;
@@ -41,6 +51,17 @@ type DriverOwnerBody = {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const driverOwnerInclude = {
+  group: { select: { id: true, code: true, name: true } },
+  subgroupAssignments: {
+    select: {
+      subgroup: {
+        select: { id: true, code: true, name: true, type: true },
+      },
+    },
+  },
+} as const;
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -78,6 +99,9 @@ function parseDriverOwnerBody(body: DriverOwnerBody) {
     isPropietario: body.isPropietario === true,
     municipalLicense: asString(body.municipalLicense),
     shifts: asShifts(body.shifts),
+    groupId: asString(body.groupId),
+    categorySubgroupId: asString(body.categorySubgroupId),
+    thursdayGroupSubgroupId: asString(body.thursdayGroupSubgroupId),
     emergencyContactName: asString(body.emergencyContactName),
     emergencyContactEmail: asString(body.emergencyContactEmail),
     emergencyContactPhone: asPhone(body.emergencyContactPhone),
@@ -105,6 +129,10 @@ function validateDriverOwnerInput(
     return "Selecciona al menos un tipo: conductor o propietario.";
   }
 
+  if (input.isConductor && !input.groupId) {
+    return "Selecciona el grupo principal del conductor.";
+  }
+
   if (input.email && !emailPattern.test(input.email)) {
     return "Ingresa un correo válido.";
   }
@@ -119,6 +147,54 @@ function validateDriverOwnerInput(
   return null;
 }
 
+async function resolveGroupAndShifts(input: ReturnType<typeof parseDriverOwnerBody>) {
+  if (!input.groupId) {
+    return {
+      ok: true as const,
+      groupId: null as string | null,
+      shifts: input.shifts,
+      subgroupIds: [] as string[],
+    };
+  }
+
+  const group = await prisma.driverGroup.findUnique({
+    where: { id: input.groupId },
+  });
+
+  if (!group) {
+    return { ok: false as const, message: "El grupo principal no existe." };
+  }
+
+  if (!group.isActive) {
+    return {
+      ok: false as const,
+      message: "No puedes asignar un grupo inactivo.",
+    };
+  }
+
+  const subgroupCheck = await resolveSubgroupIdsForDriver({
+    groupId: group.id,
+    categorySubgroupId: input.categorySubgroupId,
+    thursdayGroupSubgroupId: input.thursdayGroupSubgroupId,
+  });
+
+  if (!subgroupCheck.ok) {
+    return subgroupCheck;
+  }
+
+  const shiftFromGroup = shiftTypeFromGroupCode(group.code);
+  const shifts = shiftFromGroup
+    ? [shiftFromGroup]
+    : input.shifts.slice(0, 1);
+
+  return {
+    ok: true as const,
+    groupId: group.id,
+    shifts,
+    subgroupIds: subgroupCheck.subgroupIds,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const unauthorized = requireAdminPermission(request, "conductores");
 
@@ -126,13 +202,25 @@ export async function GET(request: NextRequest) {
     return unauthorized;
   }
 
-  const driverOwners = await prisma.driverOwner.findMany({
-    orderBy: [{ vehicleNumber: "asc" }],
-  });
+  try {
+    await ensureDefaultDriverGroups();
+    await backfillDriverGroupsFromShifts();
 
-  return NextResponse.json({
-    driverOwners: driverOwners.map(toDriverOwner),
-  });
+    const driverOwners = await prisma.driverOwner.findMany({
+      include: driverOwnerInclude,
+      orderBy: [{ vehicleNumber: "asc" }],
+    });
+
+    return NextResponse.json({
+      driverOwners: driverOwners.map(toDriverOwner),
+    });
+  } catch (error) {
+    console.error("GET /api/driver-owners failed:", error);
+    return NextResponse.json(
+      { message: "No se pudieron cargar los conductores." },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -174,16 +262,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const resolved = await resolveGroupAndShifts(input);
+
+  if (!resolved.ok) {
+    return NextResponse.json({ message: resolved.message }, { status: 400 });
+  }
+
   try {
-    const driverOwner = await prisma.driverOwner.create({
-      data: toDriverOwnerCreateData(input),
+    const driverOwner = await prisma.$transaction(async (tx) => {
+      const created = await tx.driverOwner.create({
+        data: toDriverOwnerCreateData({
+          ...input,
+          shifts: resolved.shifts,
+          groupId: resolved.groupId ?? "",
+        }),
+      });
+
+      await syncDriverSubgroupAssignments(tx, created.id, resolved.subgroupIds);
+
+      return tx.driverOwner.findUniqueOrThrow({
+        where: { id: created.id },
+        include: driverOwnerInclude,
+      });
     });
 
     return NextResponse.json(
       { driverOwner: toDriverOwner(driverOwner) },
       { status: 201 },
     );
-  } catch {
+  } catch (error) {
+    console.error("POST /api/driver-owners failed:", error);
     return NextResponse.json(
       { message: "No se pudo crear el registro." },
       { status: 500 },
@@ -232,10 +340,18 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  const resolved = await resolveGroupAndShifts(input);
+
+  if (!resolved.ok) {
+    return NextResponse.json({ message: resolved.message }, { status: 400 });
+  }
+
   const vehicleNumberForDb = input.vehicleNumber || existingDriverOwner.vehicleNumber;
   const data = toDriverOwnerCreateData({
     ...input,
     vehicleNumber: vehicleNumberForDb,
+    shifts: resolved.shifts,
+    groupId: resolved.groupId ?? "",
   });
 
   const duplicateVehicle = await prisma.driverOwner.findFirst({
@@ -253,15 +369,25 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const driverOwner = await prisma.driverOwner.update({
-      where: { id },
-      data,
+    const driverOwner = await prisma.$transaction(async (tx) => {
+      await tx.driverOwner.update({
+        where: { id },
+        data,
+      });
+
+      await syncDriverSubgroupAssignments(tx, id, resolved.subgroupIds);
+
+      return tx.driverOwner.findUniqueOrThrow({
+        where: { id },
+        include: driverOwnerInclude,
+      });
     });
 
     return NextResponse.json({
       driverOwner: toDriverOwner(driverOwner) as DriverOwnerConfig,
     });
-  } catch {
+  } catch (error) {
+    console.error("PATCH /api/driver-owners failed:", error);
     return NextResponse.json(
       { message: "No se pudo actualizar el registro." },
       { status: 500 },

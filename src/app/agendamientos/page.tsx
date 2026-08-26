@@ -55,7 +55,6 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
-  getVehicleShiftLabel,
   getVehicleShifts,
   shiftOptions,
   type ShiftType,
@@ -1276,7 +1275,7 @@ function AppointmentsPageContent() {
                       <th className="min-w-28 px-2.5 py-2 font-semibold">Ticket</th>
                       <th className="min-w-36 px-2.5 py-2 font-semibold">Conductor</th>
                       <th className="min-w-14 px-2.5 py-2 font-semibold">Móvil</th>
-                      <th className="min-w-20 px-2.5 py-2 font-semibold">Turno</th>
+                      <th className="min-w-28 px-2.5 py-2 font-semibold">Clasificación</th>
                       <th className="min-w-24 px-2.5 py-2 font-semibold">
                         Fecha de registro
                       </th>
@@ -1343,11 +1342,13 @@ function AppointmentsPageContent() {
                         <td className="px-2.5 py-2 text-slate-700">
                           {appointment.vehicleNumber}
                         </td>
-                        <td className="px-2.5 py-2 text-[11px] font-medium text-slate-600">
-                          {getVehicleShiftLabel(
-                            appointment.vehicleNumber,
-                            vehicleShiftLookup,
-                          )}
+                        <td className="max-w-[9rem] px-2.5 py-2 text-[11px] font-medium text-slate-600">
+                          <span
+                            title={appointment.operationalClassificationLabel}
+                            className="line-clamp-2"
+                          >
+                            {appointment.operationalClassificationShort}
+                          </span>
                         </td>
                         <td className="px-2.5 py-2 text-slate-700">
                           {formatCreatedAt(appointment.createdAt)}

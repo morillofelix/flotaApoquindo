@@ -2,13 +2,22 @@
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
 import { useConfirmAction } from "@/hooks/useConfirmAction";
-import { loadDriverOwners } from "@/lib/agendamientos-admin";
+import {
+  loadDriverGroups,
+  loadDriverOwners,
+  loadDriverSubgroups,
+} from "@/lib/agendamientos-admin";
 import { adminFetchInit } from "@/lib/admin-fetch";
+import {
+  type DriverGroupConfig,
+  type DriverSubgroupConfig,
+} from "@/lib/driver-groups";
 import {
   countImportCategories,
   downloadDriverOwnersExcel,
   filterDriverOwnerImportRows,
   formatFileSize,
+  formatOperationalLabel,
   formatPersonTypes,
   formatShifts,
   getTemporaryPasswordFromRut,
@@ -46,7 +55,7 @@ const statusSelectBaseClassName =
   "h-10 w-full min-w-0 appearance-none rounded-2xl border px-3 pr-9 text-sm shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:ring-2";
 
 const driverOwnerListGridClassName =
-  "grid grid-cols-[2.5rem_4rem_minmax(10rem,1fr)_5.5rem_5.5rem_4.5rem] gap-2 px-3";
+  "grid grid-cols-[2.5rem_4rem_minmax(9rem,1fr)_5rem_minmax(7rem,1fr)_4.5rem] gap-2 px-3";
 
 function DriverOwnerActionBanner({
   message,
@@ -144,6 +153,15 @@ const emptyDriverOwnerForm: DriverOwnerForm = {
   isPropietario: false,
   municipalLicense: "",
   shifts: [],
+  groupId: "",
+  groupCode: "",
+  groupName: "",
+  categorySubgroupId: "",
+  categoryCode: "",
+  categoryName: "",
+  thursdayGroupSubgroupId: "",
+  thursdayGroupCode: "",
+  thursdayGroupName: "",
   emergencyContactName: "",
   emergencyContactEmail: "",
   emergencyContactPhone: "",
@@ -154,18 +172,14 @@ const emptyDriverOwnerForm: DriverOwnerForm = {
   isActive: true,
 };
 
-function toggleDriverOwnerShift(
-  currentShifts: ShiftType[],
-  shift: ShiftType,
-): ShiftType[] {
-  return currentShifts.includes(shift)
-    ? currentShifts.filter((currentShift) => currentShift !== shift)
-    : [...currentShifts, shift];
-}
-
 export default function ConductoresPage() {
   const { confirm, dialog } = useConfirmAction();
   const [driverOwners, setDriverOwners] = useState<DriverOwnerConfig[]>([]);
+  const [driverGroups, setDriverGroups] = useState<DriverGroupConfig[]>([]);
+  const [driverSubgroups, setDriverSubgroups] = useState<DriverSubgroupConfig[]>(
+    [],
+  );
+  const [classificationHint, setClassificationHint] = useState("");
   const [driverOwnerForm, setDriverOwnerForm] =
     useState<DriverOwnerForm>(emptyDriverOwnerForm);
   const [driverOwnerSearch, setDriverOwnerSearch] = useState("");
@@ -201,8 +215,14 @@ export default function ConductoresPage() {
   }
 
   const reloadDriverOwners = useCallback(async () => {
-    const loadedDriverOwners = await loadDriverOwners();
+    const [loadedDriverOwners, loadedGroups, loadedSubgroups] = await Promise.all([
+      loadDriverOwners(),
+      loadDriverGroups(),
+      loadDriverSubgroups(),
+    ]);
     setDriverOwners(loadedDriverOwners);
+    setDriverGroups(loadedGroups);
+    setDriverSubgroups(loadedSubgroups.subgroups);
     setDriverOwnerError("");
   }, []);
 
@@ -220,6 +240,44 @@ export default function ConductoresPage() {
       setDriverOwnerError("No se pudieron cargar conductores y propietarios."),
     );
   }, [reloadDriverOwners]);
+
+  const activeGroups = useMemo(
+    () =>
+      driverGroups.filter(
+        (group) => group.isActive || group.id === driverOwnerForm.groupId,
+      ),
+    [driverGroups, driverOwnerForm.groupId],
+  );
+
+  const categoryOptions = useMemo(
+    () =>
+      driverSubgroups.filter(
+        (item) =>
+          item.groupId === driverOwnerForm.groupId &&
+          item.type === "CATEGORY" &&
+          (item.isActive || item.id === driverOwnerForm.categorySubgroupId),
+      ),
+    [
+      driverOwnerForm.categorySubgroupId,
+      driverOwnerForm.groupId,
+      driverSubgroups,
+    ],
+  );
+
+  const thursdayOptions = useMemo(
+    () =>
+      driverSubgroups.filter(
+        (item) =>
+          item.groupId === driverOwnerForm.groupId &&
+          item.type === "THURSDAY_GROUP" &&
+          (item.isActive || item.id === driverOwnerForm.thursdayGroupSubgroupId),
+      ),
+    [
+      driverOwnerForm.groupId,
+      driverOwnerForm.thursdayGroupSubgroupId,
+      driverSubgroups,
+    ],
+  );
 
   const filteredDriverOwners = useMemo(() => {
     const normalizedSearch = driverOwnerSearch.trim();
@@ -326,6 +384,15 @@ export default function ConductoresPage() {
       isPropietario: driverOwner.isPropietario,
       municipalLicense: driverOwner.municipalLicense,
       shifts: driverOwner.shifts,
+      groupId: driverOwner.groupId,
+      groupCode: driverOwner.groupCode,
+      groupName: driverOwner.groupName,
+      categorySubgroupId: driverOwner.categorySubgroupId,
+      categoryCode: driverOwner.categoryCode,
+      categoryName: driverOwner.categoryName,
+      thursdayGroupSubgroupId: driverOwner.thursdayGroupSubgroupId,
+      thursdayGroupCode: driverOwner.thursdayGroupCode,
+      thursdayGroupName: driverOwner.thursdayGroupName,
       emergencyContactName: driverOwner.emergencyContactName,
       emergencyContactEmail: driverOwner.emergencyContactEmail,
       emergencyContactPhone: driverOwner.emergencyContactPhone,
@@ -337,6 +404,7 @@ export default function ConductoresPage() {
     });
     setDriverOwnerMessage("");
     setDriverOwnerError("");
+    setClassificationHint("");
   }
 
   function resetDriverOwnerForm() {
@@ -344,6 +412,31 @@ export default function ConductoresPage() {
     setIsListPanelCollapsed(false);
     setDriverOwnerMessage("");
     setDriverOwnerError("");
+    setClassificationHint("");
+  }
+
+  function handleGroupChange(groupId: string) {
+    const hadCategory = Boolean(driverOwnerForm.categorySubgroupId);
+    const hadThursday = Boolean(driverOwnerForm.thursdayGroupSubgroupId);
+
+    setDriverOwnerForm((currentForm) => ({
+      ...currentForm,
+      groupId,
+      categorySubgroupId: "",
+      categoryCode: "",
+      categoryName: "",
+      thursdayGroupSubgroupId: "",
+      thursdayGroupCode: "",
+      thursdayGroupName: "",
+    }));
+
+    if (hadCategory || hadThursday) {
+      setClassificationHint(
+        "Se limpiaron categoría y grupo jueves porque no aplican al nuevo grupo principal.",
+      );
+    } else {
+      setClassificationHint("");
+    }
   }
 
   function clearListFilters() {
@@ -1279,7 +1372,7 @@ export default function ConductoresPage() {
                     <span>Móvil</span>
                     <span>Nombre</span>
                     <span>Tipo</span>
-                    <span>Turnos</span>
+                    <span>Clasificación</span>
                     <span>Estado</span>
                   </div>
                   <div className="divide-y divide-[#c5d8eb]">
@@ -1337,8 +1430,8 @@ export default function ConductoresPage() {
                           driverOwner.isPropietario,
                         )}
                       </span>
-                      <span className="text-slate-600">
-                        {formatShifts(driverOwner.shifts)}
+                      <span className="min-w-0 truncate text-slate-600">
+                        {formatOperationalLabel(driverOwner)}
                       </span>
                       <span
                         className={
@@ -1653,32 +1746,120 @@ export default function ConductoresPage() {
 
                 <div className="sm:col-span-2">
                   <span className="mb-2 block text-xs font-semibold text-[#173b68]">
-                    Turnos
+                    Clasificación operacional
                   </span>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {shiftOptions.map((shift) => (
-                      <label
-                        key={shift.value}
-                        className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-xs font-semibold text-[#173b68]"
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[11px] font-semibold text-[#173b68]">
+                        Grupo principal
+                      </span>
+                      <select
+                        required={driverOwnerForm.isConductor}
+                        value={driverOwnerForm.groupId}
+                        onChange={(event) => handleGroupChange(event.target.value)}
+                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                       >
-                        {shift.label}
-                        <input
-                          type="checkbox"
-                          checked={driverOwnerForm.shifts.includes(shift.value)}
-                          onChange={() =>
-                            setDriverOwnerForm((currentForm) => ({
-                              ...currentForm,
-                              shifts: toggleDriverOwnerShift(
-                                currentForm.shifts,
-                                shift.value,
-                              ),
-                            }))
-                          }
-                          className="h-4 w-4 accent-[#0b5cab]"
-                        />
-                      </label>
-                    ))}
+                        <option value="">Selecciona</option>
+                        {activeGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name}
+                            {!group.isActive ? " (inactivo)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[11px] font-semibold text-[#173b68]">
+                        Categoría
+                      </span>
+                      <select
+                        value={driverOwnerForm.categorySubgroupId}
+                        disabled={!driverOwnerForm.groupId}
+                        onChange={(event) =>
+                          setDriverOwnerForm((currentForm) => ({
+                            ...currentForm,
+                            categorySubgroupId: event.target.value,
+                          }))
+                        }
+                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100"
+                      >
+                        <option value="">Sin asignar</option>
+                        {categoryOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[11px] font-semibold text-[#173b68]">
+                        Grupo jueves
+                      </span>
+                      <select
+                        value={driverOwnerForm.thursdayGroupSubgroupId}
+                        disabled={!driverOwnerForm.groupId}
+                        onChange={(event) =>
+                          setDriverOwnerForm((currentForm) => ({
+                            ...currentForm,
+                            thursdayGroupSubgroupId: event.target.value,
+                          }))
+                        }
+                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100"
+                      >
+                        <option value="">Sin asignar</option>
+                        {thursdayOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
+                  {classificationHint ? (
+                    <p className="mt-2 text-[11px] font-medium text-amber-800">
+                      {classificationHint}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      El grupo principal reemplaza los checks de turno. Categoría y
+                      grupo jueves son opcionales.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 py-3 sm:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Clasificación del móvil
+                  </p>
+                  <dl className="mt-2 grid gap-1.5 text-sm text-[#0f2747] sm:grid-cols-3">
+                    <div>
+                      <dt className="text-[11px] text-slate-500">Grupo principal</dt>
+                      <dd className="font-semibold">
+                        {driverOwnerForm.groupId
+                          ? activeGroups.find(
+                              (group) => group.id === driverOwnerForm.groupId,
+                            )?.name || "—"
+                          : "Sin conductor asignado"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-slate-500">Categoría</dt>
+                      <dd className="font-semibold">
+                        {categoryOptions.find(
+                          (item) => item.id === driverOwnerForm.categorySubgroupId,
+                        )?.name || "Sin asignar"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-slate-500">Grupo jueves</dt>
+                      <dd className="font-semibold">
+                        {thursdayOptions.find(
+                          (item) =>
+                            item.id === driverOwnerForm.thursdayGroupSubgroupId,
+                        )?.name || "Sin asignar"}
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">

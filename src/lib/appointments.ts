@@ -289,6 +289,8 @@ export type Appointment = {
   driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   rejectionMessage: string;
+  operationalClassificationLabel?: string;
+  operationalClassificationShort?: string;
   createdAt: string;
   status: AppointmentStatus;
 };

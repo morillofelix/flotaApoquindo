@@ -117,13 +117,49 @@ export function toAppointment(
     observation?: string;
     evidenceImageFileName?: string;
     evidenceImageData?: string | null;
+    driverGroupCodeSnapshot?: string;
+    driverGroupNameSnapshot?: string;
+    driverCategoryCodeSnapshot?: string;
+    driverCategoryNameSnapshot?: string;
+    driverThursdayGroupCodeSnapshot?: string;
+    driverThursdayGroupNameSnapshot?: string;
     createdAt: Date;
   },
   reasonConfig?: AppointmentReasonConfig,
+  classification?: {
+    label: string;
+    shortLabel: string;
+  },
 ): Appointment {
   const status = validStatuses.includes(value.status as AppointmentStatus)
     ? (value.status as AppointmentStatus)
     : "pendiente";
+
+  const preferSnapshot =
+    (status === "aprobado" || status === "rechazado" || status === "cancelado") &&
+    Boolean(value.driverGroupNameSnapshot?.trim());
+
+  const snapshotLabel = preferSnapshot
+    ? [
+        value.driverGroupNameSnapshot,
+        value.driverCategoryNameSnapshot
+          ? `Categoría ${value.driverCategoryNameSnapshot}`
+          : "Sin categoría",
+        value.driverThursdayGroupNameSnapshot || "Sin grupo jueves",
+      ].join(" | ")
+    : "";
+
+  const snapshotShort = preferSnapshot
+    ? [
+        value.driverGroupNameSnapshot,
+        value.driverCategoryCodeSnapshot || value.driverCategoryNameSnapshot || null,
+        value.driverThursdayGroupCodeSnapshot ||
+          value.driverThursdayGroupNameSnapshot ||
+          null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   return {
     id: value.id,
@@ -188,6 +224,10 @@ export function toAppointment(
     driverApprovalRejected: value.driverApprovalRejected ?? false,
     driverApprovalMessage: value.driverApprovalMessage,
     rejectionMessage: value.rejectionMessage ?? "",
+    operationalClassificationLabel:
+      snapshotLabel || classification?.label || "Clasificación pendiente de asignación",
+    operationalClassificationShort:
+      snapshotShort || classification?.shortLabel || "—",
     status,
     createdAt: value.createdAt.toISOString(),
   };

@@ -4,7 +4,6 @@ import {
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import { adminFetchInit } from "@/lib/admin-fetch";
-import { getVehicleShiftLabel } from "@/lib/driver-owners";
 
 export const statusLabels: Record<AppointmentStatus, string> = {
   pendiente: "Pendiente",
@@ -244,8 +243,9 @@ function escapeHtml(value: string) {
 
 function createExcelTable(
   appointments: Appointment[],
-  vehicleShiftLookup?: Map<string, string>,
+  _vehicleShiftLookup?: Map<string, string>,
 ) {
+  void _vehicleShiftLookup;
   const rows = appointments
     .map((appointment) => {
       const dateFrom =
@@ -274,10 +274,7 @@ function createExcelTable(
           <td>${escapeHtml(appointment.driverName)}</td>
           <td>${escapeHtml(appointment.vehicleNumber)}</td>
           <td>${escapeHtml(
-            getVehicleShiftLabel(
-              appointment.vehicleNumber,
-              vehicleShiftLookup ?? new Map(),
-            ),
+            appointment.operationalClassificationShort || "—",
           )}</td>
           <td>${escapeHtml(getRequiredDateSummary(appointment) || "No aplica")}</td>
           <td>${escapeHtml(appointment.appointmentReasonLabel)}</td>
@@ -310,7 +307,7 @@ function createExcelTable(
               <th>Origen</th>
               <th>Conductor</th>
               <th>Móvil</th>
-              <th>Turno</th>
+              <th>Clasificación</th>
               <th>Fecha requerida</th>
               <th>Motivo</th>
               <th>Observación</th>

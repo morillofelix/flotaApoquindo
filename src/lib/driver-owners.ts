@@ -16,6 +16,15 @@ export type DriverOwnerConfig = {
   isPropietario: boolean;
   municipalLicense: string;
   shifts: ShiftType[];
+  groupId: string;
+  groupCode: string;
+  groupName: string;
+  categorySubgroupId: string;
+  categoryCode: string;
+  categoryName: string;
+  thursdayGroupSubgroupId: string;
+  thursdayGroupCode: string;
+  thursdayGroupName: string;
   emergencyContactName: string;
   emergencyContactEmail: string;
   emergencyContactPhone: string;
@@ -43,8 +52,8 @@ export function getTemporaryPasswordFromRut(rut: string) {
 }
 
 export const driverOwnerCsvTemplate = [
-  "activo,nombre,correo,rut,fecha_vencimiento_carnet,fecha_nacimiento,telefono_fijo,telefono_movil,direccion,estado,tipo,licencia_municipal,turnos,nombre_contacto_emergencia,correo_contacto_emergencia,telefono_contacto_emergencia,patente,fecha_vencimiento_revision,tipo_vehiculo,fecha_suscripcion",
-  '001,Juan Pérez,juan@ejemplo.com,12.345.678-9,31-12-2026,15-03-1985,22334455,912345678,Av. Principal 123,V,"Conductor; Propietario",LM-12345,"Diurno; Nocturno",María Pérez,maria@ejemplo.com,987654321,ABCD12,30-06-2026,Sedan,01-01-2024',
+  "activo,nombre,correo,rut,fecha_vencimiento_carnet,fecha_nacimiento,telefono_fijo,telefono_movil,direccion,estado,tipo,licencia_municipal,turnos,grupo_principal,categoria,grupo_jueves,nombre_contacto_emergencia,correo_contacto_emergencia,telefono_contacto_emergencia,patente,fecha_vencimiento_revision,tipo_vehiculo,fecha_suscripcion",
+  '001,Juan Pérez,juan@ejemplo.com,12.345.678-9,31-12-2026,15-03-1985,22334455,912345678,Av. Principal 123,V,"Conductor; Propietario",LM-12345,Diurno,DIURNO,B,G1,María Pérez,maria@ejemplo.com,987654321,ABCD12,30-06-2026,Sedan,01-01-2024',
 ].join("\n");
 
 const shiftAliases: Record<string, ShiftType> = {
@@ -92,6 +101,17 @@ const headerAliases: Record<string, string> = {
   licencia_municipal: "municipalLicense",
   turnos: "shifts",
   turno: "shifts",
+  grupo_principal: "groupCode",
+  grupo: "groupCode",
+  group_code: "groupCode",
+  groupCode: "groupCode",
+  categoria: "categoryCode",
+  category: "categoryCode",
+  category_code: "categoryCode",
+  categoryCode: "categoryCode",
+  grupo_jueves: "thursdayGroupCode",
+  thursday_group: "thursdayGroupCode",
+  thursdayGroupCode: "thursdayGroupCode",
   nombre_contacto_emergencia: "emergencyContactName",
   correo_contacto_emergencia: "emergencyContactEmail",
   telefono_contacto_emergencia: "emergencyContactPhone",
@@ -1173,6 +1193,11 @@ export function parseDriverOwnersCsv(content: string) {
     const fullName = (record.fullName ?? "").trim();
     const personTypes = parsePersonTypes(record.personTypes ?? "");
     const shifts = parseShifts(record.shifts ?? "");
+    const groupCode = (record.groupCode ?? "").trim().toUpperCase();
+    const categoryCode = (record.categoryCode ?? "").trim().toUpperCase();
+    const thursdayGroupCode = (record.thursdayGroupCode ?? "")
+      .trim()
+      .toUpperCase();
 
     if (!fullName) {
       errors.push(`Fila ${lineIndex + 1}: el nombre es obligatorio.`);
@@ -1212,6 +1237,15 @@ export function parseDriverOwnersCsv(content: string) {
       isTitular: personTypes.isTitular,
       municipalLicense: (record.municipalLicense ?? "").trim(),
       shifts,
+      groupId: "",
+      groupCode,
+      groupName: "",
+      categorySubgroupId: "",
+      categoryCode,
+      categoryName: "",
+      thursdayGroupSubgroupId: "",
+      thursdayGroupCode,
+      thursdayGroupName: "",
       emergencyContactName: (record.emergencyContactName ?? "").trim(),
       emergencyContactEmail: (record.emergencyContactEmail ?? "").trim(),
       emergencyContactPhone: normalizePhone(record.emergencyContactPhone ?? ""),
@@ -1243,6 +1277,20 @@ function parseOptionalDate(value: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+export function formatOperationalLabel(driverOwner: DriverOwnerConfig) {
+  if (!driverOwner.groupName) {
+    return "—";
+  }
+
+  const parts = [
+    driverOwner.groupName,
+    driverOwner.categoryCode || driverOwner.categoryName || null,
+    driverOwner.thursdayGroupCode || driverOwner.thursdayGroupName || null,
+  ].filter(Boolean);
+
+  return parts.join(" · ");
+}
+
 export function toDriverOwner(value: {
   id: string;
   vehicleNumber: string;
@@ -1259,6 +1307,16 @@ export function toDriverOwner(value: {
   isPropietario: boolean;
   municipalLicense: string;
   shifts: string;
+  groupId?: string | null;
+  group?: { id: string; code: string; name: string } | null;
+  subgroupAssignments?: Array<{
+    subgroup: {
+      id: string;
+      code: string;
+      name: string;
+      type: "CATEGORY" | "THURSDAY_GROUP";
+    };
+  }>;
   emergencyContactName: string;
   emergencyContactEmail: string;
   emergencyContactPhone: string;
@@ -1270,6 +1328,13 @@ export function toDriverOwner(value: {
 }): DriverOwnerConfig {
   const formatDate = (date: Date | null) =>
     date ? date.toISOString().split("T")[0] ?? "" : "";
+
+  const category = value.subgroupAssignments?.find(
+    (item) => item.subgroup.type === "CATEGORY",
+  )?.subgroup;
+  const thursday = value.subgroupAssignments?.find(
+    (item) => item.subgroup.type === "THURSDAY_GROUP",
+  )?.subgroup;
 
   return {
     id: value.id,
@@ -1287,6 +1352,15 @@ export function toDriverOwner(value: {
     isPropietario: value.isPropietario,
     municipalLicense: value.municipalLicense,
     shifts: shiftsFromStorage(value.shifts),
+    groupId: value.group?.id ?? value.groupId ?? "",
+    groupCode: value.group?.code ?? "",
+    groupName: value.group?.name ?? "",
+    categorySubgroupId: category?.id ?? "",
+    categoryCode: category?.code ?? "",
+    categoryName: category?.name ?? "",
+    thursdayGroupSubgroupId: thursday?.id ?? "",
+    thursdayGroupCode: thursday?.code ?? "",
+    thursdayGroupName: thursday?.name ?? "",
     emergencyContactName: value.emergencyContactName,
     emergencyContactEmail: value.emergencyContactEmail,
     emergencyContactPhone: value.emergencyContactPhone,
@@ -1298,11 +1372,31 @@ export function toDriverOwner(value: {
   };
 }
 
-export function toDriverOwnerCreateData(
-  row: Omit<ParsedDriverOwnerRow, "rowNumber" | "isTitular"> & {
-    isTitular?: boolean;
-  },
-) {
+export function toDriverOwnerCreateData(row: {
+  vehicleNumber: string;
+  fullName: string;
+  email: string;
+  rut: string;
+  licenseExpiryDate: string;
+  birthDate: string;
+  landlinePhone: string;
+  mobilePhone: string;
+  address: string;
+  recordStatus: string;
+  isConductor: boolean;
+  isPropietario: boolean;
+  municipalLicense: string;
+  shifts: ShiftType[];
+  groupId?: string;
+  emergencyContactName: string;
+  emergencyContactEmail: string;
+  emergencyContactPhone: string;
+  licensePlate: string;
+  inspectionExpiryDate: string;
+  vehicleType: string;
+  subscriptionDate: string;
+  isActive: boolean;
+}) {
   return {
     vehicleNumber: row.vehicleNumber,
     fullName: row.fullName,
@@ -1318,6 +1412,7 @@ export function toDriverOwnerCreateData(
     isPropietario: row.isPropietario,
     municipalLicense: row.municipalLicense,
     shifts: shiftsToStorage(row.shifts),
+    groupId: row.groupId || null,
     emergencyContactName: row.emergencyContactName,
     emergencyContactEmail: row.emergencyContactEmail,
     emergencyContactPhone: row.emergencyContactPhone,
@@ -1350,6 +1445,9 @@ export function downloadDriverOwnersExcel(
           <td>${escapeExcelHtml(row.fullName)}</td>
           <td>${escapeExcelHtml(formatPersonTypes(row.isConductor, row.isPropietario))}</td>
           <td>${escapeExcelHtml(formatShifts(row.shifts))}</td>
+          <td>${escapeExcelHtml(row.groupCode || row.groupName || "")}</td>
+          <td>${escapeExcelHtml(row.categoryCode || row.categoryName || "")}</td>
+          <td>${escapeExcelHtml(row.thursdayGroupCode || row.thursdayGroupName || "")}</td>
           <td>${escapeExcelHtml(row.isActive ? "Activo" : "Inactivo")}</td>
           <td>${escapeExcelHtml(row.email)}</td>
           <td>${escapeExcelHtml(row.rut)}</td>
@@ -1383,6 +1481,9 @@ export function downloadDriverOwnersExcel(
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Turnos</th>
+              <th>Grupo principal</th>
+              <th>Categoría</th>
+              <th>Grupo jueves</th>
               <th>Estado</th>
               <th>Correo</th>
               <th>RUT</th>

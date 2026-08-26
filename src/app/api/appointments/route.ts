@@ -25,6 +25,13 @@ import {
   shiftsFromStorage,
   type ShiftType,
 } from "@/lib/driver-owners";
+import {
+  backfillDriverGroupsFromShifts,
+  classificationFromDriverRelations,
+  ensureDefaultDriverGroups,
+  formatAppointmentClassificationLabel,
+  formatAppointmentClassificationShort,
+} from "@/lib/driver-groups";
 import { validatePermitHoursRange } from "@/lib/permit-time-rules";
 import { prisma } from "@/lib/prisma";
 import { readDriverSession } from "@/lib/driver-auth";
@@ -277,6 +284,9 @@ export async function GET(request: NextRequest) {
 
   try {
     await ensureDefaultReasons();
+    await ensureDefaultDriverGroups();
+    await backfillDriverGroupsFromShifts();
+
     const reasons = await prisma.appointmentReason.findMany();
     const reasonByValue = new Map(reasons.map((reason) => [reason.value, reason]));
     const appointments = await prisma.appointment.findMany({
@@ -287,10 +297,24 @@ export async function GET(request: NextRequest) {
       select: {
         vehicleNumber: true,
         shifts: true,
+        isConductor: true,
+        groupId: true,
+        group: { select: { id: true, code: true, name: true } },
+        subgroupAssignments: {
+          select: {
+            subgroup: {
+              select: { id: true, code: true, name: true, type: true, isActive: true },
+            },
+          },
+        },
       },
     });
     const vehicleShiftByNumber: Record<string, string> = {};
     const vehicleShiftsByNumber: Record<string, ShiftType[]> = {};
+    const vehicleClassificationByNumber: Record<
+      string,
+      { label: string; shortLabel: string }
+    > = {};
 
     for (const driverOwner of driverOwners) {
       const key = normalizeVehicleNumber(driverOwner.vehicleNumber);
@@ -302,16 +326,42 @@ export async function GET(request: NextRequest) {
       const shifts = shiftsFromStorage(driverOwner.shifts);
       vehicleShiftsByNumber[key] = shifts;
       vehicleShiftByNumber[key] = formatShifts(shifts);
+
+      if (!driverOwner.isConductor) {
+        continue;
+      }
+
+      const classification = classificationFromDriverRelations(driverOwner);
+      vehicleClassificationByNumber[key] = {
+        label: formatAppointmentClassificationLabel({
+          hasVehicle: true,
+          hasDriver: true,
+          classification,
+        }),
+        shortLabel: formatAppointmentClassificationShort(classification),
+      };
     }
 
     return NextResponse.json({
-      appointments: appointments.map((appointment) =>
-        toAppointment(
+      appointments: appointments.map((appointment) => {
+        const key = normalizeVehicleNumber(appointment.vehicleNumber);
+        const classification = key
+          ? vehicleClassificationByNumber[key]
+          : undefined;
+        const label = appointment.vehicleNumber.trim()
+          ? classification?.label || "Móvil sin conductor asociado"
+          : "Clasificación pendiente de asignación";
+        const shortLabel = appointment.vehicleNumber.trim()
+          ? classification?.shortLabel || "—"
+          : "—";
+
+        return toAppointment(
           appointment,
           toReasonConfig(reasonByValue.get(appointment.appointmentReason) ?? null) ??
             undefined,
-        ),
-      ),
+          { label, shortLabel },
+        );
+      }),
       vehicleShiftByNumber,
       vehicleShiftsByNumber,
     });

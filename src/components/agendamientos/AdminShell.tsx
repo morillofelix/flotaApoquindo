@@ -12,6 +12,7 @@ import {
   fetchAdminSessionClient,
   findActiveAdminNavItem,
   getFirstPermittedAdminRoute,
+  isFlotaPath,
 } from "@/lib/admin-auth-client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -47,42 +48,132 @@ function AdminNavigation({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
+  const flotaActive = isFlotaPath(pathname);
+  const [flotaOpen, setFlotaOpen] = useState(flotaActive);
+
+  useEffect(() => {
+    if (flotaActive) {
+      setFlotaOpen(true);
+    }
+  }, [flotaActive]);
 
   return (
     <nav className="border-b border-[#b7cce4] bg-[#d7e7f8] shadow-sm shadow-slate-200/40">
       <div className="mx-auto flex w-full max-w-[1540px] flex-col gap-3 px-3 py-3 sm:px-6 xl:px-10">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {ADMIN_NAV_ITEMS.map((item) => {
-              const active = item.isActive(pathname, vista);
               const allowed = canAccessAdminNavItem(
                 permissions,
                 item.permission,
                 isSuperAdmin,
               );
 
+              if (item.kind === "link") {
+                const active = item.isActive(pathname, vista);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-disabled={!allowed}
+                    title={
+                      allowed
+                        ? item.label
+                        : `${item.label} (sin permiso de acceso)`
+                    }
+                    className={`inline-flex h-9 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
+                      allowed
+                        ? active
+                          ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
+                          : "text-[#173b68] hover:bg-white/75"
+                        : active
+                          ? "cursor-not-allowed border border-[#c5d8eb] bg-white/50 text-slate-400"
+                          : "cursor-not-allowed text-slate-400/90 hover:bg-white/40"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              }
+
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-disabled={!allowed}
-                  title={
-                    allowed
-                      ? item.label
-                      : `${item.label} (sin permiso de acceso)`
-                  }
-                  className={`inline-flex h-9 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
-                    allowed
-                      ? active
-                        ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
-                        : "text-[#173b68] hover:bg-white/75"
-                      : active
-                        ? "cursor-not-allowed border border-[#c5d8eb] bg-white/50 text-slate-400"
-                        : "cursor-not-allowed text-slate-400/90 hover:bg-white/40"
-                  }`}
-                >
-                  {item.label}
-                </Link>
+                <div key={item.label} className="relative">
+                  <button
+                    type="button"
+                    aria-expanded={flotaOpen}
+                    aria-controls="flota-submenu"
+                    disabled={!allowed}
+                    title={
+                      allowed
+                        ? item.label
+                        : `${item.label} (sin permiso de acceso)`
+                    }
+                    onClick={() => setFlotaOpen((current) => !current)}
+                    className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-semibold transition ${
+                      allowed
+                        ? flotaActive
+                          ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
+                          : "text-[#173b68] hover:bg-white/75"
+                        : "cursor-not-allowed text-slate-400/90"
+                    }`}
+                  >
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="size-4"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 13h13l3-4H9m-6 4v5h2.5M16 18.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm-9 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
+                      />
+                    </svg>
+                    {item.label}
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className={`size-3.5 transition ${flotaOpen ? "rotate-180" : ""}`}
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+
+                  {flotaOpen && allowed ? (
+                    <div
+                      id="flota-submenu"
+                      role="menu"
+                      className="absolute left-0 top-[calc(100%+0.35rem)] z-30 min-w-[11rem] overflow-hidden rounded-2xl border border-[#b7cce4] bg-white p-1 shadow-xl shadow-slate-900/10"
+                    >
+                      {item.children.map((child) => {
+                        const childActive = child.isActive(pathname, vista);
+
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            role="menuitem"
+                            className={`block rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                              childActive
+                                ? "bg-[#0b5cab] text-white"
+                                : "text-[#173b68] hover:bg-[#eef3f9]"
+                            }`}
+                          >
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>

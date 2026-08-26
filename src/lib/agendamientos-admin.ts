@@ -120,6 +120,61 @@ export async function loadPropietarioBanks() {
   return data.banks ?? [];
 }
 
+export async function loadDriverGroups() {
+  const response = await fetch("/api/driver-groups", {
+    ...adminFetchInit,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar los grupos.");
+  }
+
+  const data = (await response.json()) as {
+    groups?: import("@/lib/driver-groups").DriverGroupConfig[];
+  };
+
+  return data.groups ?? [];
+}
+
+export async function loadDriverSubgroups(filters?: {
+  groupId?: string;
+  type?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (filters?.groupId) {
+    params.set("groupId", filters.groupId);
+  }
+
+  if (filters?.type) {
+    params.set("type", filters.type);
+  }
+
+  const query = params.toString();
+  const response = await fetch(
+    `/api/driver-subgroups${query ? `?${query}` : ""}`,
+    {
+      ...adminFetchInit,
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("No se pudieron cargar los subgrupos.");
+  }
+
+  const data = (await response.json()) as {
+    subgroups?: import("@/lib/driver-groups").DriverSubgroupConfig[];
+    types?: Array<{ value: string; label: string }>;
+  };
+
+  return {
+    subgroups: data.subgroups ?? [],
+    types: data.types ?? [],
+  };
+}
+
 function escapeExcelHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")

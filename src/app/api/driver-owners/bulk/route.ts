@@ -3,7 +3,16 @@ import {
   toDriverOwner,
   toDriverOwnerCreateData,
   type ParsedDriverOwnerRow,
+  shiftsToStorage,
 } from "@/lib/driver-owners";
+import {
+  ensureDefaultDriverGroups,
+  groupCodeFromShiftType,
+  primaryShiftFromStorage,
+  resolveSubgroupIdsForDriver,
+  shiftTypeFromGroupCode,
+  syncDriverSubgroupAssignments,
+} from "@/lib/driver-groups";
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -14,6 +23,17 @@ type BulkBody = {
   csvContent?: unknown;
   rows?: unknown;
 };
+
+const driverOwnerInclude = {
+  group: { select: { id: true, code: true, name: true } },
+  subgroupAssignments: {
+    select: {
+      subgroup: {
+        select: { id: true, code: true, name: true, type: true },
+      },
+    },
+  },
+} as const;
 
 function isParsedRow(value: unknown): value is ParsedDriverOwnerRow {
   if (!value || typeof value !== "object") {
@@ -29,6 +49,15 @@ function isParsedRow(value: unknown): value is ParsedDriverOwnerRow {
     typeof row.isPropietario === "boolean" &&
     typeof row.isTitular === "boolean"
   );
+}
+
+function normalizeLookupCode(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 }
 
 export async function POST(request: NextRequest) {
@@ -73,17 +102,95 @@ export async function POST(request: NextRequest) {
   const errors = [...parseErrors];
 
   try {
-    const createData = rows.map((row) => toDriverOwnerCreateData(row));
+    await ensureDefaultDriverGroups();
+
+    const groups = await prisma.driverGroup.findMany({
+      include: { subgroups: true },
+    });
+    const groupByCode = new Map(
+      groups.map((group) => [normalizeLookupCode(group.code), group]),
+    );
+    // Also allow matching by name (Diurno -> DIURNO group)
+    for (const group of groups) {
+      groupByCode.set(normalizeLookupCode(group.name), group);
+    }
 
     await prisma.$transaction(async (transaction) => {
+      await transaction.driverSubgroupAssignment.deleteMany();
       await transaction.driverOwner.deleteMany();
 
-      const chunkSize = 100;
+      for (const row of rows) {
+        let group =
+          (row.groupCode
+            ? groupByCode.get(normalizeLookupCode(row.groupCode))
+            : undefined) ?? null;
 
-      for (let index = 0; index < createData.length; index += chunkSize) {
-        await transaction.driverOwner.createMany({
-          data: createData.slice(index, index + chunkSize),
+        if (!group) {
+          const primary =
+            row.shifts[0] ??
+            primaryShiftFromStorage(shiftsToStorage(row.shifts));
+          if (primary) {
+            group =
+              groupByCode.get(
+                normalizeLookupCode(groupCodeFromShiftType(primary)),
+              ) ?? null;
+          }
+        }
+
+        const shifts = group
+          ? (() => {
+              const shift = shiftTypeFromGroupCode(group.code);
+              return shift ? [shift] : row.shifts.slice(0, 1);
+            })()
+          : row.shifts.slice(0, 1);
+
+        const created = await transaction.driverOwner.create({
+          data: toDriverOwnerCreateData({
+            ...row,
+            shifts,
+            groupId: group?.id ?? "",
+          }),
         });
+
+        if (!group) {
+          continue;
+        }
+
+        const categoryCode = normalizeLookupCode(row.categoryCode);
+        const thursdayCode = normalizeLookupCode(row.thursdayGroupCode);
+
+        const category = categoryCode
+          ? group.subgroups.find(
+              (item) =>
+                item.type === "CATEGORY" &&
+                (normalizeLookupCode(item.code) === categoryCode ||
+                  normalizeLookupCode(item.name) === categoryCode),
+            )
+          : undefined;
+        const thursday = thursdayCode
+          ? group.subgroups.find(
+              (item) =>
+                item.type === "THURSDAY_GROUP" &&
+                (normalizeLookupCode(item.code) === thursdayCode ||
+                  normalizeLookupCode(item.name) === thursdayCode),
+            )
+          : undefined;
+
+        const subgroupCheck = await resolveSubgroupIdsForDriver({
+          client: transaction,
+          groupId: group.id,
+          categorySubgroupId: category?.id,
+          thursdayGroupSubgroupId: thursday?.id,
+          requireActive: false,
+        });
+
+        if (subgroupCheck.ok) {
+          await syncDriverSubgroupAssignments(
+            transaction,
+            created.id,
+            subgroupCheck.subgroupIds,
+          );
+        }
       }
     });
   } catch (error) {
@@ -108,6 +215,7 @@ export async function POST(request: NextRequest) {
   }
 
   const driverOwners = await prisma.driverOwner.findMany({
+    include: driverOwnerInclude,
     orderBy: [{ vehicleNumber: "asc" }],
   });
 

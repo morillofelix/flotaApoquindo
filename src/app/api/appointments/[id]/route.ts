@@ -20,6 +20,10 @@ import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-s
 import { requireAdminPermission, requireDriverSession } from "@/lib/admin-api-server";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
+import {
+  classificationSnapshotFields,
+  findClassificationByVehicleNumber,
+} from "@/lib/driver-groups";
 import { normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
@@ -895,6 +899,20 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     ) {
       data.dateChangePending = true;
       data.dateChangeMessage = buildCancellationMessage(previousAppointment);
+    }
+
+    if (
+      data.status === "aprobado" &&
+      previousAppointment.status !== "aprobado" &&
+      !currentAppointment.driverGroupNameSnapshot
+    ) {
+      const found = await findClassificationByVehicleNumber(
+        currentAppointment.vehicleNumber,
+      );
+      Object.assign(
+        data,
+        classificationSnapshotFields(found.classification),
+      );
     }
 
     const updatedAppointment = await prisma.appointment.update({
