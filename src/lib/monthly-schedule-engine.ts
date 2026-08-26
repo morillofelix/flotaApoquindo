@@ -46,7 +46,7 @@ function baseStatusCodeFromShift(
     | undefined,
 ) {
   const weekday = isoWeekday(date);
-  let baseCode = weekday >= 6 ? "LIBRE" : "TRABAJA";
+  const baseCode = weekday >= 6 ? "LIBRE" : "TRABAJA";
 
   if (!shift) {
     return baseCode;
