@@ -51,6 +51,8 @@ model Appointment {
   driverThursdayGroupNameSnapshot   String @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  dailySchedules       DailySchedule[]
+  dailyScheduleEvents  DailyScheduleEvent[]
 
   @@index([status])
   @@index([assignedExecutive])
@@ -109,15 +111,16 @@ model Executive {
 }
 
 model DriverGroup {
-  id        String           @id @default(uuid())
-  code      String           @unique
-  name      String
-  isActive  Boolean          @default(true)
-  sortOrder Int              @default(0)
-  subgroups DriverSubgroup[]
-  drivers   DriverOwner[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id               String            @id @default(uuid())
+  code             String            @unique
+  name             String
+  isActive         Boolean           @default(true)
+  sortOrder        Int               @default(0)
+  subgroups        DriverSubgroup[]
+  drivers          DriverOwner[]
+  shiftDefinitions ShiftDefinition[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([isActive])
   @@index([sortOrder])
@@ -129,17 +132,18 @@ enum DriverSubgroupType {
 }
 
 model DriverSubgroup {
-  id          String                     @id @default(uuid())
-  code        String
-  name        String
-  type        DriverSubgroupType
-  isActive    Boolean                    @default(true)
-  sortOrder   Int                        @default(0)
-  groupId     String
-  group       DriverGroup                @relation(fields: [groupId], references: [id])
-  assignments DriverSubgroupAssignment[]
-  createdAt   DateTime                   @default(now())
-  updatedAt   DateTime                   @updatedAt
+  id                       String                     @id @default(uuid())
+  code                     String
+  name                     String
+  type                     DriverSubgroupType
+  isActive                 Boolean                    @default(true)
+  sortOrder                Int                        @default(0)
+  groupId                  String
+  group                    DriverGroup                @relation(fields: [groupId], references: [id])
+  assignments              DriverSubgroupAssignment[]
+  shiftDefinitionsAsCategory ShiftDefinition[]
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
 
   @@unique([groupId, type, code])
   @@index([groupId, type, isActive])
@@ -190,6 +194,10 @@ model DriverOwner {
   tempPasswordSentAt     DateTime?
   mustChangePassword     Boolean   @default(false)
   isActive               Boolean   @default(true)
+  shiftAssignments       DriverShiftAssignment[]
+  dailySchedules         DailySchedule[]
+  blocks                 DriverBlock[]
+  longTripRestrictions   DriverLongTripRestriction[]
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -281,6 +289,10 @@ model Holiday {
   name                String
   year                Int
   scope               String   @default("nacional")
+  holidayType         String   @default("")
+  region              String   @default("")
+  commune             String   @default("")
+  isIrrenunciable     Boolean  @default(false)
   businessDaysAdvance Int      @default(15)
   isActive            Boolean  @default(true)
   source              String   @default("manual")
@@ -312,4 +324,297 @@ model AccessUser {
 
   @@index([isActive])
   @@index([isSuperAdmin])
+}
+
+/// Estados diarios parametrizables de la planificación mensual.
+model OperationalStatus {
+  id                     String          @id @default(uuid())
+  code                   String          @unique
+  name                   String
+  color                  String          @default("#64748b")
+  icon                   String          @default("")
+  priority               Int             @default(100)
+  indicatesAvailability  Boolean         @default(false)
+  blocksAssignments      Boolean         @default(false)
+  isActive               Boolean         @default(true)
+  sortOrder              Int             @default(0)
+  baseDailySchedules     DailySchedule[] @relation("DailyBaseStatus")
+  effectiveDailySchedules DailySchedule[] @relation("DailyEffectiveStatus")
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([isActive])
+  @@index([priority])
+  @@index([sortOrder])
+}
+
+/// Definición de turno operativo (mantenedor Turnos).
+model ShiftDefinition {
+  id                   String                  @id @default(uuid())
+  code                 String                  @unique
+  name                 String
+  description          String                  @default("") @db.Text
+  groupId              String?
+  group                DriverGroup?            @relation(fields: [groupId], references: [id])
+  categorySubgroupId   String?
+  categorySubgroup     DriverSubgroup?         @relation(fields: [categorySubgroupId], references: [id])
+  startTime            String                  @default("")
+  endTime              String                  @default("")
+  crossesMidnight      Boolean                 @default(false)
+  isActive             Boolean                 @default(true)
+  color                String                  @default("#0b5cab")
+  validFrom            DateTime?               @db.Date
+  validTo              DateTime?               @db.Date
+  saturdayRule         String                  @default("default")
+  sundayRule           String                  @default("default")
+  holidayRule          String                  @default("default")
+  cycleLengthDays      Int                     @default(0)
+  cycleStartDate       DateTime?               @db.Date
+  observation          String                  @default("") @db.Text
+  patternId            String?
+  pattern              ShiftPattern?           @relation(fields: [patternId], references: [id])
+  dayRules             ShiftDayRule[]
+  assignments          DriverShiftAssignment[]
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@index([isActive])
+  @@index([groupId])
+  @@index([categorySubgroupId])
+  @@index([patternId])
+}
+
+model ShiftDayRule {
+  id                String          @id @default(uuid())
+  shiftDefinitionId String
+  shiftDefinition   ShiftDefinition @relation(fields: [shiftDefinitionId], references: [id], onDelete: Cascade)
+  /// ISO weekday: 1 = lunes … 7 = domingo.
+  weekday           Int
+  works             Boolean         @default(true)
+  startTime         String          @default("")
+  endTime           String          @default("")
+  durationMinutes   Int             @default(0)
+  defaultStatusCode String          @default("TRABAJA")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([shiftDefinitionId, weekday])
+  @@index([shiftDefinitionId])
+}
+
+model ShiftPattern {
+  id                  String                  @id @default(uuid())
+  code                String                  @unique
+  name                String
+  description         String                  @default("") @db.Text
+  cycleLengthDays     Int                     @default(7)
+  baseDate            DateTime?               @db.Date
+  holidayApplication  String                  @default("default")
+  weekendApplication  String                  @default("default")
+  isActive            Boolean                 @default(true)
+  days                ShiftPatternDay[]
+  shiftDefinitions    ShiftDefinition[]
+  assignments         DriverShiftAssignment[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([isActive])
+}
+
+model ShiftPatternDay {
+  id        String       @id @default(uuid())
+  patternId String
+  pattern   ShiftPattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  dayOffset Int
+  statusCode String      @default("TRABAJA")
+  startTime String       @default("")
+  endTime   String       @default("")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([patternId, dayOffset])
+  @@index([patternId])
+}
+
+/// Asignación histórica de turno/patrón a un conductor-móvil.
+model DriverShiftAssignment {
+  id                String           @id @default(uuid())
+  driverOwnerId     String
+  driverOwner       DriverOwner      @relation(fields: [driverOwnerId], references: [id], onDelete: Cascade)
+  shiftDefinitionId String?
+  shiftDefinition   ShiftDefinition? @relation(fields: [shiftDefinitionId], references: [id])
+  patternId         String?
+  pattern           ShiftPattern?    @relation(fields: [patternId], references: [id])
+  effectiveFrom     DateTime         @db.Date
+  effectiveTo       DateTime?        @db.Date
+  isActive          Boolean          @default(true)
+  observation       String           @default("") @db.Text
+  createdByEmail    String           @default("")
+  dailySchedules    DailySchedule[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([driverOwnerId, effectiveFrom])
+  @@index([shiftDefinitionId])
+  @@index([patternId])
+  @@index([isActive])
+}
+
+model MonthlySchedule {
+  id               String          @id @default(uuid())
+  year             Int
+  month            Int
+  status           String          @default("draft")
+  generatedAt      DateTime?
+  generatedByEmail String          @default("")
+  notes            String          @default("") @db.Text
+  days             DailySchedule[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([year, month])
+  @@index([status])
+}
+
+model DailySchedule {
+  id                 String                 @id @default(uuid())
+  monthlyScheduleId  String?
+  monthlySchedule    MonthlySchedule?       @relation(fields: [monthlyScheduleId], references: [id])
+  date               DateTime               @db.Date
+  driverOwnerId      String
+  driverOwner        DriverOwner            @relation(fields: [driverOwnerId], references: [id], onDelete: Cascade)
+  vehicleNumber      String
+  shiftAssignmentId  String?
+  shiftAssignment    DriverShiftAssignment? @relation(fields: [shiftAssignmentId], references: [id])
+  baseStatusId       String?
+  baseStatus         OperationalStatus?     @relation("DailyBaseStatus", fields: [baseStatusId], references: [id])
+  effectiveStatusId  String?
+  effectiveStatus    OperationalStatus?     @relation("DailyEffectiveStatus", fields: [effectiveStatusId], references: [id])
+  appointmentId      String?
+  appointment        Appointment?           @relation(fields: [appointmentId], references: [id])
+  driverBlockId      String?
+  driverBlock        DriverBlock?           @relation(fields: [driverBlockId], references: [id])
+  observation        String                 @default("") @db.Text
+  changeOrigin       String                 @default("generated")
+  isManualOverride   Boolean                @default(false)
+  modifiedByEmail    String                 @default("")
+  modifiedAt         DateTime?
+  version            Int                    @default(1)
+  events             DailyScheduleEvent[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([driverOwnerId, date])
+  @@index([date])
+  @@index([vehicleNumber, date])
+  @@index([monthlyScheduleId])
+  @@index([effectiveStatusId])
+  @@index([appointmentId])
+  @@index([driverBlockId])
+  @@index([isManualOverride])
+}
+
+model DailyScheduleEvent {
+  id              String        @id @default(uuid())
+  dailyScheduleId String
+  dailySchedule   DailySchedule @relation(fields: [dailyScheduleId], references: [id], onDelete: Cascade)
+  appointmentId   String?
+  appointment     Appointment?  @relation(fields: [appointmentId], references: [id])
+  eventType       String        @default("appointment")
+  startAt         DateTime?
+  endAt           DateTime?
+  label           String        @default("")
+  metadata        String        @default("") @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([dailyScheduleId])
+  @@index([appointmentId])
+  @@index([eventType])
+}
+
+model BlockReason {
+  id                   String        @id @default(uuid())
+  code                 String        @unique
+  name                 String
+  requiresManualUnlock Boolean       @default(false)
+  blocksAllServices    Boolean       @default(true)
+  blocksLongTripsOnly  Boolean       @default(false)
+  isActive             Boolean       @default(true)
+  sortOrder            Int           @default(0)
+  blocks               DriverBlock[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model DriverBlock {
+  id                   String          @id @default(uuid())
+  driverOwnerId        String
+  driverOwner          DriverOwner     @relation(fields: [driverOwnerId], references: [id], onDelete: Cascade)
+  blockReasonId        String
+  blockReason          BlockReason     @relation(fields: [blockReasonId], references: [id])
+  startsAt             DateTime
+  endsAt               DateTime?
+  observation          String          @default("") @db.Text
+  evidenceFileName     String          @default("")
+  evidenceMimeType     String          @default("")
+  evidenceData         String          @default("") @db.Text
+  blocksAllServices    Boolean         @default(true)
+  blocksLongTripsOnly  Boolean         @default(false)
+  requiresManualUnlock Boolean         @default(false)
+  status               String          @default("scheduled")
+  createdByEmail       String          @default("")
+  unlockedAt           DateTime?
+  unlockedByEmail      String          @default("")
+  unlockType           String          @default("")
+  unlockReason         String          @default("")
+  isActive             Boolean         @default(true)
+  dailySchedules       DailySchedule[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([driverOwnerId, startsAt])
+  @@index([blockReasonId])
+  @@index([status])
+  @@index([isActive])
+}
+
+/// Restricción independiente de “Tercer fichero”.
+model DriverLongTripRestriction {
+  id             String      @id @default(uuid())
+  driverOwnerId  String
+  driverOwner    DriverOwner @relation(fields: [driverOwnerId], references: [id], onDelete: Cascade)
+  status         String      @default("enabled")
+  startsAt       DateTime?
+  endsAt         DateTime?
+  reason         String      @default("")
+  observation    String      @default("") @db.Text
+  createdByEmail String      @default("")
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([driverOwnerId, isActive])
+  @@index([status])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  module        String
+  action        String
+  entityType    String
+  entityId      String   @default("")
+  previousValue String   @default("") @db.Text
+  newValue      String   @default("") @db.Text
+  reason        String   @default("")
+  origin        String   @default("manual")
+  userEmail     String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([module, createdAt])
+  @@index([entityType, entityId])
+  @@index([userEmail, createdAt])
 }

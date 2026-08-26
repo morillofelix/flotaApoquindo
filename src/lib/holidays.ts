@@ -12,6 +12,10 @@ export type HolidayConfig = {
   name: string;
   year: number;
   scope: string;
+  holidayType: string;
+  region: string;
+  commune: string;
+  isIrrenunciable: boolean;
   businessDaysAdvance: number;
   isActive: boolean;
   source: string;
@@ -74,6 +78,10 @@ export function toHolidayConfig(value: {
   name: string;
   year: number;
   scope: string;
+  holidayType?: string;
+  region?: string;
+  commune?: string;
+  isIrrenunciable?: boolean;
   businessDaysAdvance: number;
   isActive: boolean;
   source: string;
@@ -88,6 +96,10 @@ export function toHolidayConfig(value: {
     name: value.name,
     year: value.year,
     scope: value.scope,
+    holidayType: value.holidayType ?? "",
+    region: value.region ?? "",
+    commune: value.commune ?? "",
+    isIrrenunciable: value.isIrrenunciable ?? false,
     businessDaysAdvance: value.businessDaysAdvance,
     isActive: value.isActive,
     source: value.source,
