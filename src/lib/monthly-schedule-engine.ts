@@ -12,12 +12,25 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 export type GenerateScope = {
-  /** all | group | vehicle | range */
-  mode?: "all" | "group" | "vehicle" | "range";
+  /** all | group | vehicle | range | vehicles */
+  mode?: "all" | "group" | "vehicle" | "range" | "vehicles";
   groupId?: string;
   vehicleNumber?: string;
   vehicleFrom?: string;
   vehicleTo?: string;
+  /** Lista explícita de móviles (lote cliente). */
+  vehicleNumbers?: string[];
+};
+
+export type GenerateProgress = {
+  phase: "preparing" | "batch" | "done";
+  processed: number;
+  total: number;
+  batchIndex: number;
+  batchCount: number;
+  percent: number;
+  lastVehicles?: string[];
+  message: string;
 };
 
 export type GenerateMonthlyScheduleOptions = {
@@ -29,6 +42,7 @@ export type GenerateMonthlyScheduleOptions = {
   scope?: GenerateScope;
   /** Tamaño de lote de conductores por transacción. */
   batchSize?: number;
+  onProgress?: (progress: GenerateProgress) => void | Promise<void>;
 };
 
 const DRIVER_BATCH_SIZE = 40;
@@ -136,6 +150,13 @@ function buildDriverWhere(scope?: GenerateScope): Prisma.DriverOwnerWhereInput {
     where.vehicleNumber = scope.vehicleNumber.trim();
   }
 
+  if (mode === "vehicles") {
+    const numbers = (scope?.vehicleNumbers ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean);
+    where.vehicleNumber = { in: numbers.length ? numbers : ["__none__"] };
+  }
+
   return where;
 }
 
@@ -181,6 +202,15 @@ export async function previewMonthlyScheduleGeneration(options: {
     throw new Error("Selecciona un grupo.");
   }
 
+  if (mode === "vehicles") {
+    const numbers = (options.scope?.vehicleNumbers ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!numbers.length) {
+      throw new Error("Indica al menos un móvil para el lote.");
+    }
+  }
+
   return {
     year: options.year,
     month: options.month,
@@ -189,6 +219,7 @@ export async function previewMonthlyScheduleGeneration(options: {
     daysPerDriver: daysInMonth(options.year, options.month),
     estimatedCells:
       drivers.length * daysInMonth(options.year, options.month),
+    vehicleNumbers: drivers.map((driver) => driver.vehicleNumber),
     sample: drivers.slice(0, 8).map((driver) => ({
       vehicleNumber: driver.vehicleNumber,
       fullName: driver.fullName,
@@ -286,9 +317,32 @@ export async function generateMonthlySchedule(
     throw new Error("Selecciona un grupo.");
   }
 
+  if (mode === "vehicles") {
+    const numbers = (options.scope?.vehicleNumbers ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!numbers.length) {
+      throw new Error("Indica al menos un móvil para el lote.");
+    }
+  }
+
   if (!drivers.length) {
     throw new Error("No hay conductores activos que coincidan con el alcance.");
   }
+
+  const report = async (progress: GenerateProgress) => {
+    await options.onProgress?.(progress);
+  };
+
+  await report({
+    phase: "preparing",
+    processed: 0,
+    total: drivers.length,
+    batchIndex: 0,
+    batchCount: Math.ceil(drivers.length / batchSize),
+    percent: 0,
+    message: `Preparando ${drivers.length} conductores…`,
+  });
 
   const vehicleNumbers = drivers.map((driver) => driver.vehicleNumber);
   const driverIds = drivers.map((driver) => driver.id);
@@ -374,10 +428,13 @@ export async function generateMonthlySchedule(
     batches: 0,
   };
 
+  const batchCount = Math.ceil(drivers.length / batchSize);
+
   for (let offset = 0; offset < drivers.length; offset += batchSize) {
     const batch = drivers.slice(offset, offset + batchSize);
     const batchIds = batch.map((driver) => driver.id);
     summary.batches += 1;
+    const batchIndex = summary.batches;
 
     await prisma.$transaction(
       async (tx) => {
@@ -580,7 +637,29 @@ export async function generateMonthlySchedule(
       },
       { timeout: 120_000 },
     );
+
+    const processed = Math.min(offset + batch.length, drivers.length);
+    await report({
+      phase: "batch",
+      processed,
+      total: drivers.length,
+      batchIndex,
+      batchCount,
+      percent: Math.round((processed / drivers.length) * 100),
+      lastVehicles: batch.map((driver) => driver.vehicleNumber),
+      message: `Lote ${batchIndex}/${batchCount}: ${processed} de ${drivers.length} conductores`,
+    });
   }
+
+  await report({
+    phase: "done",
+    processed: drivers.length,
+    total: drivers.length,
+    batchIndex: batchCount,
+    batchCount,
+    percent: 100,
+    message: `Completado: ${drivers.length} conductores`,
+  });
 
   return summary;
 }

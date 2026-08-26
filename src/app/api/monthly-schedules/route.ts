@@ -30,9 +30,17 @@ function parseScope(body: Record<string, unknown>): GenerateScope {
     modeRaw === "group" ||
     modeRaw === "vehicle" ||
     modeRaw === "range" ||
+    modeRaw === "vehicles" ||
     modeRaw === "all"
       ? modeRaw
       : "all";
+
+  const vehicleNumbers = Array.isArray(body.vehicleNumbers)
+    ? body.vehicleNumbers
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    : undefined;
 
   return {
     mode,
@@ -40,6 +48,7 @@ function parseScope(body: Record<string, unknown>): GenerateScope {
     vehicleNumber: asString(body.vehicleNumber) || undefined,
     vehicleFrom: asString(body.vehicleFrom) || undefined,
     vehicleTo: asString(body.vehicleTo) || undefined,
+    vehicleNumbers,
   };
 }
 
@@ -208,15 +217,65 @@ export async function POST(request: NextRequest) {
     }
 
     const session = readAdminSession(request);
-    const summary = await generateMonthlySchedule({
+    const stream = body.stream === true;
+    const generateOptions = {
       year,
       month,
       generatedByEmail: session?.email ?? "",
       preserveManualOverrides: body.preserveManualOverrides !== false,
       overwriteCalculated: body.overwriteCalculated !== false,
       scope,
+    };
+
+    if (!stream) {
+      const summary = await generateMonthlySchedule(generateOptions);
+      return NextResponse.json({ summary });
+    }
+
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        const send = (payload: Record<string, unknown>) => {
+          controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
+        };
+        try {
+          send({
+            type: "progress",
+            phase: "preparing",
+            processed: 0,
+            total: 0,
+            percent: 0,
+            message: "Iniciando generación…",
+          });
+          const summary = await generateMonthlySchedule({
+            ...generateOptions,
+            onProgress: async (progress) => {
+              send({ type: "progress", ...progress });
+            },
+          });
+          send({ type: "done", summary });
+        } catch (error) {
+          console.error("[monthly-schedules POST stream]", error);
+          send({
+            type: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "No se pudo generar la planificación.",
+          });
+        } finally {
+          controller.close();
+        }
+      },
     });
-    return NextResponse.json({ summary });
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-store, no-cache",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     console.error("[monthly-schedules POST]", error);
     return NextResponse.json(

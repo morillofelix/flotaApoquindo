@@ -80,7 +80,17 @@ type GeneratePreview = {
   driversCount: number;
   daysPerDriver: number;
   estimatedCells: number;
+  vehicleNumbers?: string[];
   sample: Array<{ vehicleNumber: string; fullName: string; groupName: string }>;
+};
+type GenerateProgressState = {
+  phase: "preparing" | "batch" | "done" | "error";
+  processed: number;
+  total: number;
+  percent: number;
+  message: string;
+  batchIndex?: number;
+  batchCount?: number;
 };
 
 const months = Array.from({ length: 12 }, (_, index) =>
@@ -126,6 +136,8 @@ export default function PlanificacionMensualPage() {
   const [preview, setPreview] = useState<GeneratePreview | null>(null);
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [generateProgress, setGenerateProgress] =
+    useState<GenerateProgressState | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -343,6 +355,7 @@ export default function PlanificacionMensualPage() {
     setGenerateForm(emptyGenerateForm());
     setPreview(null);
     setPreviewError("");
+    setGenerateProgress(null);
     setGenerateOpen(true);
   }
 
@@ -353,59 +366,144 @@ export default function PlanificacionMensualPage() {
     }
     if (
       generateForm.mode === "all" &&
-      preview.driversCount > 120 &&
+      preview.driversCount > 200 &&
       !window.confirm(
-        `Vas a generar ${preview.driversCount} conductores (~${preview.estimatedCells} celdas). Puede demorar. ¿Continuar? Recomendado: generar por grupo o por rango (ej. 001-050).`,
+        `Vas a generar ${preview.driversCount} conductores (~${preview.estimatedCells} celdas). Verás el avance lote a lote. ¿Continuar?`,
       )
     ) {
       return;
     }
 
+    const vehicles = preview.vehicleNumbers?.filter(Boolean) ?? [];
+    if (!vehicles.length) {
+      setPreviewError(
+        "No se pudo obtener la lista de móviles. Cambia el alcance o vuelve a abrir el modal.",
+      );
+      return;
+    }
+
+    const chunkSize = 40;
+    const batchCount = Math.ceil(vehicles.length / chunkSize);
+
     setBusy(true);
     setError("");
     setMessage("");
+    setGenerateProgress({
+      phase: "preparing",
+      processed: 0,
+      total: vehicles.length,
+      percent: 0,
+      message: `Preparando ${vehicles.length} conductores en ${batchCount} lotes…`,
+      batchIndex: 0,
+      batchCount,
+    });
+
+    const totals = {
+      driversTargeted: 0,
+      created: 0,
+      updated: 0,
+      preservedManualOverrides: 0,
+      days: 0,
+    };
+
     try {
-      const response = await fetch("/api/monthly-schedules", {
-        ...adminFetchInit,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "generate",
-          year,
-          month,
-          preserveManualOverrides: true,
-          mode: generateForm.mode,
-          groupId: generateForm.groupId,
-          vehicleNumber: generateForm.vehicleNumber,
-          vehicleFrom: generateForm.vehicleFrom,
-          vehicleTo: generateForm.vehicleTo,
-        }),
-      });
-      const body = (await response.json()) as {
-        message?: string;
-        summary?: {
-          driversTargeted?: number;
-          created?: number;
-          updated?: number;
-          preservedManualOverrides?: number;
-          days?: number;
+      for (let offset = 0; offset < vehicles.length; offset += chunkSize) {
+        const chunk = vehicles.slice(offset, offset + chunkSize);
+        const batchIndex = Math.floor(offset / chunkSize) + 1;
+
+        setGenerateProgress({
+          phase: "batch",
+          processed: offset,
+          total: vehicles.length,
+          percent: Math.round((offset / vehicles.length) * 100),
+          message: `Procesando lote ${batchIndex}/${batchCount} (${chunk[0]}…${chunk[chunk.length - 1]})`,
+          batchIndex,
+          batchCount,
+        });
+
+        const response = await fetch("/api/monthly-schedules", {
+          ...adminFetchInit,
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "generate",
+            year,
+            month,
+            preserveManualOverrides: true,
+            mode: "vehicles",
+            vehicleNumbers: chunk,
+          }),
+        });
+        const body = (await response.json()) as {
+          message?: string;
+          summary?: {
+            driversTargeted?: number;
+            created?: number;
+            updated?: number;
+            preservedManualOverrides?: number;
+            days?: number;
+          };
         };
-      };
-      if (!response.ok) {
-        throw new Error(body.message || "No se pudo generar la planificación.");
+        if (!response.ok) {
+          throw new Error(
+            body.message ||
+              `Error en lote ${batchIndex}/${batchCount}. Se generaron ${totals.driversTargeted} conductores antes del fallo.`,
+          );
+        }
+
+        totals.driversTargeted += body.summary?.driversTargeted ?? chunk.length;
+        totals.created += body.summary?.created ?? 0;
+        totals.updated += body.summary?.updated ?? 0;
+        totals.preservedManualOverrides +=
+          body.summary?.preservedManualOverrides ?? 0;
+        totals.days += body.summary?.days ?? 0;
+
+        const processed = Math.min(offset + chunk.length, vehicles.length);
+        setGenerateProgress({
+          phase: "batch",
+          processed,
+          total: vehicles.length,
+          percent: Math.round((processed / vehicles.length) * 100),
+          message: `Lote ${batchIndex}/${batchCount} listo · ${processed} de ${vehicles.length}`,
+          batchIndex,
+          batchCount,
+        });
       }
+
+      setGenerateProgress({
+        phase: "done",
+        processed: vehicles.length,
+        total: vehicles.length,
+        percent: 100,
+        message: "Generación completada",
+        batchIndex: batchCount,
+        batchCount,
+      });
+
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
       setGenerateOpen(false);
+      setGenerateProgress(null);
       await reload();
-      const summary = body.summary;
       setMessage(
-        `Generado: ${summary?.driversTargeted ?? preview.driversCount} conductores · ${summary?.days ?? preview.estimatedCells} días · creados ${summary?.created ?? 0} · actualizados ${summary?.updated ?? 0} · manuales conservados ${summary?.preservedManualOverrides ?? 0}.`,
+        `Completado: ${totals.driversTargeted} conductores · ${totals.days} días · creados ${totals.created} · actualizados ${totals.updated} · manuales conservados ${totals.preservedManualOverrides}.`,
       );
     } catch (caught) {
-      setError(
+      const text =
         caught instanceof Error
           ? caught.message
-          : "No se pudo generar la planificación.",
+          : "No se pudo generar la planificación.";
+      setGenerateProgress((current) =>
+        current
+          ? { ...current, phase: "error", message: text }
+          : {
+              phase: "error",
+              processed: 0,
+              total: vehicles.length,
+              percent: 0,
+              message: text,
+            },
       );
+      setError(text);
     } finally {
       setBusy(false);
     }
@@ -838,6 +936,7 @@ export default function PlanificacionMensualPage() {
               <Label text="Alcance">
                 <select
                   value={generateForm.mode}
+                  disabled={busy}
                   onChange={(e) =>
                     setGenerateForm({
                       ...generateForm,
@@ -856,6 +955,7 @@ export default function PlanificacionMensualPage() {
                 <Label text="Grupo">
                   <select
                     value={generateForm.groupId}
+                    disabled={busy}
                     onChange={(e) =>
                       setGenerateForm({
                         ...generateForm,
@@ -879,6 +979,7 @@ export default function PlanificacionMensualPage() {
                 <Label text="Número de móvil">
                   <input
                     value={generateForm.vehicleNumber}
+                    disabled={busy}
                     onChange={(e) =>
                       setGenerateForm({
                         ...generateForm,
@@ -895,6 +996,7 @@ export default function PlanificacionMensualPage() {
                   <Label text="Desde">
                     <input
                       value={generateForm.vehicleFrom}
+                      disabled={busy}
                       onChange={(e) =>
                         setGenerateForm({
                           ...generateForm,
@@ -908,6 +1010,7 @@ export default function PlanificacionMensualPage() {
                   <Label text="Hasta">
                     <input
                       value={generateForm.vehicleTo}
+                      disabled={busy}
                       onChange={(e) =>
                         setGenerateForm({
                           ...generateForm,
@@ -944,12 +1047,15 @@ export default function PlanificacionMensualPage() {
                         </li>
                       ))}
                       {preview.driversCount > preview.sample.length ? (
-                        <li>… y {preview.driversCount - preview.sample.length} más</li>
+                        <li>
+                          … y {preview.driversCount - preview.sample.length} más
+                        </li>
                       ) : null}
                     </ul>
                   ) : null}
                   <p className="mt-2 text-slate-500">
-                    Se conservan modificaciones manuales ya guardadas.
+                    Se conservan modificaciones manuales ya guardadas. Puedes
+                    generar toda la flota; el avance se muestra abajo.
                   </p>
                 </>
               ) : (
@@ -957,21 +1063,85 @@ export default function PlanificacionMensualPage() {
               )}
             </div>
 
+            {generateProgress ? (
+              <div
+                className={`mt-4 rounded-2xl border p-3 ${
+                  generateProgress.phase === "done"
+                    ? "border-emerald-300 bg-emerald-50"
+                    : generateProgress.phase === "error"
+                      ? "border-red-300 bg-red-50"
+                      : "border-[#b7cce4] bg-white"
+                }`}
+                aria-live="polite"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-[#0f2747]">
+                  <span>
+                    {generateProgress.phase === "done"
+                      ? "Completado"
+                      : generateProgress.phase === "error"
+                        ? "Error en la generación"
+                        : "Generando…"}
+                  </span>
+                  <span>{generateProgress.percent}%</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-[#d7e4f4]">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-300 ease-out ${
+                      generateProgress.phase === "done"
+                        ? "bg-emerald-600"
+                        : generateProgress.phase === "error"
+                          ? "bg-red-500"
+                          : "bg-[#0b5cab]"
+                    }`}
+                    style={{
+                      width: `${Math.min(100, Math.max(0, generateProgress.percent))}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-600">
+                  {generateProgress.message}
+                </p>
+                {generateProgress.total > 0 ? (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {generateProgress.processed} / {generateProgress.total}{" "}
+                    conductores
+                    {generateProgress.batchIndex && generateProgress.batchCount
+                      ? ` · lote ${generateProgress.batchIndex}/${generateProgress.batchCount}`
+                      : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setGenerateOpen(false)}
+                disabled={busy}
+                onClick={() => {
+                  if (busy) return;
+                  setGenerateOpen(false);
+                  setGenerateProgress(null);
+                }}
                 className={buttonClass}
               >
-                Cancelar
+                {generateProgress?.phase === "error" ? "Cerrar" : "Cancelar"}
               </button>
               <button
                 type="button"
-                disabled={busy || previewLoading || !preview?.driversCount}
+                disabled={
+                  busy ||
+                  previewLoading ||
+                  !preview?.driversCount ||
+                  generateProgress?.phase === "done"
+                }
                 onClick={() => void runGenerate()}
                 className={buttonClass}
               >
-                {busy ? "Generando..." : "Confirmar generación"}
+                {busy
+                  ? "Generando…"
+                  : generateProgress?.phase === "error"
+                    ? "Reintentar"
+                    : "Confirmar generación"}
               </button>
             </div>
           </div>
