@@ -49,13 +49,28 @@ function AdminNavigation({
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
   const flotaActive = isFlotaPath(pathname);
-  const [flotaOpen, setFlotaOpen] = useState(flotaActive);
+  const [flotaOpen, setFlotaOpen] = useState(false);
 
   useEffect(() => {
-    if (flotaActive) {
-      setFlotaOpen(true);
+    setFlotaOpen(false);
+  }, [pathname, vista]);
+
+  useEffect(() => {
+    if (!flotaOpen) {
+      return;
     }
-  }, [flotaActive]);
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-flota-menu]")) {
+        return;
+      }
+      setFlotaOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [flotaOpen]);
 
   return (
     <nav className="border-b border-[#b7cce4] bg-[#d7e7f8] shadow-sm shadow-slate-200/40">
@@ -98,7 +113,7 @@ function AdminNavigation({
               }
 
               return (
-                <div key={item.label} className="relative">
+                <div key={item.label} className="relative" data-flota-menu>
                   <button
                     type="button"
                     aria-expanded={flotaOpen}
@@ -161,6 +176,7 @@ function AdminNavigation({
                             key={child.href}
                             href={child.href}
                             role="menuitem"
+                            onClick={() => setFlotaOpen(false)}
                             className={`block rounded-xl px-3 py-2 text-sm font-semibold transition ${
                               childActive
                                 ? "bg-[#0b5cab] text-white"
