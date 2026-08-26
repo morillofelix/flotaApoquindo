@@ -16,6 +16,11 @@ export default function PwaServiceWorkerRegister() {
       .then(async (registration) => {
         await registration.update();
 
+        // Fuerza activación inmediata del SW nuevo (p. ej. menú Flota sin Patrones).
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+
         if (!navigator.serviceWorker.controller) {
           await new Promise<void>((resolve) => {
             const timeout = window.setTimeout(resolve, 4000);

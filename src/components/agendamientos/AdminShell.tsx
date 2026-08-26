@@ -168,7 +168,12 @@ function AdminNavigation({
                       role="menu"
                       className="absolute left-0 top-[calc(100%+0.35rem)] z-30 min-w-[11rem] overflow-hidden rounded-2xl border border-[#b7cce4] bg-white p-1 shadow-xl shadow-slate-900/10"
                     >
-                      {item.children.map((child) => {
+                      {item.children
+                        .filter(
+                          (child) =>
+                            child.href !== "/agendamientos/patrones",
+                        )
+                        .map((child) => {
                         const childActive = child.isActive(pathname, vista);
 
                         return (
