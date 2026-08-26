@@ -718,6 +718,14 @@ export default function ConductoresPage() {
       return;
     }
 
+    if (driverOwnerForm.isConductor && !driverOwnerForm.groupId.trim()) {
+      setDriverOwnerError(
+        "Selecciona el grupo principal del conductor (Diurno, Nocturno o Intermedio).",
+      );
+      revealDriverOwnerFeedback();
+      return;
+    }
+
     setIsSavingDriverOwner(true);
 
     try {
@@ -1749,15 +1757,17 @@ export default function ConductoresPage() {
                     Clasificación operacional
                   </span>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <label className="flex flex-col gap-1.5">
+                    <label className="flex min-w-0 flex-col gap-1.5">
                       <span className="text-[11px] font-semibold text-[#173b68]">
                         Grupo principal
                       </span>
                       <select
                         required={driverOwnerForm.isConductor}
                         value={driverOwnerForm.groupId}
-                        onChange={(event) => handleGroupChange(event.target.value)}
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                        onChange={(event) =>
+                          handleGroupChange(event.target.value)
+                        }
+                        className="h-10 w-full cursor-pointer appearance-auto rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                       >
                         <option value="">Selecciona</option>
                         {activeGroups.map((group) => (
@@ -1766,11 +1776,21 @@ export default function ConductoresPage() {
                             {!group.isActive ? " (inactivo)" : ""}
                           </option>
                         ))}
+                        {driverOwnerForm.groupId &&
+                        !activeGroups.some(
+                          (group) => group.id === driverOwnerForm.groupId,
+                        ) ? (
+                          <option value={driverOwnerForm.groupId}>
+                            {driverOwnerForm.groupName ||
+                              driverOwnerForm.groupCode ||
+                              "Grupo actual"}
+                          </option>
+                        ) : null}
                       </select>
                     </label>
-                    <label className="flex flex-col gap-1.5">
+                    <label className="flex min-w-0 flex-col gap-1.5">
                       <span className="text-[11px] font-semibold text-[#173b68]">
-                        Categoría
+                        Categoría (opcional)
                       </span>
                       <select
                         value={driverOwnerForm.categorySubgroupId}
@@ -1781,7 +1801,7 @@ export default function ConductoresPage() {
                             categorySubgroupId: event.target.value,
                           }))
                         }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100"
+                        className="h-10 w-full cursor-pointer appearance-auto rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:cursor-not-allowed disabled:bg-slate-100"
                       >
                         <option value="">Sin asignar</option>
                         {categoryOptions.map((option) => (
@@ -1791,9 +1811,9 @@ export default function ConductoresPage() {
                         ))}
                       </select>
                     </label>
-                    <label className="flex flex-col gap-1.5">
+                    <label className="flex min-w-0 flex-col gap-1.5">
                       <span className="text-[11px] font-semibold text-[#173b68]">
-                        Grupo jueves
+                        Grupo jueves (opcional)
                       </span>
                       <select
                         value={driverOwnerForm.thursdayGroupSubgroupId}
@@ -1804,7 +1824,7 @@ export default function ConductoresPage() {
                             thursdayGroupSubgroupId: event.target.value,
                           }))
                         }
-                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:bg-slate-100"
+                        className="h-10 w-full cursor-pointer appearance-auto rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 disabled:cursor-not-allowed disabled:bg-slate-100"
                       >
                         <option value="">Sin asignar</option>
                         {thursdayOptions.map((option) => (
@@ -1821,45 +1841,10 @@ export default function ConductoresPage() {
                     </p>
                   ) : (
                     <p className="mt-2 text-[11px] text-slate-500">
-                      El grupo principal reemplaza los checks de turno. Categoría y
-                      grupo jueves son opcionales.
+                      Elige un solo grupo principal. Categoría y grupo jueves son
+                      opcionales y solo permiten una opción cada uno.
                     </p>
                   )}
-                </div>
-
-                <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-3 py-3 sm:col-span-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    Clasificación del móvil
-                  </p>
-                  <dl className="mt-2 grid gap-1.5 text-sm text-[#0f2747] sm:grid-cols-3">
-                    <div>
-                      <dt className="text-[11px] text-slate-500">Grupo principal</dt>
-                      <dd className="font-semibold">
-                        {driverOwnerForm.groupId
-                          ? activeGroups.find(
-                              (group) => group.id === driverOwnerForm.groupId,
-                            )?.name || "—"
-                          : "Sin conductor asignado"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] text-slate-500">Categoría</dt>
-                      <dd className="font-semibold">
-                        {categoryOptions.find(
-                          (item) => item.id === driverOwnerForm.categorySubgroupId,
-                        )?.name || "Sin asignar"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] text-slate-500">Grupo jueves</dt>
-                      <dd className="font-semibold">
-                        {thursdayOptions.find(
-                          (item) =>
-                            item.id === driverOwnerForm.thursdayGroupSubgroupId,
-                        )?.name || "Sin asignar"}
-                      </dd>
-                    </div>
-                  </dl>
                 </div>
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">

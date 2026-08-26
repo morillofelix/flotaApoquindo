@@ -6,7 +6,6 @@ import { loadDriverGroups } from "@/lib/agendamientos-admin";
 import { type DriverGroupConfig } from "@/lib/driver-groups";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
-import { useConfirmAction } from "@/hooks/useConfirmAction";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type GroupForm = {
@@ -30,7 +29,6 @@ export default function GruposPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const { confirm, dialog } = useConfirmAction();
 
   const reload = useCallback(async () => {
     const loaded = await loadDriverGroups();
@@ -95,56 +93,14 @@ export default function GruposPage() {
     }
   }
 
-  async function toggleActive(group: DriverGroupConfig) {
-    if (group.isActive) {
-      const accepted = await confirm({
-        title: "Inactivar grupo",
-        message: `¿Inactivar “${group.name}”? Seguirá visible en históricos, pero no en nuevas asignaciones.`,
-        confirmLabel: "Inactivar",
-      });
-
-      if (!accepted) {
-        return;
-      }
-    }
-
-    setIsSaving(true);
+  function resetForm() {
+    setForm(emptyForm);
+    setMessage("");
     setError("");
-
-    try {
-      const response = await fetch("/api/driver-groups", {
-        ...adminFetchInit,
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: group.id,
-          code: group.code,
-          name: group.name,
-          isActive: !group.isActive,
-        }),
-      });
-      const data = (await response.json()) as { message?: string };
-
-      if (!response.ok) {
-        throw new Error(data.message || "No se pudo actualizar el estado.");
-      }
-
-      await reload();
-      setMessage(group.isActive ? "Grupo inactivado." : "Grupo activado.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "No se pudo actualizar el estado.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
   }
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6">
-      {dialog}
       <MaintainerPageHeader
         title="Grupos"
         subtitle="Flota"
@@ -200,34 +156,14 @@ export default function GruposPage() {
                     {group.driversCount ?? 0} conductores ·{" "}
                     {group.subgroupsCount ?? 0} subgrupos
                   </span>
-                  <span className="flex flex-col items-start gap-1">
-                    <span
-                      className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        group.isActive
-                          ? "bg-green-50 text-green-700"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {group.isActive ? "Activo" : "Inactivo"}
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void toggleActive(group);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          void toggleActive(group);
-                        }
-                      }}
-                      className="text-[11px] font-semibold text-[#0b5cab] underline-offset-2 hover:underline"
-                    >
-                      {group.isActive ? "Inactivar" : "Activar"}
-                    </span>
+                  <span
+                    className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      group.isActive
+                        ? "bg-green-50 text-green-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {group.isActive ? "Activo" : "Inactivo"}
                   </span>
                 </button>
               ))}
@@ -293,23 +229,21 @@ export default function GruposPage() {
               </p>
             ) : null}
 
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="mt-1 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-sm font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
+              >
+                Cancelar
+              </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-sm font-semibold text-white disabled:bg-slate-300"
+                className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#0b5cab] px-5 text-sm font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {isSaving ? "Guardando..." : form.id ? "Guardar cambios" : "Crear grupo"}
+                {isSaving ? "Guardando..." : form.id ? "Guardar cambios" : "Crear"}
               </button>
-              {form.id ? (
-                <button
-                  type="button"
-                  onClick={() => setForm(emptyForm)}
-                  className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm font-semibold text-[#173b68]"
-                >
-                  Limpiar
-                </button>
-              ) : null}
             </div>
           </form>
         </section>
