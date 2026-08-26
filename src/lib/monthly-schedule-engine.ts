@@ -450,6 +450,7 @@ export async function previewMonthlyScheduleDeletion(options: {
       month: options.month,
       mode,
       driversCount: 0,
+      driversInScope: 0,
       daysCount: 0,
       manualOverrides: 0,
       vehicleNumbers: [] as string[],
@@ -461,32 +462,46 @@ export async function previewMonthlyScheduleDeletion(options: {
     };
   }
 
+  const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
   const driverIds = drivers.map((driver) => driver.id);
-  const [daysCount, manualOverrides] = await Promise.all([
-    prisma.dailySchedule.count({
-      where: {
-        driverOwnerId: { in: driverIds },
-        date: { gte: firstDate, lte: lastDate },
-      },
-    }),
-    prisma.dailySchedule.count({
-      where: {
-        driverOwnerId: { in: driverIds },
-        date: { gte: firstDate, lte: lastDate },
-        isManualOverride: true,
-      },
-    }),
-  ]);
+
+  const existingDays = await prisma.dailySchedule.findMany({
+    where: {
+      driverOwnerId: { in: driverIds },
+      date: { gte: firstDate, lte: lastDate },
+    },
+    select: {
+      driverOwnerId: true,
+      isManualOverride: true,
+    },
+  });
+
+  const driversWithDays = new Map<string, ScopedDriverBrief>();
+  let manualOverrides = 0;
+  for (const day of existingDays) {
+    if (day.isManualOverride) manualOverrides += 1;
+    const driver = driverById.get(day.driverOwnerId);
+    if (driver && !driversWithDays.has(driver.id)) {
+      driversWithDays.set(driver.id, driver);
+    }
+  }
+
+  const generatedDrivers = [...driversWithDays.values()].sort((a, b) =>
+    a.vehicleNumber.localeCompare(b.vehicleNumber, "es", { numeric: true }),
+  );
 
   return {
     year: options.year,
     month: options.month,
     mode,
-    driversCount: drivers.length,
-    daysCount,
+    /** Solo conductores que ya tienen días generados en el periodo. */
+    driversCount: generatedDrivers.length,
+    /** Conductores del alcance (aunque aún no tengan planificación). */
+    driversInScope: drivers.length,
+    daysCount: existingDays.length,
     manualOverrides,
-    vehicleNumbers: drivers.map((driver) => driver.vehicleNumber),
-    sample: drivers.slice(0, 8).map((driver) => ({
+    vehicleNumbers: generatedDrivers.map((driver) => driver.vehicleNumber),
+    sample: generatedDrivers.slice(0, 8).map((driver) => ({
       vehicleNumber: driver.vehicleNumber,
       fullName: driver.fullName,
       groupName: driver.groupName,
@@ -505,9 +520,11 @@ export async function deleteMonthlyScheduleScope(options: {
     throw new Error("Mes de planificación inválido.");
   }
 
-  const { mode, drivers } = await listDriversForScope(options);
-  if (!drivers.length) {
-    throw new Error("No hay conductores en el alcance seleccionado.");
+  const preview = await previewMonthlyScheduleDeletion(options);
+  if (!preview.daysCount || !preview.vehicleNumbers.length) {
+    throw new Error(
+      "No hay planificación generada en este periodo para el alcance indicado.",
+    );
   }
 
   const firstDate = atUtcNoon(options.year, options.month, 1);
@@ -516,8 +533,21 @@ export async function deleteMonthlyScheduleScope(options: {
     options.month,
     daysInMonth(options.year, options.month),
   );
-  const driverIds = drivers.map((driver) => driver.id);
   const includeManual = options.includeManualOverrides !== false;
+
+  // Solo borra días ya existentes del periodo; no toca conductores sin generación.
+  const driversWithDays = await prisma.driverOwner.findMany({
+    where: {
+      vehicleNumber: { in: preview.vehicleNumbers },
+      dailySchedules: {
+        some: {
+          date: { gte: firstDate, lte: lastDate },
+        },
+      },
+    },
+    select: { id: true },
+  });
+  const driverIds = driversWithDays.map((driver) => driver.id);
 
   const where: Prisma.DailyScheduleWhereInput = {
     driverOwnerId: { in: driverIds },
@@ -548,8 +578,8 @@ export async function deleteMonthlyScheduleScope(options: {
   return {
     year: options.year,
     month: options.month,
-    mode,
-    driversTargeted: drivers.length,
+    mode: preview.mode,
+    driversTargeted: preview.driversCount,
     daysDeleted: deleted.count,
     includeManualOverrides: includeManual,
     monthlyCleared,

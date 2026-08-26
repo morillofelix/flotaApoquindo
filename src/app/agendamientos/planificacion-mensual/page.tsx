@@ -88,6 +88,7 @@ type GeneratePreview = {
 };
 type DeletePreview = {
   driversCount: number;
+  driversInScope?: number;
   daysCount: number;
   manualOverrides: number;
   vehicleNumbers?: string[];
@@ -1351,8 +1352,9 @@ export default function PlanificacionMensualPage() {
               Periodo: {monthLabel}
             </p>
             <p className="mt-2 text-xs text-red-700">
-              Esto revierte y borra los días ya generados del alcance. No se
-              puede deshacer.
+              Solo borra la planificación ya generada del mes seleccionado y del
+              alcance que indiques. No genera ni afecta conductores sin días en
+              ese periodo. No se puede deshacer.
             </p>
             <div className="mt-4 grid gap-3">
               <Label text="Alcance a eliminar">
@@ -1505,8 +1507,12 @@ export default function PlanificacionMensualPage() {
                 <>
                   <p>
                     Se eliminarán{" "}
-                    <strong>{deletePreview.daysCount} días</strong> de{" "}
-                    <strong>{deletePreview.driversCount} conductores</strong>
+                    <strong>{deletePreview.daysCount} días ya generados</strong>{" "}
+                    de{" "}
+                    <strong>
+                      {deletePreview.driversCount} conductores con planificación
+                    </strong>{" "}
+                    en este periodo
                     {deletePreview.manualOverrides ? (
                       <>
                         {" "}
@@ -1516,6 +1522,14 @@ export default function PlanificacionMensualPage() {
                     ) : null}
                     .
                   </p>
+                  {deletePreview.driversInScope &&
+                  deletePreview.driversInScope > deletePreview.driversCount ? (
+                    <p className="mt-1 text-slate-500">
+                      Alcance seleccionado: {deletePreview.driversInScope}{" "}
+                      conductores; solo se tocan los que ya tienen días
+                      generados ({deletePreview.driversCount}).
+                    </p>
+                  ) : null}
                   {deletePreview.sample.length ? (
                     <ul className="mt-2 space-y-1 text-slate-600">
                       {deletePreview.sample.map((item) => (
@@ -1534,7 +1548,11 @@ export default function PlanificacionMensualPage() {
                         </li>
                       ) : null}
                     </ul>
-                  ) : null}
+                  ) : (
+                    <p className="mt-2 text-slate-500">
+                      No hay planificación generada en este alcance.
+                    </p>
+                  )}
                 </>
               ) : (
                 <p>Define el alcance para ver qué se eliminará.</p>
