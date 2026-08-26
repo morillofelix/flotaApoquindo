@@ -5,11 +5,9 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import {
   loadDriverGroups,
-  loadOperationalStatuses,
   loadShiftDefinitions,
 } from "@/lib/agendamientos-admin";
 import type { DriverGroupConfig } from "@/lib/driver-groups";
-import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type {
   ShiftDayRuleConfig,
   ShiftDefinitionConfig,
@@ -85,7 +83,6 @@ const inputClass =
 export default function TurnosPage() {
   const [shifts, setShifts] = useState<ShiftDefinitionConfig[]>([]);
   const [groups, setGroups] = useState<DriverGroupConfig[]>([]);
-  const [statuses, setStatuses] = useState<OperationalStatusConfig[]>([]);
   const [form, setForm] = useState<Form>(emptyForm);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
@@ -93,14 +90,12 @@ export default function TurnosPage() {
   const [saving, setSaving] = useState(false);
 
   const reload = useCallback(async () => {
-    const [loadedShifts, loadedGroups, loadedStatuses] = await Promise.all([
+    const [loadedShifts, loadedGroups] = await Promise.all([
       loadShiftDefinitions(),
       loadDriverGroups(),
-      loadOperationalStatuses(),
     ]);
     setShifts(loadedShifts);
     setGroups(loadedGroups);
-    setStatuses(loadedStatuses);
     setError("");
   }, []);
 
@@ -349,27 +344,21 @@ export default function TurnosPage() {
                 className="h-4 w-4 accent-[#0b5cab]"
               />
             </label>
-            {(
-              [
-                ["Sábado", "saturdayRule"],
-                ["Domingo", "sundayRule"],
-                ["Feriado", "holidayRule"],
-              ] as const
-            ).map(([label, key]) => (
-              <Field key={key} label={`Regla ${label.toLowerCase()}`}>
-                <select
-                  value={form[key]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                  className={inputClass}
-                >
-                  {rules.map(([value, text]) => (
-                    <option key={value} value={value}>
-                      {text}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            ))}
+            <Field label="Regla feriado">
+              <select
+                value={form.holidayRule}
+                onChange={(e) =>
+                  setForm({ ...form, holidayRule: e.target.value })
+                }
+                className={inputClass}
+              >
+                {rules.map(([value, text]) => (
+                  <option key={value} value={value}>
+                    {text}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <label className="flex h-10 items-center justify-between rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]">
               Activo
               <input
@@ -381,10 +370,11 @@ export default function TurnosPage() {
             </label>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Usa el nombre del turno para distinguir variantes (ej. Turno A,
-            Turno B). El grupo principal es opcional. La grilla Lun–Dom de abajo
-            es la que se repite en la planificación mensual al asignar este turno
-            al conductor.
+            <strong>Cruza medianoche:</strong> el turno empieza un día y termina
+            al siguiente (ej. 22:00–06:00); en marcación se verá como un bloque
+            continuo de color entre ambos días.{" "}
+            <strong>Regla feriado:</strong> qué hacer si esa fecha es feriado,
+            aunque el día de la semana diga “trabaja”.
           </p>
           <Field label="Observación" className="mt-3">
             <textarea
@@ -395,7 +385,12 @@ export default function TurnosPage() {
             />
           </Field>
           <div className="mt-4 overflow-auto rounded-2xl border border-[#b7cce4] bg-white">
-            <div className="min-w-[650px] grid grid-cols-[1fr_.55fr_.8fr_.8fr_1fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase text-[#0f2747]">
+            <div className="border-b border-[#d7e7f8] bg-[#eef3f9] px-3 py-2 text-[11px] text-slate-600">
+              Grilla semanal: <strong>tildado = trabaja</strong>,{" "}
+              <strong>sin tildar = libre</strong>. No hace falta poner LIBRE a
+              mano: al destildar ya queda libre.
+            </div>
+            <div className="min-w-[520px] grid grid-cols-[1fr_.55fr_.8fr_.8fr_.8fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase text-[#0f2747]">
               <span>Día</span>
               <span>Trabaja</span>
               <span>Inicio</span>
@@ -405,7 +400,7 @@ export default function TurnosPage() {
             {form.dayRules.map((day, index) => (
               <div
                 key={day.weekday}
-                className="min-w-[650px] grid grid-cols-[1fr_.55fr_.8fr_.8fr_1fr] items-center gap-2 border-t border-[#d7e7f8] px-3 py-2 text-xs"
+                className="min-w-[520px] grid grid-cols-[1fr_.55fr_.8fr_.8fr_.8fr] items-center gap-2 border-t border-[#d7e7f8] px-3 py-2 text-xs"
               >
                 <strong className="text-[#173b68]">{weekdays[index]}</strong>
                 <input
@@ -418,6 +413,7 @@ export default function TurnosPage() {
                     })
                   }
                   className="h-4 w-4 accent-[#0b5cab]"
+                  aria-label={`${weekdays[index]} trabaja`}
                 />
                 <input
                   type="time"
@@ -433,23 +429,17 @@ export default function TurnosPage() {
                   onChange={(e) => updateDay(index, { endTime: e.target.value })}
                   className="h-8 rounded-xl border border-[#9fb8d9] px-2 disabled:bg-slate-100"
                 />
-                <input
-                  list="status-codes"
-                  value={day.defaultStatusCode}
-                  onChange={(e) =>
-                    updateDay(index, { defaultStatusCode: e.target.value })
-                  }
-                  className="h-8 rounded-xl border border-[#9fb8d9] px-2 uppercase"
-                />
+                <span
+                  className={`rounded-xl px-2 py-1 text-[11px] font-semibold ${
+                    day.works
+                      ? "bg-emerald-50 text-emerald-800"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {day.works ? "TRABAJA" : "LIBRE"}
+                </span>
               </div>
             ))}
-            <datalist id="status-codes">
-              {statuses.map((status) => (
-                <option key={status.id} value={status.code}>
-                  {status.name}
-                </option>
-              ))}
-            </datalist>
           </div>
           {message ? (
             <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800">
