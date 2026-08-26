@@ -177,6 +177,8 @@ export default function PlanificacionMensualPage() {
   const [includeManualOnDelete, setIncludeManualOnDelete] = useState(true);
   const [generateProgress, setGenerateProgress] =
     useState<GenerateProgressState | null>(null);
+  const [deleteProgress, setDeleteProgress] =
+    useState<GenerateProgressState | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -443,6 +445,7 @@ export default function PlanificacionMensualPage() {
     setDeletePreviewError("");
     setDeleteConfirmText("");
     setIncludeManualOnDelete(true);
+    setDeleteProgress(null);
     setDeleteOpen(true);
   }
 
@@ -459,60 +462,138 @@ export default function PlanificacionMensualPage() {
     }
     if (
       !window.confirm(
-        `¿Seguro que deseas revertir y eliminar ${deletePreview.daysCount} días de ${deletePreview.driversCount} conductores en ${monthLabel}? Esta acción no se puede deshacer.`,
+        `¿Seguro que deseas revertir y eliminar ${deletePreview.daysCount} días de ${deletePreview.driversCount} conductores en ${monthLabel}? Verás el avance lote a lote. Esta acción no se puede deshacer.`,
       )
     ) {
       return;
     }
 
+    const vehicles = deletePreview.vehicleNumbers?.filter(Boolean) ?? [];
+    if (!vehicles.length) {
+      setDeletePreviewError(
+        "No se pudo obtener la lista de móviles generados. Vuelve a abrir el modal.",
+      );
+      return;
+    }
+
+    const chunkSize = 40;
+    const batchCount = Math.ceil(vehicles.length / chunkSize);
+
     setBusy(true);
     setError("");
     setMessage("");
+    setDeleteProgress({
+      phase: "preparing",
+      processed: 0,
+      total: vehicles.length,
+      percent: 0,
+      message: `Preparando eliminación de ${vehicles.length} conductores en ${batchCount} lotes…`,
+      batchIndex: 0,
+      batchCount,
+    });
+
+    const totals = {
+      daysDeleted: 0,
+      driversTargeted: 0,
+      monthlyCleared: false,
+    };
+
     try {
-      const response = await fetch("/api/monthly-schedules", {
-        ...adminFetchInit,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete",
-          year,
-          month,
-          confirmText: deleteConfirmText.trim(),
-          includeManualOverrides: includeManualOnDelete,
-          mode: deleteForm.mode,
-          groupId: deleteForm.groupId,
-          vehicleNumber: deleteForm.vehicleNumber,
-          vehicleFrom: deleteForm.vehicleFrom,
-          vehicleTo: deleteForm.vehicleTo,
-          shiftDefinitionId: deleteForm.shiftDefinitionId,
-        }),
-      });
-      const body = (await response.json()) as {
-        message?: string;
-        summary?: {
-          daysDeleted?: number;
-          driversTargeted?: number;
-          monthlyCleared?: boolean;
+      for (let offset = 0; offset < vehicles.length; offset += chunkSize) {
+        const chunk = vehicles.slice(offset, offset + chunkSize);
+        const batchIndex = Math.floor(offset / chunkSize) + 1;
+
+        setDeleteProgress({
+          phase: "batch",
+          processed: offset,
+          total: vehicles.length,
+          percent: Math.round((offset / vehicles.length) * 100),
+          message: `Eliminando lote ${batchIndex}/${batchCount} (${chunk[0]}…${chunk[chunk.length - 1]})`,
+          batchIndex,
+          batchCount,
+        });
+
+        const response = await fetch("/api/monthly-schedules", {
+          ...adminFetchInit,
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete",
+            year,
+            month,
+            confirmText: "ELIMINAR",
+            includeManualOverrides: includeManualOnDelete,
+            mode: "vehicles",
+            vehicleNumbers: chunk,
+          }),
+        });
+        const body = (await response.json()) as {
+          message?: string;
+          summary?: {
+            daysDeleted?: number;
+            driversTargeted?: number;
+            monthlyCleared?: boolean;
+          };
         };
-      };
-      if (!response.ok) {
-        throw new Error(body.message || "No se pudo eliminar la generación.");
+        if (!response.ok) {
+          throw new Error(
+            body.message ||
+              `Error en lote ${batchIndex}/${batchCount}. Se eliminaron ${totals.daysDeleted} días antes del fallo.`,
+          );
+        }
+
+        totals.daysDeleted += body.summary?.daysDeleted ?? 0;
+        totals.driversTargeted += body.summary?.driversTargeted ?? chunk.length;
+        if (body.summary?.monthlyCleared) totals.monthlyCleared = true;
+
+        const processed = Math.min(offset + chunk.length, vehicles.length);
+        setDeleteProgress({
+          phase: "batch",
+          processed,
+          total: vehicles.length,
+          percent: Math.round((processed / vehicles.length) * 100),
+          message: `Lote ${batchIndex}/${batchCount} listo · ${processed} de ${vehicles.length}`,
+          batchIndex,
+          batchCount,
+        });
       }
+
+      setDeleteProgress({
+        phase: "done",
+        processed: vehicles.length,
+        total: vehicles.length,
+        percent: 100,
+        message: "Eliminación completada",
+        batchIndex: batchCount,
+        batchCount,
+      });
+
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
       setDeleteOpen(false);
+      setDeleteProgress(null);
       await reload();
       setMessage(
-        `Eliminado: ${body.summary?.daysDeleted ?? 0} días de ${body.summary?.driversTargeted ?? 0} conductores${
-          body.summary?.monthlyCleared
-            ? " · el mes quedó sin planificación"
-            : ""
+        `Eliminado: ${totals.daysDeleted} días de ${totals.driversTargeted} conductores${
+          totals.monthlyCleared ? " · el mes quedó sin planificación" : ""
         }.`,
       );
     } catch (caught) {
-      setError(
+      const text =
         caught instanceof Error
           ? caught.message
-          : "No se pudo eliminar la generación.",
+          : "No se pudo eliminar la generación.";
+      setDeleteProgress((current) =>
+        current
+          ? { ...current, phase: "error", message: text }
+          : {
+              phase: "error",
+              processed: 0,
+              total: vehicles.length,
+              percent: 0,
+              message: text,
+            },
       );
+      setError(text);
     } finally {
       setBusy(false);
     }
@@ -1559,14 +1640,68 @@ export default function PlanificacionMensualPage() {
               )}
             </div>
 
+            {deleteProgress ? (
+              <div
+                className={`mt-4 rounded-2xl border p-3 ${
+                  deleteProgress.phase === "done"
+                    ? "border-emerald-300 bg-emerald-50"
+                    : deleteProgress.phase === "error"
+                      ? "border-red-300 bg-red-50"
+                      : "border-red-200 bg-white"
+                }`}
+                aria-live="polite"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-[#0f2747]">
+                  <span>
+                    {deleteProgress.phase === "done"
+                      ? "Completado"
+                      : deleteProgress.phase === "error"
+                        ? "Error en la eliminación"
+                        : "Eliminando…"}
+                  </span>
+                  <span>{deleteProgress.percent}%</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-[#f0d5d5]">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-300 ease-out ${
+                      deleteProgress.phase === "done"
+                        ? "bg-emerald-600"
+                        : deleteProgress.phase === "error"
+                          ? "bg-red-500"
+                          : "bg-red-700"
+                    }`}
+                    style={{
+                      width: `${Math.min(100, Math.max(0, deleteProgress.percent))}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-600">
+                  {deleteProgress.message}
+                </p>
+                {deleteProgress.total > 0 ? (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {deleteProgress.processed} / {deleteProgress.total}{" "}
+                    conductores
+                    {deleteProgress.batchIndex && deleteProgress.batchCount
+                      ? ` · lote ${deleteProgress.batchIndex}/${deleteProgress.batchCount}`
+                      : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => setDeleteOpen(false)}
+                onClick={() => {
+                  if (busy) return;
+                  setDeleteOpen(false);
+                  setDeleteProgress(null);
+                }}
                 className={buttonClass}
               >
-                Cancelar
+                {deleteProgress?.phase === "error" ? "Cerrar" : "Cancelar"}
               </button>
               <button
                 type="button"
@@ -1574,12 +1709,17 @@ export default function PlanificacionMensualPage() {
                   busy ||
                   deletePreviewLoading ||
                   !deletePreview?.daysCount ||
-                  deleteConfirmText.trim().toUpperCase() !== "ELIMINAR"
+                  deleteConfirmText.trim().toUpperCase() !== "ELIMINAR" ||
+                  deleteProgress?.phase === "done"
                 }
                 onClick={() => void runDelete()}
                 className="inline-flex h-9 items-center justify-center rounded-2xl bg-red-700 px-4 text-xs font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {busy ? "Eliminando…" : "Confirmar eliminación"}
+                {busy
+                  ? "Eliminando…"
+                  : deleteProgress?.phase === "error"
+                    ? "Reintentar"
+                    : "Confirmar eliminación"}
               </button>
             </div>
           </div>

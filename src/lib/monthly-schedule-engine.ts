@@ -521,10 +521,18 @@ export async function deleteMonthlyScheduleScope(options: {
   }
 
   const preview = await previewMonthlyScheduleDeletion(options);
+  const includeManual = options.includeManualOverrides !== false;
+
   if (!preview.daysCount || !preview.vehicleNumbers.length) {
-    throw new Error(
-      "No hay planificación generada en este periodo para el alcance indicado.",
-    );
+    return {
+      year: options.year,
+      month: options.month,
+      mode: preview.mode,
+      driversTargeted: 0,
+      daysDeleted: 0,
+      includeManualOverrides: includeManual,
+      monthlyCleared: false,
+    };
   }
 
   const firstDate = atUtcNoon(options.year, options.month, 1);
@@ -533,7 +541,6 @@ export async function deleteMonthlyScheduleScope(options: {
     options.month,
     daysInMonth(options.year, options.month),
   );
-  const includeManual = options.includeManualOverrides !== false;
 
   // Solo borra días ya existentes del periodo; no toca conductores sin generación.
   const driversWithDays = await prisma.driverOwner.findMany({
@@ -549,18 +556,23 @@ export async function deleteMonthlyScheduleScope(options: {
   });
   const driverIds = driversWithDays.map((driver) => driver.id);
 
+  if (!driverIds.length) {
+    return {
+      year: options.year,
+      month: options.month,
+      mode: preview.mode,
+      driversTargeted: 0,
+      daysDeleted: 0,
+      includeManualOverrides: includeManual,
+      monthlyCleared: false,
+    };
+  }
+
   const where: Prisma.DailyScheduleWhereInput = {
     driverOwnerId: { in: driverIds },
     date: { gte: firstDate, lte: lastDate },
     ...(includeManual ? {} : { isManualOverride: false }),
   };
-
-  const existing = await prisma.dailySchedule.count({ where });
-  if (!existing) {
-    throw new Error(
-      "No hay días generados en este periodo para el alcance indicado.",
-    );
-  }
 
   const deleted = await prisma.dailySchedule.deleteMany({ where });
 
