@@ -75,11 +75,6 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
         isActive: (pathname) => pathname.startsWith("/agendamientos/grupos"),
       },
       {
-        label: "Subgrupos",
-        href: "/agendamientos/subgrupos",
-        isActive: (pathname) => pathname.startsWith("/agendamientos/subgrupos"),
-      },
-      {
         label: "Turnos",
         href: "/agendamientos/turnos",
         isActive: (pathname) => pathname.startsWith("/agendamientos/turnos"),

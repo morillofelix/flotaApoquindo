@@ -153,8 +153,7 @@ export default function GruposPage() {
                     <span className="text-slate-500">{group.code}</span>
                   </span>
                   <span className="text-slate-600">
-                    {group.driversCount ?? 0} conductores ·{" "}
-                    {group.subgroupsCount ?? 0} subgrupos
+                    {group.driversCount ?? 0} conductores
                   </span>
                   <span
                     className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${

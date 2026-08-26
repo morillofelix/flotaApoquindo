@@ -5,14 +5,10 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import {
   loadDriverGroups,
-  loadDriverSubgroups,
   loadOperationalStatuses,
   loadShiftDefinitions,
 } from "@/lib/agendamientos-admin";
-import type {
-  DriverGroupConfig,
-  DriverSubgroupConfig,
-} from "@/lib/driver-groups";
+import type { DriverGroupConfig } from "@/lib/driver-groups";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type {
   ShiftDayRuleConfig,
@@ -27,7 +23,6 @@ type Form = {
   name: string;
   description: string;
   groupId: string;
-  categorySubgroupId: string;
   startTime: string;
   endTime: string;
   crossesMidnight: boolean;
@@ -72,7 +67,6 @@ const emptyForm = (): Form => ({
   name: "",
   description: "",
   groupId: "",
-  categorySubgroupId: "",
   startTime: "08:00",
   endTime: "17:00",
   crossesMidnight: false,
@@ -91,7 +85,6 @@ const inputClass =
 export default function TurnosPage() {
   const [shifts, setShifts] = useState<ShiftDefinitionConfig[]>([]);
   const [groups, setGroups] = useState<DriverGroupConfig[]>([]);
-  const [subgroups, setSubgroups] = useState<DriverSubgroupConfig[]>([]);
   const [statuses, setStatuses] = useState<OperationalStatusConfig[]>([]);
   const [form, setForm] = useState<Form>(emptyForm);
   const [search, setSearch] = useState("");
@@ -100,16 +93,13 @@ export default function TurnosPage() {
   const [saving, setSaving] = useState(false);
 
   const reload = useCallback(async () => {
-    const [loadedShifts, loadedGroups, loadedSubgroups, loadedStatuses] =
-      await Promise.all([
-        loadShiftDefinitions(),
-        loadDriverGroups(),
-        loadDriverSubgroups({ type: "CATEGORY" }),
-        loadOperationalStatuses(),
-      ]);
+    const [loadedShifts, loadedGroups, loadedStatuses] = await Promise.all([
+      loadShiftDefinitions(),
+      loadDriverGroups(),
+      loadOperationalStatuses(),
+    ]);
     setShifts(loadedShifts);
     setGroups(loadedGroups);
-    setSubgroups(loadedSubgroups.subgroups);
     setStatuses(loadedStatuses);
     setError("");
   }, []);
@@ -122,17 +112,6 @@ export default function TurnosPage() {
   useEffect(() => {
     reload().catch(() => setError("No se pudieron cargar los turnos."));
   }, [reload]);
-
-  const categoryOptions = useMemo(
-    () =>
-      subgroups.filter(
-        (item) =>
-          item.type === "CATEGORY" &&
-          (item.groupId === form.groupId || !form.groupId) &&
-          (item.isActive || item.id === form.categorySubgroupId),
-      ),
-    [form.categorySubgroupId, form.groupId, subgroups],
-  );
 
   const filtered = useMemo(() => {
     const value = search.trim().toLowerCase();
@@ -148,14 +127,6 @@ export default function TurnosPage() {
     return groups.find((group) => group.id === groupId)?.name ?? "Grupo";
   }
 
-  function categoryLabel(categorySubgroupId: string | null) {
-    if (!categorySubgroupId) return "Sin categoría";
-    return (
-      subgroups.find((item) => item.id === categorySubgroupId)?.name ??
-      "Categoría"
-    );
-  }
-
   function edit(item: ShiftDefinitionConfig) {
     const dayMap = new Map(item.dayRules.map((day) => [day.weekday, day]));
     setForm({
@@ -164,7 +135,6 @@ export default function TurnosPage() {
       name: item.name,
       description: item.description,
       groupId: item.groupId ?? "",
-      categorySubgroupId: item.categorySubgroupId ?? "",
       startTime: item.startTime,
       endTime: item.endTime,
       crossesMidnight: item.crossesMidnight,
@@ -196,7 +166,7 @@ export default function TurnosPage() {
         body: JSON.stringify({
           ...form,
           groupId: form.groupId || null,
-          categorySubgroupId: form.categorySubgroupId || null,
+          categorySubgroupId: null,
           cycleLengthDays: 0,
           validFrom: null,
           validTo: null,
@@ -233,7 +203,6 @@ export default function TurnosPage() {
     setForm((current) => ({
       ...current,
       groupId,
-      categorySubgroupId: "",
     }));
   }
 
@@ -261,7 +230,7 @@ export default function TurnosPage() {
           </div>
           <div className="grid grid-cols-[1.2fr_1fr_.5fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#0f2747]">
             <span>Turno</span>
-            <span>Clasificación</span>
+            <span>Grupo</span>
             <span>Estado</span>
           </div>
           <div className="max-h-[72dvh] divide-y divide-[#c5d8eb] overflow-auto">
@@ -281,9 +250,7 @@ export default function TurnosPage() {
                     {item.code} · {item.startTime || "—"}–{item.endTime || "—"}
                   </span>
                 </span>
-                <span className="text-slate-600">
-                  {groupLabel(item.groupId)} · {categoryLabel(item.categorySubgroupId)}
-                </span>
+                <span className="text-slate-600">{groupLabel(item.groupId)}</span>
                 <span className={item.isActive ? "text-green-700" : "text-slate-500"}>
                   {item.isActive ? "Activo" : "Inactivo"}
                 </span>
@@ -345,26 +312,6 @@ export default function TurnosPage() {
                       {!group.isActive ? " (inactivo)" : ""}
                     </option>
                   ))}
-              </select>
-            </Field>
-            <Field label="Categoría (subgrupo)">
-              <select
-                value={form.categorySubgroupId}
-                onChange={(e) =>
-                  setForm({ ...form, categorySubgroupId: e.target.value })
-                }
-                disabled={!form.groupId}
-                className={`${inputClass} disabled:bg-slate-100`}
-              >
-                <option value="">
-                  {form.groupId ? "Sin categoría" : "Primero elige grupo"}
-                </option>
-                {categoryOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                    {!option.isActive ? " (inactivo)" : ""}
-                  </option>
-                ))}
               </select>
             </Field>
             <Field label="Hora inicio">
@@ -434,10 +381,10 @@ export default function TurnosPage() {
             </label>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Ejemplo: grupo Diurno + categoría A = turno “Diurno A”. La categoría
-            es opcional si el turno aplica a todo el grupo. La grilla Lun–Dom de
-            abajo es la que se repite en la planificación mensual al asignar este
-            turno al conductor.
+            Usa el nombre del turno para distinguir variantes (ej. Turno A,
+            Turno B). El grupo principal es opcional. La grilla Lun–Dom de abajo
+            es la que se repite en la planificación mensual al asignar este turno
+            al conductor.
           </p>
           <Field label="Observación" className="mt-3">
             <textarea
