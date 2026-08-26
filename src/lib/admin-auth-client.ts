@@ -79,6 +79,34 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
         href: "/agendamientos/subgrupos",
         isActive: (pathname) => pathname.startsWith("/agendamientos/subgrupos"),
       },
+      {
+        label: "Turnos",
+        href: "/agendamientos/turnos",
+        isActive: (pathname) => pathname.startsWith("/agendamientos/turnos"),
+      },
+      {
+        label: "Patrones",
+        href: "/agendamientos/patrones",
+        isActive: (pathname) => pathname.startsWith("/agendamientos/patrones"),
+      },
+      {
+        label: "Estados operativos",
+        href: "/agendamientos/estados-operativos",
+        isActive: (pathname) =>
+          pathname.startsWith("/agendamientos/estados-operativos"),
+      },
+      {
+        label: "Motivos bloqueo",
+        href: "/agendamientos/motivos-bloqueo",
+        isActive: (pathname) =>
+          pathname.startsWith("/agendamientos/motivos-bloqueo"),
+      },
+      {
+        label: "Planificación mensual",
+        href: "/agendamientos/planificacion-mensual",
+        isActive: (pathname) =>
+          pathname.startsWith("/agendamientos/planificacion-mensual"),
+      },
     ],
   },
   {
@@ -153,7 +181,12 @@ export function isFlotaPath(pathname: string) {
   return (
     pathname.startsWith("/agendamientos/conductores") ||
     pathname.startsWith("/agendamientos/grupos") ||
-    pathname.startsWith("/agendamientos/subgrupos")
+    pathname.startsWith("/agendamientos/subgrupos") ||
+    pathname.startsWith("/agendamientos/turnos") ||
+    pathname.startsWith("/agendamientos/patrones") ||
+    pathname.startsWith("/agendamientos/estados-operativos") ||
+    pathname.startsWith("/agendamientos/motivos-bloqueo") ||
+    pathname.startsWith("/agendamientos/planificacion-mensual")
   );
 }
 

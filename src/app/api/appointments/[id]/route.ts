@@ -24,6 +24,7 @@ import {
   classificationSnapshotFields,
   findClassificationByVehicleNumber,
 } from "@/lib/driver-groups";
+import { syncAppointmentToDailySchedules } from "@/lib/appointment-schedule-sync";
 import { normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
@@ -943,6 +944,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         savedAppointment = toAppointment(
           appointmentWithNotice,
           reason ?? undefined,
+        );
+      }
+    }
+
+    const scheduleRelevantStatuses = new Set([
+      "aprobado",
+      "cancelado",
+      "rechazado",
+    ]);
+    const shouldSyncSchedule =
+      scheduleRelevantStatuses.has(savedAppointment.status) ||
+      scheduleRelevantStatuses.has(previousAppointment.status) ||
+      Boolean(datePatch);
+
+    if (shouldSyncSchedule) {
+      try {
+        await syncAppointmentToDailySchedules(id);
+      } catch (scheduleError) {
+        console.error(
+          "[appointments PATCH] syncAppointmentToDailySchedules failed:",
+          scheduleError,
         );
       }
     }

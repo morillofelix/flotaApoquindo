@@ -11,6 +11,10 @@ import {
 import { type DriverOwnerConfig, type ShiftType } from "@/lib/driver-owners";
 import { type PropietarioConfig } from "@/lib/propietarios";
 import { type PropietarioBankConfig } from "@/lib/propietarios-banks";
+import { type BlockReasonConfig } from "@/lib/block-reasons";
+import { type OperationalStatusConfig } from "@/lib/operational-status";
+import { type ShiftDefinitionConfig } from "@/lib/shift-definitions";
+import { type ShiftPatternConfig } from "@/lib/shift-patterns";
 
 export async function loadAppointments() {
   const response = await fetch("/api/appointments", {
@@ -172,6 +176,71 @@ export async function loadDriverSubgroups(filters?: {
   return {
     subgroups: data.subgroups ?? [],
     types: data.types ?? [],
+  };
+}
+
+async function loadFleetConfig<T>(url: string, key: string, errorMessage: string) {
+  const response = await fetch(url, { ...adminFetchInit, cache: "no-store" });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message || errorMessage);
+  }
+  const data = (await response.json()) as Record<string, unknown>;
+  return (Array.isArray(data[key]) ? data[key] : []) as T[];
+}
+
+export function loadShiftDefinitions() {
+  return loadFleetConfig<ShiftDefinitionConfig>(
+    "/api/shift-definitions",
+    "shifts",
+    "No se pudieron cargar los turnos.",
+  );
+}
+
+export function loadShiftPatterns() {
+  return loadFleetConfig<ShiftPatternConfig>(
+    "/api/shift-patterns",
+    "patterns",
+    "No se pudieron cargar los patrones.",
+  );
+}
+
+export function loadOperationalStatuses() {
+  return loadFleetConfig<OperationalStatusConfig>(
+    "/api/operational-statuses",
+    "statuses",
+    "No se pudieron cargar los estados operativos.",
+  );
+}
+
+export function loadBlockReasons() {
+  return loadFleetConfig<BlockReasonConfig>(
+    "/api/block-reasons",
+    "reasons",
+    "No se pudieron cargar los motivos de bloqueo.",
+  );
+}
+
+export async function loadMonthlySchedule(year: number, month: number) {
+  const response = await fetch(
+    `/api/monthly-schedules?year=${year}&month=${month}`,
+    { ...adminFetchInit, cache: "no-store" },
+  );
+  const data = (await response.json().catch(() => ({}))) as {
+    message?: string;
+    schedule?: unknown;
+    days?: unknown[];
+    summary?: unknown;
+  };
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo cargar la planificación.");
+  }
+  return {
+    schedule: data.schedule ?? null,
+    days: data.days ?? [],
+    summary:
+      data.summary ??
+      ({ totalDays: 0, drivers: 0, manualOverrides: 0, byStatus: {} } as const),
   };
 }
 

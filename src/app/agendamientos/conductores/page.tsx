@@ -180,6 +180,25 @@ export default function ConductoresPage() {
     [],
   );
   const [classificationHint, setClassificationHint] = useState("");
+  const [shiftDefinitions, setShiftDefinitions] = useState<
+    Array<{ id: string; code: string; name: string; isActive: boolean }>
+  >([]);
+  const [assignedShiftDefinitionId, setAssignedShiftDefinitionId] =
+    useState("");
+  const [initialAssignedShiftDefinitionId, setInitialAssignedShiftDefinitionId] =
+    useState("");
+  const [blockPanelOpen, setBlockPanelOpen] = useState(false);
+  const [blockReasons, setBlockReasons] = useState<
+    Array<{ id: string; code: string; name: string }>
+  >([]);
+  const [blockForm, setBlockForm] = useState({
+    blockReasonId: "",
+    startsAt: "",
+    endsAt: "",
+    observation: "",
+    blocksAllServices: true,
+    blocksLongTripsOnly: false,
+  });
   const [driverOwnerForm, setDriverOwnerForm] =
     useState<DriverOwnerForm>(emptyDriverOwnerForm);
   const [driverOwnerSearch, setDriverOwnerSearch] = useState("");
@@ -215,14 +234,35 @@ export default function ConductoresPage() {
   }
 
   const reloadDriverOwners = useCallback(async () => {
-    const [loadedDriverOwners, loadedGroups, loadedSubgroups] = await Promise.all([
-      loadDriverOwners(),
-      loadDriverGroups(),
-      loadDriverSubgroups(),
-    ]);
+    const [loadedDriverOwners, loadedGroups, loadedSubgroups, shiftsResponse, reasonsResponse] =
+      await Promise.all([
+        loadDriverOwners(),
+        loadDriverGroups(),
+        loadDriverSubgroups(),
+        fetch("/api/shift-definitions?activeOnly=true", {
+          ...adminFetchInit,
+          cache: "no-store",
+        }).then(async (response) => {
+          if (!response.ok) return { shifts: [] as Array<{ id: string; code: string; name: string; isActive: boolean }> };
+          return (await response.json()) as {
+            shifts?: Array<{ id: string; code: string; name: string; isActive: boolean }>;
+          };
+        }),
+        fetch("/api/block-reasons", {
+          ...adminFetchInit,
+          cache: "no-store",
+        }).then(async (response) => {
+          if (!response.ok) return { reasons: [] as Array<{ id: string; code: string; name: string }> };
+          return (await response.json()) as {
+            reasons?: Array<{ id: string; code: string; name: string }>;
+          };
+        }),
+      ]);
     setDriverOwners(loadedDriverOwners);
     setDriverGroups(loadedGroups);
     setDriverSubgroups(loadedSubgroups.subgroups);
+    setShiftDefinitions(shiftsResponse.shifts ?? []);
+    setBlockReasons(reasonsResponse.reasons ?? []);
     setDriverOwnerError("");
   }, []);
 
@@ -367,6 +407,35 @@ export default function ConductoresPage() {
     );
   }
 
+  async function loadDriverShiftAssignment(driverOwnerId: string) {
+    if (!driverOwnerId) {
+      setAssignedShiftDefinitionId("");
+      setInitialAssignedShiftDefinitionId("");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/driver-shift-assignments?driverOwnerId=${encodeURIComponent(driverOwnerId)}&active=true`,
+        { ...adminFetchInit, cache: "no-store" },
+      );
+      if (!response.ok) {
+        setAssignedShiftDefinitionId("");
+        setInitialAssignedShiftDefinitionId("");
+        return;
+      }
+      const data = (await response.json()) as {
+        assignments?: Array<{ shiftDefinitionId?: string | null }>;
+      };
+      const shiftId = data.assignments?.[0]?.shiftDefinitionId ?? "";
+      setAssignedShiftDefinitionId(shiftId);
+      setInitialAssignedShiftDefinitionId(shiftId);
+    } catch {
+      setAssignedShiftDefinitionId("");
+      setInitialAssignedShiftDefinitionId("");
+    }
+  }
+
   function editDriverOwner(driverOwner: DriverOwnerConfig) {
     setDriverOwnerForm({
       id: driverOwner.id ?? "",
@@ -405,6 +474,8 @@ export default function ConductoresPage() {
     setDriverOwnerMessage("");
     setDriverOwnerError("");
     setClassificationHint("");
+    setBlockPanelOpen(false);
+    void loadDriverShiftAssignment(driverOwner.id ?? "");
   }
 
   function resetDriverOwnerForm() {
@@ -413,6 +484,9 @@ export default function ConductoresPage() {
     setDriverOwnerMessage("");
     setDriverOwnerError("");
     setClassificationHint("");
+    setAssignedShiftDefinitionId("");
+    setInitialAssignedShiftDefinitionId("");
+    setBlockPanelOpen(false);
   }
 
   function handleGroupChange(groupId: string) {
@@ -743,15 +817,106 @@ export default function ConductoresPage() {
         throw new Error(data.message ?? "No se pudo guardar el registro.");
       }
 
+      const savedPayload = (await response.json()) as {
+        driverOwner?: { id?: string };
+      };
+      const savedId =
+        savedPayload.driverOwner?.id ||
+        driverOwnerForm.id ||
+        "";
+
+      if (
+        savedId &&
+        assignedShiftDefinitionId &&
+        assignedShiftDefinitionId !== initialAssignedShiftDefinitionId
+      ) {
+        const assignmentResponse = await fetch("/api/driver-shift-assignments", {
+          ...adminFetchInit,
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            driverOwnerId: savedId,
+            shiftDefinitionId: assignedShiftDefinitionId,
+            effectiveFrom: new Date().toISOString().slice(0, 10),
+          }),
+        });
+        if (!assignmentResponse.ok) {
+          const assignmentData = (await assignmentResponse.json()) as {
+            message?: string;
+          };
+          throw new Error(
+            assignmentData.message ??
+              "Registro guardado, pero no se pudo asignar el turno operativo.",
+          );
+        }
+      }
+
       const loadedDriverOwners = await loadDriverOwners();
       setDriverOwners(loadedDriverOwners);
       setDriverOwnerForm(emptyDriverOwnerForm);
+      setAssignedShiftDefinitionId("");
+      setInitialAssignedShiftDefinitionId("");
+      setBlockPanelOpen(false);
       setDriverOwnerMessage("Registro guardado correctamente.");
     } catch (error) {
       setDriverOwnerError(
         error instanceof Error
           ? error.message
           : "No se pudo guardar el registro.",
+      );
+    } finally {
+      setIsSavingDriverOwner(false);
+    }
+  }
+
+  async function saveDriverBlock() {
+    if (!driverOwnerForm.id) {
+      setDriverOwnerError("Guarda o selecciona un conductor antes de bloquear.");
+      revealDriverOwnerFeedback();
+      return;
+    }
+    if (!blockForm.blockReasonId || !blockForm.startsAt) {
+      setDriverOwnerError("Indica motivo y fecha/hora de inicio del bloqueo.");
+      revealDriverOwnerFeedback();
+      return;
+    }
+
+    setIsSavingDriverOwner(true);
+    setDriverOwnerError("");
+    setDriverOwnerMessage("");
+
+    try {
+      const response = await fetch("/api/driver-blocks", {
+        ...adminFetchInit,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          driverOwnerId: driverOwnerForm.id,
+          blockReasonId: blockForm.blockReasonId,
+          startsAt: blockForm.startsAt,
+          endsAt: blockForm.endsAt || null,
+          observation: blockForm.observation,
+          blocksAllServices: blockForm.blocksAllServices,
+          blocksLongTripsOnly: blockForm.blocksLongTripsOnly,
+        }),
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || "No se pudo crear el bloqueo.");
+      }
+      setDriverOwnerMessage("Bloqueo operacional registrado.");
+      setBlockPanelOpen(false);
+      setBlockForm({
+        blockReasonId: "",
+        startsAt: "",
+        endsAt: "",
+        observation: "",
+        blocksAllServices: true,
+        blocksLongTripsOnly: false,
+      });
+    } catch (error) {
+      setDriverOwnerError(
+        error instanceof Error ? error.message : "No se pudo crear el bloqueo.",
       );
     } finally {
       setIsSavingDriverOwner(false);
@@ -1846,6 +2011,173 @@ export default function ConductoresPage() {
                     </p>
                   )}
                 </div>
+
+                {driverOwnerForm.isConductor ? (
+                  <div className="sm:col-span-2 rounded-2xl border border-[#c5d8eb] bg-[#f8fbff] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#173b68]">
+                      Turno operativo y bloqueo
+                    </p>
+                    <label className="mt-3 flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-[#173b68]">
+                        Turno operativo
+                      </span>
+                      <select
+                        value={assignedShiftDefinitionId}
+                        onChange={(event) =>
+                          setAssignedShiftDefinitionId(event.target.value)
+                        }
+                        className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] outline-none focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                      >
+                        <option value="">Sin turno asignado</option>
+                        {shiftDefinitions.map((shift) => (
+                          <option key={shift.id} value={shift.id}>
+                            {shift.name} ({shift.code})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      El cambio de turno se guarda con historial desde hoy y no
+                      altera meses ya generados hasta regenerar.
+                    </p>
+                    {driverOwnerForm.id ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setBlockPanelOpen((open) => !open)}
+                          className="inline-flex h-9 items-center justify-center rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]"
+                        >
+                          {blockPanelOpen
+                            ? "Cerrar bloqueo"
+                            : "Registrar bloqueo operacional"}
+                        </button>
+                      </div>
+                    ) : null}
+                    {blockPanelOpen ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1.5 sm:col-span-2">
+                          <span className="text-xs font-semibold text-[#173b68]">
+                            Motivo de bloqueo
+                          </span>
+                          <select
+                            value={blockForm.blockReasonId}
+                            onChange={(event) =>
+                              setBlockForm((current) => ({
+                                ...current,
+                                blockReasonId: event.target.value,
+                              }))
+                            }
+                            className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747]"
+                          >
+                            <option value="">Selecciona</option>
+                            {blockReasons.map((reason) => (
+                              <option key={reason.id} value={reason.id}>
+                                {reason.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-semibold text-[#173b68]">
+                            Desde
+                          </span>
+                          <input
+                            type="datetime-local"
+                            value={blockForm.startsAt}
+                            onChange={(event) =>
+                              setBlockForm((current) => ({
+                                ...current,
+                                startsAt: event.target.value,
+                              }))
+                            }
+                            className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-semibold text-[#173b68]">
+                            Hasta (opcional)
+                          </span>
+                          <input
+                            type="datetime-local"
+                            value={blockForm.endsAt}
+                            onChange={(event) =>
+                              setBlockForm((current) => ({
+                                ...current,
+                                endsAt: event.target.value,
+                              }))
+                            }
+                            className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5 sm:col-span-2">
+                          <span className="text-xs font-semibold text-[#173b68]">
+                            Observación
+                          </span>
+                          <input
+                            type="text"
+                            value={blockForm.observation}
+                            onChange={(event) =>
+                              setBlockForm((current) => ({
+                                ...current,
+                                observation: event.target.value,
+                              }))
+                            }
+                            className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm"
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-[#173b68]">
+                          <input
+                            type="checkbox"
+                            checked={blockForm.blocksAllServices}
+                            onChange={(event) =>
+                              setBlockForm((current) => ({
+                                ...current,
+                                blocksAllServices: event.target.checked,
+                                blocksLongTripsOnly: event.target.checked
+                                  ? false
+                                  : current.blocksLongTripsOnly,
+                              }))
+                            }
+                          />
+                          Bloquea todos los servicios
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-[#173b68]">
+                          <input
+                            type="checkbox"
+                            checked={blockForm.blocksLongTripsOnly}
+                            onChange={(event) =>
+                              setBlockForm((current) => ({
+                                ...current,
+                                blocksLongTripsOnly: event.target.checked,
+                                blocksAllServices: event.target.checked
+                                  ? false
+                                  : current.blocksAllServices,
+                              }))
+                            }
+                          />
+                          Solo Tercer fichero
+                        </label>
+                        <div className="sm:col-span-2 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBlockPanelOpen(false)}
+                            className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSavingDriverOwner}
+                            onClick={() => void saveDriverBlock()}
+                            className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white disabled:bg-slate-300"
+                          >
+                            Guardar bloqueo
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
                   <span className="text-xs font-semibold text-[#173b68]">
