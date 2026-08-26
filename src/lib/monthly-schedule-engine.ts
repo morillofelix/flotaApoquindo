@@ -12,14 +12,16 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 export type GenerateScope = {
-  /** all | group | vehicle | range | vehicles */
-  mode?: "all" | "group" | "vehicle" | "range" | "vehicles";
+  /** all | group | vehicle | range | vehicles | shift */
+  mode?: "all" | "group" | "vehicle" | "range" | "vehicles" | "shift";
   groupId?: string;
   vehicleNumber?: string;
   vehicleFrom?: string;
   vehicleTo?: string;
   /** Lista explícita de móviles (lote cliente). */
   vehicleNumbers?: string[];
+  /** Turno operativo (ShiftDefinition.id). */
+  shiftDefinitionId?: string;
 };
 
 export type GenerateProgress = {
@@ -260,25 +262,89 @@ function buildDriverWhere(scope?: GenerateScope): Prisma.DriverOwnerWhereInput {
   return where;
 }
 
-export async function previewMonthlyScheduleGeneration(options: {
+function validateScopeBasics(scope?: GenerateScope) {
+  const mode = scope?.mode ?? "all";
+  if (mode === "vehicle" && !scope?.vehicleNumber?.trim()) {
+    throw new Error("Indica el número de móvil.");
+  }
+  if (mode === "group" && !scope?.groupId?.trim()) {
+    throw new Error("Selecciona un grupo.");
+  }
+  if (mode === "range") {
+    const from = scope?.vehicleFrom?.trim() ?? "";
+    const to = scope?.vehicleTo?.trim() ?? "";
+    if (!from || !to) {
+      throw new Error("Indica el rango de móviles (desde / hasta).");
+    }
+  }
+  if (mode === "vehicles") {
+    const numbers = (scope?.vehicleNumbers ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!numbers.length) {
+      throw new Error("Indica al menos un móvil para el lote.");
+    }
+  }
+  if (mode === "shift" && !scope?.shiftDefinitionId?.trim()) {
+    throw new Error("Selecciona un turno.");
+  }
+  return mode;
+}
+
+type ScopedDriverBrief = {
+  id: string;
+  vehicleNumber: string;
+  fullName: string;
+  groupId: string | null;
+  groupName: string;
+};
+
+/**
+ * Lista de conductores del alcance (incluye filtro por turno vía
+ * asignación o coincidencia grupo+categoría).
+ */
+export async function listDriversForScope(options: {
   year: number;
   month: number;
   scope?: GenerateScope;
-}) {
+}): Promise<{ mode: NonNullable<GenerateScope["mode"]>; drivers: ScopedDriverBrief[] }> {
   if (!isValidPlanningMonth(options.year, options.month)) {
     throw new Error("Mes de planificación inválido.");
   }
 
-  const mode = options.scope?.mode ?? "all";
-  const where = buildDriverWhere(options.scope);
+  const mode = validateScopeBasics(options.scope);
+  const firstDate = atUtcNoon(options.year, options.month, 1);
+  const lastDate = atUtcNoon(
+    options.year,
+    options.month,
+    daysInMonth(options.year, options.month),
+  );
+
   let drivers = await prisma.driverOwner.findMany({
-    where,
+    where: buildDriverWhere(options.scope),
     select: {
       id: true,
       vehicleNumber: true,
       fullName: true,
       groupId: true,
       group: { select: { id: true, name: true } },
+      subgroupAssignments: {
+        include: {
+          subgroup: { select: { id: true, type: true } },
+        },
+      },
+      shiftAssignments: {
+        where: {
+          isActive: true,
+          effectiveFrom: { lte: lastDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: firstDate } }],
+        },
+        select: {
+          shiftDefinitionId: true,
+          effectiveFrom: true,
+          effectiveTo: true,
+        },
+      },
     },
     orderBy: { vehicleNumber: "asc" },
   });
@@ -286,45 +352,207 @@ export async function previewMonthlyScheduleGeneration(options: {
   if (mode === "range") {
     const from = options.scope?.vehicleFrom?.trim() ?? "";
     const to = options.scope?.vehicleTo?.trim() ?? "";
-    if (!from || !to) {
-      throw new Error("Indica el rango de móviles (desde / hasta).");
-    }
     drivers = drivers.filter((driver) =>
       vehicleInRange(driver.vehicleNumber, from, to),
     );
   }
 
-  if (mode === "vehicle" && !options.scope?.vehicleNumber?.trim()) {
-    throw new Error("Indica el número de móvil.");
-  }
-
-  if (mode === "group" && !options.scope?.groupId?.trim()) {
-    throw new Error("Selecciona un grupo.");
-  }
-
-  if (mode === "vehicles") {
-    const numbers = (options.scope?.vehicleNumbers ?? [])
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (!numbers.length) {
-      throw new Error("Indica al menos un móvil para el lote.");
+  if (mode === "shift") {
+    const shiftId = options.scope!.shiftDefinitionId!.trim();
+    const shift = await prisma.shiftDefinition.findUnique({
+      where: { id: shiftId },
+      select: {
+        id: true,
+        isActive: true,
+        groupId: true,
+        categorySubgroupId: true,
+      },
+    });
+    if (!shift || !shift.isActive) {
+      throw new Error("El turno seleccionado no existe o está inactivo.");
     }
+
+    drivers = drivers.filter((driver) => {
+      const covering = driver.shiftAssignments.find(
+        (item) =>
+          item.effectiveFrom <= lastDate &&
+          (!item.effectiveTo || item.effectiveTo >= firstDate),
+      );
+      if (covering) {
+        return covering.shiftDefinitionId === shift.id;
+      }
+      const categoryId = categoryIdFromDriver(driver);
+      if (shift.categorySubgroupId) {
+        return (
+          driver.groupId === shift.groupId &&
+          categoryId === shift.categorySubgroupId
+        );
+      }
+      if (shift.groupId) {
+        return driver.groupId === shift.groupId;
+      }
+      return false;
+    });
   }
+
+  return {
+    mode,
+    drivers: drivers.map((driver) => ({
+      id: driver.id,
+      vehicleNumber: driver.vehicleNumber,
+      fullName: driver.fullName,
+      groupId: driver.groupId,
+      groupName: driver.group?.name ?? "Sin grupo",
+    })),
+  };
+}
+
+export async function previewMonthlyScheduleGeneration(options: {
+  year: number;
+  month: number;
+  scope?: GenerateScope;
+}) {
+  const { mode, drivers } = await listDriversForScope(options);
+  const daysPerDriver = daysInMonth(options.year, options.month);
 
   return {
     year: options.year,
     month: options.month,
     mode,
     driversCount: drivers.length,
-    daysPerDriver: daysInMonth(options.year, options.month),
-    estimatedCells:
-      drivers.length * daysInMonth(options.year, options.month),
+    daysPerDriver,
+    estimatedCells: drivers.length * daysPerDriver,
     vehicleNumbers: drivers.map((driver) => driver.vehicleNumber),
     sample: drivers.slice(0, 8).map((driver) => ({
       vehicleNumber: driver.vehicleNumber,
       fullName: driver.fullName,
-      groupName: driver.group?.name ?? "Sin grupo",
+      groupName: driver.groupName,
     })),
+  };
+}
+
+export async function previewMonthlyScheduleDeletion(options: {
+  year: number;
+  month: number;
+  scope?: GenerateScope;
+}) {
+  const { mode, drivers } = await listDriversForScope(options);
+  const firstDate = atUtcNoon(options.year, options.month, 1);
+  const lastDate = atUtcNoon(
+    options.year,
+    options.month,
+    daysInMonth(options.year, options.month),
+  );
+
+  if (!drivers.length) {
+    return {
+      year: options.year,
+      month: options.month,
+      mode,
+      driversCount: 0,
+      daysCount: 0,
+      manualOverrides: 0,
+      vehicleNumbers: [] as string[],
+      sample: [] as Array<{
+        vehicleNumber: string;
+        fullName: string;
+        groupName: string;
+      }>,
+    };
+  }
+
+  const driverIds = drivers.map((driver) => driver.id);
+  const [daysCount, manualOverrides] = await Promise.all([
+    prisma.dailySchedule.count({
+      where: {
+        driverOwnerId: { in: driverIds },
+        date: { gte: firstDate, lte: lastDate },
+      },
+    }),
+    prisma.dailySchedule.count({
+      where: {
+        driverOwnerId: { in: driverIds },
+        date: { gte: firstDate, lte: lastDate },
+        isManualOverride: true,
+      },
+    }),
+  ]);
+
+  return {
+    year: options.year,
+    month: options.month,
+    mode,
+    driversCount: drivers.length,
+    daysCount,
+    manualOverrides,
+    vehicleNumbers: drivers.map((driver) => driver.vehicleNumber),
+    sample: drivers.slice(0, 8).map((driver) => ({
+      vehicleNumber: driver.vehicleNumber,
+      fullName: driver.fullName,
+      groupName: driver.groupName,
+    })),
+  };
+}
+
+export async function deleteMonthlyScheduleScope(options: {
+  year: number;
+  month: number;
+  scope?: GenerateScope;
+  /** Si false, conserva filas con isManualOverride. Default true = borrar todo el alcance. */
+  includeManualOverrides?: boolean;
+}) {
+  if (!isValidPlanningMonth(options.year, options.month)) {
+    throw new Error("Mes de planificación inválido.");
+  }
+
+  const { mode, drivers } = await listDriversForScope(options);
+  if (!drivers.length) {
+    throw new Error("No hay conductores en el alcance seleccionado.");
+  }
+
+  const firstDate = atUtcNoon(options.year, options.month, 1);
+  const lastDate = atUtcNoon(
+    options.year,
+    options.month,
+    daysInMonth(options.year, options.month),
+  );
+  const driverIds = drivers.map((driver) => driver.id);
+  const includeManual = options.includeManualOverrides !== false;
+
+  const where: Prisma.DailyScheduleWhereInput = {
+    driverOwnerId: { in: driverIds },
+    date: { gte: firstDate, lte: lastDate },
+    ...(includeManual ? {} : { isManualOverride: false }),
+  };
+
+  const existing = await prisma.dailySchedule.count({ where });
+  if (!existing) {
+    throw new Error(
+      "No hay días generados en este periodo para el alcance indicado.",
+    );
+  }
+
+  const deleted = await prisma.dailySchedule.deleteMany({ where });
+
+  const monthly = await prisma.monthlySchedule.findUnique({
+    where: { year_month: { year: options.year, month: options.month } },
+    include: { _count: { select: { days: true } } },
+  });
+
+  let monthlyCleared = false;
+  if (monthly && monthly._count.days === 0) {
+    await prisma.monthlySchedule.delete({ where: { id: monthly.id } });
+    monthlyCleared = true;
+  }
+
+  return {
+    year: options.year,
+    month: options.month,
+    mode,
+    driversTargeted: drivers.length,
+    daysDeleted: deleted.count,
+    includeManualOverrides: includeManual,
+    monthlyCleared,
   };
 }
 
@@ -344,6 +572,16 @@ export async function generateMonthlySchedule(
   );
   const batchSize = Math.max(5, options.batchSize ?? DRIVER_BATCH_SIZE);
   const mode = options.scope?.mode ?? "all";
+
+  const { drivers: scopedDrivers } = await listDriversForScope({
+    year: options.year,
+    month: options.month,
+    scope: options.scope,
+  });
+  if (!scopedDrivers.length) {
+    throw new Error("No hay conductores activos que coincidan con el alcance.");
+  }
+  const scopedIds = scopedDrivers.map((driver) => driver.id);
 
   const [monthly, statuses, holidays, catalogShifts] = await Promise.all([
     prisma.monthlySchedule.upsert({
@@ -381,8 +619,8 @@ export async function generateMonthlySchedule(
     }
   }
 
-  let drivers = await prisma.driverOwner.findMany({
-    where: buildDriverWhere(options.scope),
+  const drivers = await prisma.driverOwner.findMany({
+    where: { id: { in: scopedIds } },
     include: {
       group: true,
       subgroupAssignments: {
@@ -406,34 +644,6 @@ export async function generateMonthlySchedule(
     },
     orderBy: [{ vehicleNumber: "asc" }],
   });
-
-  if (mode === "range") {
-    const from = options.scope?.vehicleFrom?.trim() ?? "";
-    const to = options.scope?.vehicleTo?.trim() ?? "";
-    if (!from || !to) {
-      throw new Error("Indica el rango de móviles (desde / hasta).");
-    }
-    drivers = drivers.filter((driver) =>
-      vehicleInRange(driver.vehicleNumber, from, to),
-    );
-  }
-
-  if (mode === "vehicle" && !options.scope?.vehicleNumber?.trim()) {
-    throw new Error("Indica el número de móvil.");
-  }
-
-  if (mode === "group" && !options.scope?.groupId?.trim()) {
-    throw new Error("Selecciona un grupo.");
-  }
-
-  if (mode === "vehicles") {
-    const numbers = (options.scope?.vehicleNumbers ?? [])
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (!numbers.length) {
-      throw new Error("Indica al menos un móvil para el lote.");
-    }
-  }
 
   if (!drivers.length) {
     throw new Error("No hay conductores activos que coincidan con el alcance.");

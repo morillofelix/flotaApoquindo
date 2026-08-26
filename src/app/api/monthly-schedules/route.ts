@@ -2,7 +2,9 @@ import { requireAdminPermission } from "@/lib/admin-api-server";
 import { readAdminSession } from "@/lib/driver-auth";
 import { isValidPlanningMonth } from "@/lib/fleet-schedule";
 import {
+  deleteMonthlyScheduleScope,
   generateMonthlySchedule,
+  previewMonthlyScheduleDeletion,
   previewMonthlyScheduleGeneration,
   type GenerateScope,
 } from "@/lib/monthly-schedule-engine";
@@ -31,6 +33,7 @@ function parseScope(body: Record<string, unknown>): GenerateScope {
     modeRaw === "vehicle" ||
     modeRaw === "range" ||
     modeRaw === "vehicles" ||
+    modeRaw === "shift" ||
     modeRaw === "all"
       ? modeRaw
       : "all";
@@ -49,6 +52,24 @@ function parseScope(body: Record<string, unknown>): GenerateScope {
     vehicleFrom: asString(body.vehicleFrom) || undefined,
     vehicleTo: asString(body.vehicleTo) || undefined,
     vehicleNumbers,
+    shiftDefinitionId: asString(body.shiftDefinitionId) || undefined,
+  };
+}
+
+function scopeFromSearchParams(request: NextRequest): GenerateScope {
+  return {
+    mode: (asString(request.nextUrl.searchParams.get("mode")) ||
+      "all") as GenerateScope["mode"],
+    groupId: asString(request.nextUrl.searchParams.get("groupId")) || undefined,
+    vehicleNumber:
+      asString(request.nextUrl.searchParams.get("vehicleNumber")) || undefined,
+    vehicleFrom:
+      asString(request.nextUrl.searchParams.get("vehicleFrom")) || undefined,
+    vehicleTo:
+      asString(request.nextUrl.searchParams.get("vehicleTo")) || undefined,
+    shiftDefinitionId:
+      asString(request.nextUrl.searchParams.get("shiftDefinitionId")) ||
+      undefined,
   };
 }
 
@@ -61,21 +82,24 @@ export async function GET(request: NextRequest) {
   }
 
   const preview = request.nextUrl.searchParams.get("preview") === "1";
-  if (preview) {
+  const deletePreview =
+    request.nextUrl.searchParams.get("deletePreview") === "1";
+  if (preview || deletePreview) {
     try {
-      const scope: GenerateScope = {
-        mode: (asString(request.nextUrl.searchParams.get("mode")) ||
-          "all") as GenerateScope["mode"],
-        groupId: asString(request.nextUrl.searchParams.get("groupId")) || undefined,
-        vehicleNumber:
-          asString(request.nextUrl.searchParams.get("vehicleNumber")) ||
-          undefined,
-        vehicleFrom:
-          asString(request.nextUrl.searchParams.get("vehicleFrom")) || undefined,
-        vehicleTo:
-          asString(request.nextUrl.searchParams.get("vehicleTo")) || undefined,
-      };
-      const result = await previewMonthlyScheduleGeneration({ year, month, scope });
+      const scope = scopeFromSearchParams(request);
+      if (deletePreview) {
+        const result = await previewMonthlyScheduleDeletion({
+          year,
+          month,
+          scope,
+        });
+        return NextResponse.json({ preview: result });
+      }
+      const result = await previewMonthlyScheduleGeneration({
+        year,
+        month,
+        scope,
+      });
       return NextResponse.json({ preview: result });
     } catch (error) {
       return NextResponse.json(
@@ -210,6 +234,35 @@ export async function POST(request: NextRequest) {
         scope,
       });
       return NextResponse.json({ preview });
+    }
+
+    if (action === "deletePreview") {
+      const preview = await previewMonthlyScheduleDeletion({
+        year,
+        month,
+        scope,
+      });
+      return NextResponse.json({ preview });
+    }
+
+    if (action === "delete") {
+      const confirmText = asString(body.confirmText).toUpperCase();
+      if (confirmText !== "ELIMINAR") {
+        return NextResponse.json(
+          {
+            message:
+              'Para confirmar escribe ELIMINAR en el campo de validación.',
+          },
+          { status: 400 },
+        );
+      }
+      const summary = await deleteMonthlyScheduleScope({
+        year,
+        month,
+        scope,
+        includeManualOverrides: body.includeManualOverrides !== false,
+      });
+      return NextResponse.json({ summary });
     }
 
     if (action !== "generate") {

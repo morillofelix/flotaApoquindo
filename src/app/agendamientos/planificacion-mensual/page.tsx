@@ -6,10 +6,12 @@ import {
   loadDriverGroups,
   loadMonthlySchedule,
   loadOperationalStatuses,
+  loadShiftDefinitions,
 } from "@/lib/agendamientos-admin";
 import type { DriverGroupConfig } from "@/lib/driver-groups";
 import type { HolidayConfig } from "@/lib/holidays";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
+import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -68,18 +70,26 @@ type Row = {
   byDate: Map<string, ScheduleDay>;
 };
 type EditForm = { day: ScheduleDay; statusCode: string; observation: string };
-type GenerateMode = "all" | "group" | "vehicle" | "range";
+type GenerateMode = "all" | "group" | "vehicle" | "range" | "shift";
 type GenerateForm = {
   mode: GenerateMode;
   groupId: string;
   vehicleNumber: string;
   vehicleFrom: string;
   vehicleTo: string;
+  shiftDefinitionId: string;
 };
 type GeneratePreview = {
   driversCount: number;
   daysPerDriver: number;
   estimatedCells: number;
+  vehicleNumbers?: string[];
+  sample: Array<{ vehicleNumber: string; fullName: string; groupName: string }>;
+};
+type DeletePreview = {
+  driversCount: number;
+  daysCount: number;
+  manualOverrides: number;
   vehicleNumbers?: string[];
   sample: Array<{ vehicleNumber: string; fullName: string; groupName: string }>;
 };
@@ -102,6 +112,8 @@ const controlClass =
   "h-9 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs text-[#0f2747] outline-none focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 const buttonClass =
   "inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] disabled:cursor-not-allowed disabled:bg-slate-300";
+const dangerButtonClass =
+  "inline-flex h-9 items-center justify-center rounded-2xl border border-red-300 bg-white px-4 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400";
 const today = new Date();
 const emptyGenerateForm = (): GenerateForm => ({
   mode: "range",
@@ -109,7 +121,23 @@ const emptyGenerateForm = (): GenerateForm => ({
   vehicleNumber: "",
   vehicleFrom: "001",
   vehicleTo: "050",
+  shiftDefinitionId: "",
 });
+
+function appendScopeParams(params: URLSearchParams, form: GenerateForm) {
+  params.set("mode", form.mode);
+  if (form.mode === "group" && form.groupId) params.set("groupId", form.groupId);
+  if (form.mode === "vehicle" && form.vehicleNumber) {
+    params.set("vehicleNumber", form.vehicleNumber);
+  }
+  if (form.mode === "range") {
+    params.set("vehicleFrom", form.vehicleFrom);
+    params.set("vehicleTo", form.vehicleTo);
+  }
+  if (form.mode === "shift" && form.shiftDefinitionId) {
+    params.set("shiftDefinitionId", form.shiftDefinitionId);
+  }
+}
 
 export default function PlanificacionMensualPage() {
   const [year, setYear] = useState(today.getFullYear());
@@ -118,6 +146,9 @@ export default function PlanificacionMensualPage() {
   const [statuses, setStatuses] = useState<OperationalStatusConfig[]>([]);
   const [holidays, setHolidays] = useState<HolidayConfig[]>([]);
   const [driverGroups, setDriverGroups] = useState<DriverGroupConfig[]>([]);
+  const [shiftDefinitions, setShiftDefinitions] = useState<
+    ShiftDefinitionConfig[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -132,10 +163,17 @@ export default function PlanificacionMensualPage() {
     blocked: false,
   });
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [generateForm, setGenerateForm] = useState<GenerateForm>(emptyGenerateForm);
+  const [deleteForm, setDeleteForm] = useState<GenerateForm>(emptyGenerateForm);
   const [preview, setPreview] = useState<GeneratePreview | null>(null);
+  const [deletePreview, setDeletePreview] = useState<DeletePreview | null>(null);
   const [previewError, setPreviewError] = useState("");
+  const [deletePreviewError, setDeletePreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [includeManualOnDelete, setIncludeManualOnDelete] = useState(true);
   const [generateProgress, setGenerateProgress] =
     useState<GenerateProgressState | null>(null);
 
@@ -143,21 +181,25 @@ export default function PlanificacionMensualPage() {
     setLoading(true);
     setError("");
     try {
-      const [schedule, statusList, holidayResponse, groups] = await Promise.all([
-        loadMonthlySchedule(year, month),
-        loadOperationalStatuses(),
-        fetch(`/api/holidays?year=${year}`, { cache: "no-store" }).then(
-          async (response) => {
-            if (!response.ok) throw new Error("No se pudieron cargar los feriados.");
-            return (await response.json()) as { holidays?: HolidayConfig[] };
-          },
-        ),
-        loadDriverGroups(),
-      ]);
+      const [schedule, statusList, holidayResponse, groups, shifts] =
+        await Promise.all([
+          loadMonthlySchedule(year, month),
+          loadOperationalStatuses(),
+          fetch(`/api/holidays?year=${year}`, { cache: "no-store" }).then(
+            async (response) => {
+              if (!response.ok)
+                throw new Error("No se pudieron cargar los feriados.");
+              return (await response.json()) as { holidays?: HolidayConfig[] };
+            },
+          ),
+          loadDriverGroups(),
+          loadShiftDefinitions(),
+        ]);
       setData(schedule as SchedulePayload);
       setStatuses(statusList);
       setHolidays(holidayResponse.holidays ?? []);
       setDriverGroups(groups);
+      setShiftDefinitions(shifts.filter((shift) => shift.isActive));
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -284,18 +326,8 @@ export default function PlanificacionMensualPage() {
           year: String(year),
           month: String(month),
           preview: "1",
-          mode: form.mode,
         });
-        if (form.mode === "group" && form.groupId) {
-          params.set("groupId", form.groupId);
-        }
-        if (form.mode === "vehicle" && form.vehicleNumber) {
-          params.set("vehicleNumber", form.vehicleNumber);
-        }
-        if (form.mode === "range") {
-          params.set("vehicleFrom", form.vehicleFrom);
-          params.set("vehicleTo", form.vehicleTo);
-        }
+        appendScopeParams(params, form);
         const response = await fetch(`/api/monthly-schedules?${params}`, {
           ...adminFetchInit,
           cache: "no-store",
@@ -322,6 +354,43 @@ export default function PlanificacionMensualPage() {
     [month, year],
   );
 
+  const refreshDeletePreview = useCallback(
+    async (form: GenerateForm) => {
+      setDeletePreviewLoading(true);
+      setDeletePreviewError("");
+      try {
+        const params = new URLSearchParams({
+          year: String(year),
+          month: String(month),
+          deletePreview: "1",
+        });
+        appendScopeParams(params, form);
+        const response = await fetch(`/api/monthly-schedules?${params}`, {
+          ...adminFetchInit,
+          cache: "no-store",
+        });
+        const body = (await response.json()) as {
+          message?: string;
+          preview?: DeletePreview;
+        };
+        if (!response.ok) {
+          throw new Error(body.message || "No se pudo calcular el alcance.");
+        }
+        setDeletePreview(body.preview ?? null);
+      } catch (caught) {
+        setDeletePreview(null);
+        setDeletePreviewError(
+          caught instanceof Error
+            ? caught.message
+            : "No se pudo calcular el alcance.",
+        );
+      } finally {
+        setDeletePreviewLoading(false);
+      }
+    },
+    [month, year],
+  );
+
   useEffect(() => {
     if (!generateOpen) return;
     const timer = window.setTimeout(() => {
@@ -329,6 +398,14 @@ export default function PlanificacionMensualPage() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [generateForm, generateOpen, refreshPreview]);
+
+  useEffect(() => {
+    if (!deleteOpen) return;
+    const timer = window.setTimeout(() => {
+      void refreshDeletePreview(deleteForm);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [deleteForm, deleteOpen, refreshDeletePreview]);
 
   function changePeriod(nextYear: number, nextMonth: number) {
     if (
@@ -357,6 +434,87 @@ export default function PlanificacionMensualPage() {
     setPreviewError("");
     setGenerateProgress(null);
     setGenerateOpen(true);
+  }
+
+  function openDelete() {
+    setDeleteForm(emptyGenerateForm());
+    setDeletePreview(null);
+    setDeletePreviewError("");
+    setDeleteConfirmText("");
+    setIncludeManualOnDelete(true);
+    setDeleteOpen(true);
+  }
+
+  async function runDelete() {
+    if (!deletePreview?.daysCount) {
+      setDeletePreviewError(
+        "No hay días generados en este alcance para eliminar.",
+      );
+      return;
+    }
+    if (deleteConfirmText.trim().toUpperCase() !== "ELIMINAR") {
+      setDeletePreviewError('Escribe ELIMINAR para confirmar la eliminación.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Seguro que deseas revertir y eliminar ${deletePreview.daysCount} días de ${deletePreview.driversCount} conductores en ${monthLabel}? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/monthly-schedules", {
+        ...adminFetchInit,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          year,
+          month,
+          confirmText: deleteConfirmText.trim(),
+          includeManualOverrides: includeManualOnDelete,
+          mode: deleteForm.mode,
+          groupId: deleteForm.groupId,
+          vehicleNumber: deleteForm.vehicleNumber,
+          vehicleFrom: deleteForm.vehicleFrom,
+          vehicleTo: deleteForm.vehicleTo,
+          shiftDefinitionId: deleteForm.shiftDefinitionId,
+        }),
+      });
+      const body = (await response.json()) as {
+        message?: string;
+        summary?: {
+          daysDeleted?: number;
+          driversTargeted?: number;
+          monthlyCleared?: boolean;
+        };
+      };
+      if (!response.ok) {
+        throw new Error(body.message || "No se pudo eliminar la generación.");
+      }
+      setDeleteOpen(false);
+      await reload();
+      setMessage(
+        `Eliminado: ${body.summary?.daysDeleted ?? 0} días de ${body.summary?.driversTargeted ?? 0} conductores${
+          body.summary?.monthlyCleared
+            ? " · el mes quedó sin planificación"
+            : ""
+        }.`,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "No se pudo eliminar la generación.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function runGenerate() {
@@ -643,6 +801,14 @@ export default function PlanificacionMensualPage() {
                 className={buttonClass}
               >
                 Generar / Regenerar
+              </button>
+              <button
+                type="button"
+                disabled={busy || !(data?.summary.totalDays ?? 0)}
+                onClick={openDelete}
+                className={dangerButtonClass}
+              >
+                Eliminar generación
               </button>
               <button
                 type="button"
@@ -947,6 +1113,7 @@ export default function PlanificacionMensualPage() {
                 >
                   <option value="range">Rango de móviles</option>
                   <option value="group">Por grupo principal</option>
+                  <option value="shift">Por turno</option>
                   <option value="vehicle">Un móvil</option>
                   <option value="all">Toda la flota activa</option>
                 </select>
@@ -972,6 +1139,28 @@ export default function PlanificacionMensualPage() {
                           {group.name}
                         </option>
                       ))}
+                  </select>
+                </Label>
+              ) : null}
+              {generateForm.mode === "shift" ? (
+                <Label text="Turno">
+                  <select
+                    value={generateForm.shiftDefinitionId}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setGenerateForm({
+                        ...generateForm,
+                        shiftDefinitionId: e.target.value,
+                      })
+                    }
+                    className={controlClass}
+                  >
+                    <option value="">Selecciona</option>
+                    {shiftDefinitions.map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name} ({shift.code})
+                      </option>
+                    ))}
                   </select>
                 </Label>
               ) : null}
@@ -1142,6 +1331,237 @@ export default function PlanificacionMensualPage() {
                   : generateProgress?.phase === "error"
                     ? "Reintentar"
                     : "Confirmar generación"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f2747]/45 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-lg rounded-[22px] border border-red-200 bg-[#fff8f8] p-5 shadow-2xl">
+            <h2 className="font-heading text-lg font-semibold text-red-800">
+              Eliminar generación
+            </h2>
+            <p className="mt-1 text-sm capitalize text-slate-600">
+              Periodo: {monthLabel}
+            </p>
+            <p className="mt-2 text-xs text-red-700">
+              Esto revierte y borra los días ya generados del alcance. No se
+              puede deshacer.
+            </p>
+            <div className="mt-4 grid gap-3">
+              <Label text="Alcance a eliminar">
+                <select
+                  value={deleteForm.mode}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setDeleteForm({
+                      ...deleteForm,
+                      mode: e.target.value as GenerateMode,
+                    })
+                  }
+                  className={controlClass}
+                >
+                  <option value="range">Rango de móviles</option>
+                  <option value="group">Por grupo principal</option>
+                  <option value="shift">Por turno</option>
+                  <option value="vehicle">Un móvil</option>
+                  <option value="all">Toda la flota / mes completo</option>
+                </select>
+              </Label>
+              {deleteForm.mode === "group" ? (
+                <Label text="Grupo">
+                  <select
+                    value={deleteForm.groupId}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setDeleteForm({
+                        ...deleteForm,
+                        groupId: e.target.value,
+                      })
+                    }
+                    className={controlClass}
+                  >
+                    <option value="">Selecciona</option>
+                    {driverGroups
+                      .filter((group) => group.isActive)
+                      .map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                  </select>
+                </Label>
+              ) : null}
+              {deleteForm.mode === "shift" ? (
+                <Label text="Turno">
+                  <select
+                    value={deleteForm.shiftDefinitionId}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setDeleteForm({
+                        ...deleteForm,
+                        shiftDefinitionId: e.target.value,
+                      })
+                    }
+                    className={controlClass}
+                  >
+                    <option value="">Selecciona</option>
+                    {shiftDefinitions.map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name} ({shift.code})
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+              ) : null}
+              {deleteForm.mode === "vehicle" ? (
+                <Label text="Número de móvil">
+                  <input
+                    value={deleteForm.vehicleNumber}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setDeleteForm({
+                        ...deleteForm,
+                        vehicleNumber: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: 025"
+                    className={controlClass}
+                  />
+                </Label>
+              ) : null}
+              {deleteForm.mode === "range" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <Label text="Desde">
+                    <input
+                      value={deleteForm.vehicleFrom}
+                      disabled={busy}
+                      onChange={(e) =>
+                        setDeleteForm({
+                          ...deleteForm,
+                          vehicleFrom: e.target.value,
+                        })
+                      }
+                      placeholder="001"
+                      className={controlClass}
+                    />
+                  </Label>
+                  <Label text="Hasta">
+                    <input
+                      value={deleteForm.vehicleTo}
+                      disabled={busy}
+                      onChange={(e) =>
+                        setDeleteForm({
+                          ...deleteForm,
+                          vehicleTo: e.target.value,
+                        })
+                      }
+                      placeholder="050"
+                      className={controlClass}
+                    />
+                  </Label>
+                </div>
+              ) : null}
+              <label className="flex items-start gap-2 text-xs text-[#173b68]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={includeManualOnDelete}
+                  disabled={busy}
+                  onChange={(e) => setIncludeManualOnDelete(e.target.checked)}
+                />
+                <span>
+                  Incluir también ajustes manuales del alcance
+                  {deletePreview?.manualOverrides
+                    ? ` (${deletePreview.manualOverrides})`
+                    : ""}
+                  .
+                </span>
+              </label>
+              <Label text='Escribe ELIMINAR para confirmar'>
+                <input
+                  value={deleteConfirmText}
+                  disabled={busy}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="ELIMINAR"
+                  className={controlClass}
+                  autoComplete="off"
+                />
+              </Label>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-red-200 bg-white p-3 text-xs text-[#173b68]">
+              {deletePreviewLoading ? (
+                <p>Calculando alcance…</p>
+              ) : deletePreviewError ? (
+                <p className="text-red-700">{deletePreviewError}</p>
+              ) : deletePreview ? (
+                <>
+                  <p>
+                    Se eliminarán{" "}
+                    <strong>{deletePreview.daysCount} días</strong> de{" "}
+                    <strong>{deletePreview.driversCount} conductores</strong>
+                    {deletePreview.manualOverrides ? (
+                      <>
+                        {" "}
+                        · <strong>{deletePreview.manualOverrides}</strong> con
+                        ajuste manual
+                      </>
+                    ) : null}
+                    .
+                  </p>
+                  {deletePreview.sample.length ? (
+                    <ul className="mt-2 space-y-1 text-slate-600">
+                      {deletePreview.sample.map((item) => (
+                        <li key={item.vehicleNumber}>
+                          {item.vehicleNumber} · {item.fullName} ·{" "}
+                          {item.groupName}
+                        </li>
+                      ))}
+                      {deletePreview.driversCount >
+                      deletePreview.sample.length ? (
+                        <li>
+                          … y{" "}
+                          {deletePreview.driversCount -
+                            deletePreview.sample.length}{" "}
+                          más
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                </>
+              ) : (
+                <p>Define el alcance para ver qué se eliminará.</p>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDeleteOpen(false)}
+                className={buttonClass}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  deletePreviewLoading ||
+                  !deletePreview?.daysCount ||
+                  deleteConfirmText.trim().toUpperCase() !== "ELIMINAR"
+                }
+                onClick={() => void runDelete()}
+                className="inline-flex h-9 items-center justify-center rounded-2xl bg-red-700 px-4 text-xs font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {busy ? "Eliminando…" : "Confirmar eliminación"}
               </button>
             </div>
           </div>
