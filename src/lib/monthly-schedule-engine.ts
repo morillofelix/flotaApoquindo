@@ -9,6 +9,16 @@ import {
 } from "@/lib/fleet-schedule";
 import { ensureDefaultOperationalStatuses } from "@/lib/operational-status";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+
+export type GenerateScope = {
+  /** all | group | vehicle | range */
+  mode?: "all" | "group" | "vehicle" | "range";
+  groupId?: string;
+  vehicleNumber?: string;
+  vehicleFrom?: string;
+  vehicleTo?: string;
+};
 
 export type GenerateMonthlyScheduleOptions = {
   year: number;
@@ -16,7 +26,12 @@ export type GenerateMonthlyScheduleOptions = {
   generatedByEmail: string;
   preserveManualOverrides?: boolean;
   overwriteCalculated?: boolean;
+  scope?: GenerateScope;
+  /** Tamaño de lote de conductores por transacción. */
+  batchSize?: number;
 };
+
+const DRIVER_BATCH_SIZE = 40;
 
 function atUtcNoon(year: number, month: number, day: number) {
   return new Date(
@@ -29,13 +44,45 @@ function isoWeekday(date: Date) {
   return day === 0 ? 7 : day;
 }
 
-/** Estado base del día según las reglas del turno (Lun–Dom). Sin patrón separado. */
+function normalizeVehicleKey(value: string) {
+  return value.trim().replace(/^0+(?=\d)/, "") || "0";
+}
+
+function vehicleSortKey(value: string): number | string {
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    return Number.parseInt(trimmed, 10);
+  }
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits) {
+    return Number.parseInt(digits, 10);
+  }
+  return trimmed.toLowerCase();
+}
+
+function vehicleInRange(vehicleNumber: string, from: string, to: string) {
+  const current = vehicleSortKey(vehicleNumber);
+  const start = vehicleSortKey(from);
+  const end = vehicleSortKey(to);
+  if (typeof current === "number" && typeof start === "number" && typeof end === "number") {
+    const min = Math.min(start, end);
+    const max = Math.max(start, end);
+    return current >= min && current <= max;
+  }
+  const a = String(start);
+  const b = String(end);
+  const value = String(current);
+  return value >= (a < b ? a : b) && value <= (a > b ? a : b);
+}
+
+/** Estado base del día según las reglas del turno (Lun–Dom). */
 function baseStatusCodeFromShift(
   date: Date,
   shift:
     | {
         saturdayRule: string;
         sundayRule: string;
+        holidayRule?: string;
         dayRules: Array<{
           weekday: number;
           works: boolean;
@@ -74,6 +121,82 @@ function baseStatusCodeFromShift(
   return baseCode;
 }
 
+function buildDriverWhere(scope?: GenerateScope): Prisma.DriverOwnerWhereInput {
+  const where: Prisma.DriverOwnerWhereInput = {
+    isActive: true,
+    isConductor: true,
+  };
+  const mode = scope?.mode ?? "all";
+
+  if (mode === "group" && scope?.groupId?.trim()) {
+    where.groupId = scope.groupId.trim();
+  }
+
+  if (mode === "vehicle" && scope?.vehicleNumber?.trim()) {
+    where.vehicleNumber = scope.vehicleNumber.trim();
+  }
+
+  return where;
+}
+
+export async function previewMonthlyScheduleGeneration(options: {
+  year: number;
+  month: number;
+  scope?: GenerateScope;
+}) {
+  if (!isValidPlanningMonth(options.year, options.month)) {
+    throw new Error("Mes de planificación inválido.");
+  }
+
+  const mode = options.scope?.mode ?? "all";
+  const where = buildDriverWhere(options.scope);
+  let drivers = await prisma.driverOwner.findMany({
+    where,
+    select: {
+      id: true,
+      vehicleNumber: true,
+      fullName: true,
+      groupId: true,
+      group: { select: { id: true, name: true } },
+    },
+    orderBy: { vehicleNumber: "asc" },
+  });
+
+  if (mode === "range") {
+    const from = options.scope?.vehicleFrom?.trim() ?? "";
+    const to = options.scope?.vehicleTo?.trim() ?? "";
+    if (!from || !to) {
+      throw new Error("Indica el rango de móviles (desde / hasta).");
+    }
+    drivers = drivers.filter((driver) =>
+      vehicleInRange(driver.vehicleNumber, from, to),
+    );
+  }
+
+  if (mode === "vehicle" && !options.scope?.vehicleNumber?.trim()) {
+    throw new Error("Indica el número de móvil.");
+  }
+
+  if (mode === "group" && !options.scope?.groupId?.trim()) {
+    throw new Error("Selecciona un grupo.");
+  }
+
+  return {
+    year: options.year,
+    month: options.month,
+    mode,
+    driversCount: drivers.length,
+    daysPerDriver: daysInMonth(options.year, options.month),
+    estimatedCells:
+      drivers.length * daysInMonth(options.year, options.month),
+    sample: drivers.slice(0, 8).map((driver) => ({
+      vehicleNumber: driver.vehicleNumber,
+      fullName: driver.fullName,
+      groupName: driver.group?.name ?? "Sin grupo",
+    })),
+  };
+}
+
 export async function generateMonthlySchedule(
   options: GenerateMonthlyScheduleOptions,
 ) {
@@ -83,12 +206,15 @@ export async function generateMonthlySchedule(
 
   await ensureDefaultOperationalStatuses();
   const firstDate = atUtcNoon(options.year, options.month, 1);
-  const lastDate = atUtcNoon(
-    options.year,
-    options.month,
-    daysInMonth(options.year, options.month),
+  const lastDay = daysInMonth(options.year, options.month);
+  const lastDate = atUtcNoon(options.year, options.month, lastDay);
+  const monthDates = Array.from({ length: lastDay }, (_, index) =>
+    atUtcNoon(options.year, options.month, index + 1),
   );
-  const [monthly, statuses, holidays, drivers] = await Promise.all([
+  const batchSize = Math.max(5, options.batchSize ?? DRIVER_BATCH_SIZE);
+  const mode = options.scope?.mode ?? "all";
+
+  const [monthly, statuses, holidays] = await Promise.all([
     prisma.monthlySchedule.upsert({
       where: { year_month: { year: options.year, month: options.month } },
       create: {
@@ -111,73 +237,107 @@ export async function generateMonthlySchedule(
         date: { gte: firstDate, lte: lastDate },
       },
     }),
-    prisma.driverOwner.findMany({
-      where: { isActive: true, isConductor: true },
-      include: {
-        group: true,
-        subgroupAssignments: { include: { subgroup: true } },
-        shiftAssignments: {
-          where: {
-            isActive: true,
-            effectiveFrom: { lte: lastDate },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gte: firstDate } }],
-          },
-          include: {
-            shiftDefinition: {
-              include: { dayRules: true },
-            },
-          },
-          orderBy: { effectiveFrom: "desc" },
-        },
-      },
-      orderBy: [{ vehicleNumber: "asc" }],
-    }),
   ]);
 
   const statusByCode = new Map(statuses.map((status) => [status.code, status]));
-  const requiredCodes = ["TRABAJA", "LIBRE", "FERIADO", "BLOQUEADO"];
-  for (const code of requiredCodes) {
-    if (!statusByCode.has(code)) throw new Error(`Falta el estado operativo ${code}.`);
+  for (const code of ["TRABAJA", "LIBRE", "FERIADO", "BLOQUEADO"]) {
+    if (!statusByCode.has(code)) {
+      throw new Error(`Falta el estado operativo ${code}.`);
+    }
+  }
+
+  let drivers = await prisma.driverOwner.findMany({
+    where: buildDriverWhere(options.scope),
+    include: {
+      group: true,
+      shiftAssignments: {
+        where: {
+          isActive: true,
+          effectiveFrom: { lte: lastDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: firstDate } }],
+        },
+        include: {
+          shiftDefinition: {
+            include: { dayRules: true },
+          },
+        },
+        orderBy: { effectiveFrom: "desc" },
+      },
+    },
+    orderBy: [{ vehicleNumber: "asc" }],
+  });
+
+  if (mode === "range") {
+    const from = options.scope?.vehicleFrom?.trim() ?? "";
+    const to = options.scope?.vehicleTo?.trim() ?? "";
+    if (!from || !to) {
+      throw new Error("Indica el rango de móviles (desde / hasta).");
+    }
+    drivers = drivers.filter((driver) =>
+      vehicleInRange(driver.vehicleNumber, from, to),
+    );
+  }
+
+  if (mode === "vehicle" && !options.scope?.vehicleNumber?.trim()) {
+    throw new Error("Indica el número de móvil.");
+  }
+
+  if (mode === "group" && !options.scope?.groupId?.trim()) {
+    throw new Error("Selecciona un grupo.");
+  }
+
+  if (!drivers.length) {
+    throw new Error("No hay conductores activos que coincidan con el alcance.");
   }
 
   const vehicleNumbers = drivers.map((driver) => driver.vehicleNumber);
-  const [appointments, blocks] = vehicleNumbers.length
-    ? await Promise.all([
-        prisma.appointment.findMany({
-          where: {
-            status: "aprobado",
-            vehicleNumber: { in: vehicleNumbers },
+  const driverIds = drivers.map((driver) => driver.id);
+  const [appointments, blocks] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        status: "aprobado",
+        vehicleNumber: { in: vehicleNumbers },
+        OR: [
+          { appointmentDate: { gte: firstDate, lte: lastDate } },
+          {
+            vacationStartDate: { lte: lastDate },
             OR: [
-              { appointmentDate: { gte: firstDate, lte: lastDate } },
-              {
-                vacationStartDate: { lte: lastDate },
-                OR: [
-                  { vacationEndDate: null },
-                  { vacationEndDate: { gte: firstDate } },
-                ],
-              },
-              {
-                permitStartDate: { lte: lastDate },
-                OR: [
-                  { permitEndDate: null },
-                  { permitEndDate: { gte: firstDate } },
-                ],
-              },
-              { permitDate: { gte: firstDate, lte: lastDate } },
+              { vacationEndDate: null },
+              { vacationEndDate: { gte: firstDate } },
             ],
           },
-        }),
-        prisma.driverBlock.findMany({
-          where: {
-            driverOwnerId: { in: drivers.map((driver) => driver.id) },
-            isActive: true,
-            status: { notIn: ["ended", "cancelled"] },
-            startsAt: { lte: new Date(`${lastDate.toISOString().slice(0, 10)}T23:59:59.999Z`) },
-            OR: [{ endsAt: null }, { endsAt: { gte: new Date(`${firstDate.toISOString().slice(0, 10)}T00:00:00.000Z`) } }],
+          {
+            permitStartDate: { lte: lastDate },
+            OR: [
+              { permitEndDate: null },
+              { permitEndDate: { gte: firstDate } },
+            ],
           },
-        }),
-      ])
-    : [[], []];
+          { permitDate: { gte: firstDate, lte: lastDate } },
+        ],
+      },
+    }),
+    prisma.driverBlock.findMany({
+      where: {
+        driverOwnerId: { in: driverIds },
+        isActive: true,
+        status: { notIn: ["ended", "cancelled"] },
+        startsAt: {
+          lte: new Date(`${lastDate.toISOString().slice(0, 10)}T23:59:59.999Z`),
+        },
+        OR: [
+          { endsAt: null },
+          {
+            endsAt: {
+              gte: new Date(
+                `${firstDate.toISOString().slice(0, 10)}T00:00:00.000Z`,
+              ),
+            },
+          },
+        ],
+      },
+    }),
+  ]);
 
   const appointmentsByVehicleAndDate = new Map<string, typeof appointments>();
   for (const appointment of appointments) {
@@ -195,10 +355,13 @@ export async function generateMonthlySchedule(
   const holidayDates = new Set(
     holidays.map((holiday) => holiday.date.toISOString().slice(0, 10)),
   );
+
   const summary = {
     monthlyScheduleId: monthly.id,
     year: options.year,
     month: options.month,
+    mode,
+    driversTargeted: drivers.length,
     drivers: drivers.length,
     days: 0,
     created: 0,
@@ -208,134 +371,218 @@ export async function generateMonthlySchedule(
     appointmentEvents: 0,
     blockedDays: 0,
     holidayDays: 0,
+    batches: 0,
   };
 
-  for (const driver of drivers) {
+  for (let offset = 0; offset < drivers.length; offset += batchSize) {
+    const batch = drivers.slice(offset, offset + batchSize);
+    const batchIds = batch.map((driver) => driver.id);
+    summary.batches += 1;
+
     await prisma.$transaction(
       async (tx) => {
-        for (let dayNumber = 1; dayNumber <= daysInMonth(options.year, options.month); dayNumber += 1) {
-          const date = atUtcNoon(options.year, options.month, dayNumber);
-          const dateKey = date.toISOString().slice(0, 10);
-          const assignment = driver.shiftAssignments.find(
-            (item) =>
-              item.effectiveFrom <= date &&
-              (!item.effectiveTo || item.effectiveTo >= date),
-          );
-          const shift = assignment?.shiftDefinition;
-          const baseCode = baseStatusCodeFromShift(date, shift);
-          const baseStatus = statusByCode.get(baseCode) ?? statusByCode.get("TRABAJA")!;
-          const candidates = [baseStatus];
-          const isHoliday = holidayDates.has(dateKey);
-          if (isHoliday && shift?.holidayRule !== "work") {
-            candidates.push(statusByCode.get("FERIADO")!);
-            summary.holidayDays += 1;
-          }
+        const existingRows = await tx.dailySchedule.findMany({
+          where: {
+            driverOwnerId: { in: batchIds },
+            date: { gte: firstDate, lte: lastDate },
+          },
+        });
+        const existingByKey = new Map(
+          existingRows.map((row) => [
+            `${row.driverOwnerId}:${row.date.toISOString().slice(0, 10)}`,
+            row,
+          ]),
+        );
 
-          const dayStart = new Date(`${dateKey}T00:00:00.000Z`);
-          const dayEnd = new Date(`${dateKey}T23:59:59.999Z`);
-          const block = blocks.find(
-            (item) =>
-              item.driverOwnerId === driver.id &&
-              item.startsAt <= dayEnd &&
-              (!item.endsAt || item.endsAt >= dayStart),
-          );
-          if (block) {
-            candidates.push(statusByCode.get("BLOQUEADO")!);
-            summary.blockedDays += 1;
-          }
+        const creates: Prisma.DailyScheduleCreateManyInput[] = [];
+        const eventCreates: Prisma.DailyScheduleEventCreateManyInput[] = [];
+        const dayIdsForEventRefresh: string[] = [];
 
-          const dayAppointments =
-            appointmentsByVehicleAndDate.get(`${driver.vehicleNumber}:${dateKey}`) ??
-            [];
-          for (const appointment of dayAppointments) {
-            const appointmentStatus = statusByCode.get(
-              operationalStatusCodeForAppointmentReason(
-                appointment.appointmentReason,
-              ),
+        for (const driver of batch) {
+          for (const date of monthDates) {
+            const dateKey = date.toISOString().slice(0, 10);
+            const assignment = driver.shiftAssignments.find(
+              (item) =>
+                item.effectiveFrom <= date &&
+                (!item.effectiveTo || item.effectiveTo >= date),
             );
-            if (appointmentStatus) candidates.push(appointmentStatus);
-          }
-          const effectiveStatus =
-            [...candidates].sort(
-              (left, right) => left.priority - right.priority,
-            )[0] ?? baseStatus;
-          if (!effectiveStatus) {
-            throw new Error("No hay estados operativos configurados.");
-          }
-          const existing = await tx.dailySchedule.findUnique({
-            where: { driverOwnerId_date: { driverOwnerId: driver.id, date } },
-          });
-          const preserveManual =
-            options.preserveManualOverrides !== false &&
-            existing?.isManualOverride === true;
-          const preserveCalculated =
-            options.overwriteCalculated === false && Boolean(existing) && !preserveManual;
+            const shift = assignment?.shiftDefinition;
+            const baseCode = baseStatusCodeFromShift(date, shift);
+            const baseStatus =
+              statusByCode.get(baseCode) ?? statusByCode.get("TRABAJA")!;
+            const candidates = [baseStatus];
+            const isHoliday = holidayDates.has(dateKey);
+            if (isHoliday && shift?.holidayRule !== "work") {
+              candidates.push(statusByCode.get("FERIADO")!);
+              summary.holidayDays += 1;
+            }
 
-          const day = await tx.dailySchedule.upsert({
-            where: { driverOwnerId_date: { driverOwnerId: driver.id, date } },
-            create: {
-              monthlyScheduleId: monthly.id,
-              date,
-              driverOwnerId: driver.id,
-              vehicleNumber: driver.vehicleNumber,
-              shiftAssignmentId: assignment?.id ?? null,
-              baseStatusId: baseStatus.id,
-              effectiveStatusId: effectiveStatus.id,
-              appointmentId: dayAppointments[0]?.id ?? null,
-              driverBlockId: block?.id ?? null,
-              changeOrigin: dayAppointments.length
-                ? "appointment"
-                : block
-                  ? "block"
-                  : isHoliday
-                    ? "holiday"
-                    : "generated",
-            },
-            update: {
-              monthlyScheduleId: monthly.id,
-              vehicleNumber: driver.vehicleNumber,
-              shiftAssignmentId: assignment?.id ?? null,
-              baseStatusId: baseStatus.id,
-              appointmentId: dayAppointments[0]?.id ?? null,
-              driverBlockId: block?.id ?? null,
-              ...(!preserveManual && !preserveCalculated
-                ? {
+            const dayStart = new Date(`${dateKey}T00:00:00.000Z`);
+            const dayEnd = new Date(`${dateKey}T23:59:59.999Z`);
+            const block = blocks.find(
+              (item) =>
+                item.driverOwnerId === driver.id &&
+                item.startsAt <= dayEnd &&
+                (!item.endsAt || item.endsAt >= dayStart),
+            );
+            if (block) {
+              candidates.push(statusByCode.get("BLOQUEADO")!);
+              summary.blockedDays += 1;
+            }
+
+            const dayAppointments =
+              appointmentsByVehicleAndDate.get(
+                `${driver.vehicleNumber}:${dateKey}`,
+              ) ?? [];
+            for (const appointment of dayAppointments) {
+              const appointmentStatus = statusByCode.get(
+                operationalStatusCodeForAppointmentReason(
+                  appointment.appointmentReason,
+                ),
+              );
+              if (appointmentStatus) candidates.push(appointmentStatus);
+            }
+
+            const effectiveStatus =
+              [...candidates].sort(
+                (left, right) => left.priority - right.priority,
+              )[0] ?? baseStatus;
+
+            const changeOrigin = dayAppointments.length
+              ? "appointment"
+              : block
+                ? "block"
+                : isHoliday
+                  ? "holiday"
+                  : "generated";
+
+            const existing = existingByKey.get(`${driver.id}:${dateKey}`);
+            const preserveManual =
+              options.preserveManualOverrides !== false &&
+              existing?.isManualOverride === true;
+            const preserveCalculated =
+              options.overwriteCalculated === false &&
+              Boolean(existing) &&
+              !preserveManual;
+
+            if (!existing) {
+              creates.push({
+                monthlyScheduleId: monthly.id,
+                date,
+                driverOwnerId: driver.id,
+                vehicleNumber: driver.vehicleNumber,
+                shiftAssignmentId: assignment?.id ?? null,
+                baseStatusId: baseStatus.id,
+                effectiveStatusId: effectiveStatus.id,
+                appointmentId: dayAppointments[0]?.id ?? null,
+                driverBlockId: block?.id ?? null,
+                changeOrigin,
+              });
+              summary.created += 1;
+            } else {
+              dayIdsForEventRefresh.push(existing.id);
+              if (preserveManual) {
+                summary.preservedManualOverrides += 1;
+              } else if (preserveCalculated) {
+                summary.preservedCalculated += 1;
+              } else {
+                await tx.dailySchedule.update({
+                  where: { id: existing.id },
+                  data: {
+                    monthlyScheduleId: monthly.id,
+                    vehicleNumber: driver.vehicleNumber,
+                    shiftAssignmentId: assignment?.id ?? null,
+                    baseStatusId: baseStatus.id,
                     effectiveStatusId: effectiveStatus.id,
+                    appointmentId: dayAppointments[0]?.id ?? null,
+                    driverBlockId: block?.id ?? null,
                     changeOrigin: "regenerated",
-                    modifiedByEmail: options.generatedByEmail.trim().toLowerCase(),
+                    modifiedByEmail: options.generatedByEmail
+                      .trim()
+                      .toLowerCase(),
                     modifiedAt: new Date(),
                     version: { increment: 1 },
-                  }
-                : {}),
+                  },
+                });
+                summary.updated += 1;
+              }
+            }
+
+            summary.days += 1;
+            summary.appointmentEvents += dayAppointments.length;
+
+            // Events for newly created rows are attached after createMany below.
+            if (existing && dayAppointments.length) {
+              for (const appointment of dayAppointments) {
+                eventCreates.push({
+                  dailyScheduleId: existing.id,
+                  appointmentId: appointment.id,
+                  eventType: "appointment",
+                  label: appointment.appointmentReason,
+                  metadata: JSON.stringify({
+                    ticketNumber: appointment.ticketNumber,
+                  }),
+                });
+              }
+            }
+          }
+        }
+
+        if (creates.length) {
+          await tx.dailySchedule.createMany({ data: creates });
+          const createdRows = await tx.dailySchedule.findMany({
+            where: {
+              monthlyScheduleId: monthly.id,
+              driverOwnerId: { in: batchIds },
+              date: { gte: firstDate, lte: lastDate },
+              id: { notIn: existingRows.map((row) => row.id) },
+            },
+            select: {
+              id: true,
+              driverOwnerId: true,
+              date: true,
+              vehicleNumber: true,
             },
           });
 
-          await tx.dailyScheduleEvent.deleteMany({
-            where: { dailyScheduleId: day.id, eventType: "appointment" },
-          });
-          for (const appointment of dayAppointments) {
-            await tx.dailyScheduleEvent.create({
-              data: {
-                dailyScheduleId: day.id,
+          for (const row of createdRows) {
+            const dateKey = row.date.toISOString().slice(0, 10);
+            const dayAppointments =
+              appointmentsByVehicleAndDate.get(
+                `${row.vehicleNumber}:${dateKey}`,
+              ) ?? [];
+            for (const appointment of dayAppointments) {
+              eventCreates.push({
+                dailyScheduleId: row.id,
                 appointmentId: appointment.id,
                 eventType: "appointment",
                 label: appointment.appointmentReason,
-                metadata: JSON.stringify({ ticketNumber: appointment.ticketNumber }),
-              },
-            });
-            summary.appointmentEvents += 1;
+                metadata: JSON.stringify({
+                  ticketNumber: appointment.ticketNumber,
+                }),
+              });
+            }
           }
+        }
 
-          summary.days += 1;
-          if (!existing) summary.created += 1;
-          else if (preserveManual) summary.preservedManualOverrides += 1;
-          else if (preserveCalculated) summary.preservedCalculated += 1;
-          else summary.updated += 1;
+        if (dayIdsForEventRefresh.length) {
+          await tx.dailyScheduleEvent.deleteMany({
+            where: {
+              dailyScheduleId: { in: dayIdsForEventRefresh },
+              eventType: "appointment",
+            },
+          });
+        }
+
+        if (eventCreates.length) {
+          await tx.dailyScheduleEvent.createMany({ data: eventCreates });
         }
       },
-      { timeout: 30_000 },
+      { timeout: 120_000 },
     );
   }
 
   return summary;
 }
+
+export { normalizeVehicleKey };

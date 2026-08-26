@@ -1,17 +1,45 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { readAdminSession } from "@/lib/driver-auth";
 import { isValidPlanningMonth } from "@/lib/fleet-schedule";
-import { generateMonthlySchedule } from "@/lib/monthly-schedule-engine";
+import {
+  generateMonthlySchedule,
+  previewMonthlyScheduleGeneration,
+  type GenerateScope,
+} from "@/lib/monthly-schedule-engine";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function planningMonth(request: NextRequest) {
   return {
     year: Number(request.nextUrl.searchParams.get("year")),
     month: Number(request.nextUrl.searchParams.get("month")),
+  };
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseScope(body: Record<string, unknown>): GenerateScope {
+  const modeRaw = asString(body.mode) || asString(body.scopeMode) || "all";
+  const mode =
+    modeRaw === "group" ||
+    modeRaw === "vehicle" ||
+    modeRaw === "range" ||
+    modeRaw === "all"
+      ? modeRaw
+      : "all";
+
+  return {
+    mode,
+    groupId: asString(body.groupId) || undefined,
+    vehicleNumber: asString(body.vehicleNumber) || undefined,
+    vehicleFrom: asString(body.vehicleFrom) || undefined,
+    vehicleTo: asString(body.vehicleTo) || undefined,
   };
 }
 
@@ -22,6 +50,37 @@ export async function GET(request: NextRequest) {
   if (!isValidPlanningMonth(year, month)) {
     return NextResponse.json({ message: "Mes inválido." }, { status: 400 });
   }
+
+  const preview = request.nextUrl.searchParams.get("preview") === "1";
+  if (preview) {
+    try {
+      const scope: GenerateScope = {
+        mode: (asString(request.nextUrl.searchParams.get("mode")) ||
+          "all") as GenerateScope["mode"],
+        groupId: asString(request.nextUrl.searchParams.get("groupId")) || undefined,
+        vehicleNumber:
+          asString(request.nextUrl.searchParams.get("vehicleNumber")) ||
+          undefined,
+        vehicleFrom:
+          asString(request.nextUrl.searchParams.get("vehicleFrom")) || undefined,
+        vehicleTo:
+          asString(request.nextUrl.searchParams.get("vehicleTo")) || undefined,
+      };
+      const result = await previewMonthlyScheduleGeneration({ year, month, scope });
+      return NextResponse.json({ preview: result });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "No se pudo calcular el alcance.",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   try {
     const schedule = await prisma.monthlySchedule.findUnique({
       where: { year_month: { year, month } },
@@ -114,7 +173,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[monthly-schedules GET]", error);
-    return NextResponse.json({ message: "No se pudo cargar la planificación." }, { status: 500 });
+    return NextResponse.json(
+      { message: "No se pudo cargar la planificación." },
+      { status: 500 },
+    );
   }
 }
 
@@ -125,9 +187,26 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const year = Number(body.year);
     const month = Number(body.month);
-    if (body.action !== "generate" || !isValidPlanningMonth(year, month)) {
-      return NextResponse.json({ message: "Acción o mes inválido." }, { status: 400 });
+    const action = asString(body.action) || "generate";
+    if (!isValidPlanningMonth(year, month)) {
+      return NextResponse.json({ message: "Mes inválido." }, { status: 400 });
     }
+
+    const scope = parseScope(body);
+
+    if (action === "preview") {
+      const preview = await previewMonthlyScheduleGeneration({
+        year,
+        month,
+        scope,
+      });
+      return NextResponse.json({ preview });
+    }
+
+    if (action !== "generate") {
+      return NextResponse.json({ message: "Acción inválida." }, { status: 400 });
+    }
+
     const session = readAdminSession(request);
     const summary = await generateMonthlySchedule({
       year,
@@ -135,12 +214,18 @@ export async function POST(request: NextRequest) {
       generatedByEmail: session?.email ?? "",
       preserveManualOverrides: body.preserveManualOverrides !== false,
       overwriteCalculated: body.overwriteCalculated !== false,
+      scope,
     });
     return NextResponse.json({ summary });
   } catch (error) {
     console.error("[monthly-schedules POST]", error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "No se pudo generar la planificación." },
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo generar la planificación.",
+      },
       { status: 500 },
     );
   }
