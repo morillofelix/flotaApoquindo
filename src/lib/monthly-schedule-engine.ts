@@ -63,6 +63,14 @@ export type GenerateMonthlyScheduleOptions = {
    * exception: generar con el turno forzado sin cambiar asignación permanente.
    */
   assignMode?: "assign" | "keep" | "exception";
+  /** Reglas Lun–Dom temporales para el turno forzado (solo esta generación). */
+  forceShiftDayRules?: Array<{
+    weekday: number;
+    works: boolean;
+    startTime: string;
+    endTime: string;
+    defaultStatusCode: string;
+  }>;
   /** Tamaño de lote de conductores por transacción. */
   batchSize?: number;
   onProgress?: (progress: GenerateProgress) => void | Promise<void>;
@@ -729,6 +737,20 @@ export async function generateMonthlySchedule(
     throw new Error("El turno seleccionado no existe o está inactivo.");
   }
 
+  const forcedShiftForDays =
+    forcedShift && options.forceShiftDayRules?.length
+      ? {
+          ...forcedShift,
+          dayRules: options.forceShiftDayRules.map((rule) => ({
+            weekday: rule.weekday,
+            works: rule.works,
+            startTime: rule.startTime,
+            endTime: rule.endTime,
+            defaultStatusCode: rule.defaultStatusCode,
+          })),
+        }
+      : forcedShift;
+
   const assignMode = options.assignMode ?? "assign";
   const overrideByDate = new Map(
     (options.dayOverrides ?? []).map((item) => [item.date, item]),
@@ -958,10 +980,10 @@ export async function generateMonthlySchedule(
               shifts: catalogShifts,
             });
             const shiftForDay =
-              assignMode === "exception" && forcedShift
-                ? forcedShift
-                : forcedShift && assignMode === "assign"
-                  ? forcedShift
+              assignMode === "exception" && forcedShiftForDays
+                ? forcedShiftForDays
+                : forcedShiftForDays && assignMode === "assign"
+                  ? forcedShiftForDays
                   : resolved.shift;
             const assignmentId =
               assignMode === "exception" && forcedShift

@@ -17,7 +17,7 @@ import type { HolidayConfig } from "@/lib/holidays";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type StatusBrief = Pick<
   OperationalStatusConfig,
@@ -155,6 +155,8 @@ export default function PlanificacionMensualPage() {
     {},
   );
   const [loading, setLoading] = useState(true);
+  const [scheduleRefreshing, setScheduleRefreshing] = useState(false);
+  const [wizardDriversLoading, setWizardDriversLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -178,43 +180,82 @@ export default function PlanificacionMensualPage() {
   const [deleteProgress, setDeleteProgress] =
     useState<GenerateProgressState | null>(null);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const reloadCatalog = useCallback(async () => {
+    const [statusList, holidayResponse, groups, shifts] = await Promise.all([
+      loadOperationalStatuses(),
+      fetch(`/api/holidays?year=${year}`, { cache: "no-store" }).then(
+        async (response) => {
+          if (!response.ok)
+            throw new Error("No se pudieron cargar los feriados.");
+          return (await response.json()) as { holidays?: HolidayConfig[] };
+        },
+      ),
+      loadDriverGroups(),
+      loadShiftDefinitions(),
+    ]);
+    setStatuses(statusList);
+    setHolidays(holidayResponse.holidays ?? []);
+    setDriverGroups(groups);
+    setShiftDefinitions(shifts.filter((shift) => shift.isActive));
+  }, [year]);
+
+  const reloadSchedule = useCallback(
+    async (silent = false) => {
+      if (silent) setScheduleRefreshing(true);
+      else setLoading(true);
+      setError("");
+      try {
+        const schedule = await loadMonthlySchedule(year, month);
+        setData(schedule as SchedulePayload);
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No se pudo cargar la planificación.",
+        );
+      } finally {
+        if (silent) setScheduleRefreshing(false);
+        else setLoading(false);
+      }
+    },
+    [month, year],
+  );
+
+  const reloadWizardDrivers = useCallback(async () => {
+    setWizardDriversLoading(true);
     try {
-      const [schedule, statusList, holidayResponse, groups, shifts, owners, assignRes] =
-        await Promise.all([
-          loadMonthlySchedule(year, month),
-          loadOperationalStatuses(),
-          fetch(`/api/holidays?year=${year}`, { cache: "no-store" }).then(
-            async (response) => {
-              if (!response.ok)
-                throw new Error("No se pudieron cargar los feriados.");
-              return (await response.json()) as { holidays?: HolidayConfig[] };
-            },
-          ),
-          loadDriverGroups(),
-          loadShiftDefinitions(),
-          loadDriverOwners(),
-          fetch("/api/driver-shift-assignments?active=true", {
-            ...adminFetchInit,
-            cache: "no-store",
-          }).then(async (response) => {
-            if (!response.ok) return { assignments: [] as Array<{ driverOwnerId?: string; shiftDefinitionId?: string | null; shiftDefinition?: { id: string; code: string; name: string } | null }> };
-            return (await response.json()) as {
-              assignments?: Array<{
+      const [owners, assignRes] = await Promise.all([
+        loadDriverOwners(),
+        fetch("/api/driver-shift-assignments?active=true", {
+          ...adminFetchInit,
+          cache: "no-store",
+        }).then(async (response) => {
+          if (!response.ok) {
+            return {
+              assignments: [] as Array<{
                 driverOwnerId?: string;
                 shiftDefinitionId?: string | null;
-                shiftDefinition?: { id: string; code: string; name: string } | null;
-              }>;
+                shiftDefinition?: {
+                  id: string;
+                  code: string;
+                  name: string;
+                } | null;
+              }>,
             };
-          }),
-        ]);
-      setData(schedule as SchedulePayload);
-      setStatuses(statusList);
-      setHolidays(holidayResponse.holidays ?? []);
-      setDriverGroups(groups);
-      setShiftDefinitions(shifts.filter((shift) => shift.isActive));
+          }
+          return (await response.json()) as {
+            assignments?: Array<{
+              driverOwnerId?: string;
+              shiftDefinitionId?: string | null;
+              shiftDefinition?: {
+                id: string;
+                code: string;
+                name: string;
+              } | null;
+            }>;
+          };
+        }),
+      ]);
       const assignByDriver = new Map(
         (assignRes.assignments ?? []).map((item) => [
           item.driverOwnerId ?? "",
@@ -234,26 +275,69 @@ export default function PlanificacionMensualPage() {
             groupName: owner.groupName || "Sin grupo",
             isActive: owner.isActive,
             isConductor: owner.isConductor,
-            shiftId: assign?.shiftDefinition?.id || assign?.shiftDefinitionId || "",
+            shiftId:
+              assign?.shiftDefinition?.id || assign?.shiftDefinitionId || "",
             shiftCode: assign?.shiftDefinition?.code || "",
             shiftName: assign?.shiftDefinition?.name || "",
           };
         }),
       );
-    } catch (caught) {
+    } catch {
+      setWizardDrivers([]);
+    } finally {
+      setWizardDriversLoading(false);
+    }
+  }, []);
+
+  const reload = useCallback(
+    async (options?: { silent?: boolean; full?: boolean }) => {
+      const silent = options?.silent === true;
+      const full = options?.full === true;
+      if (!silent) setLoading(true);
+      setError("");
+      try {
+        if (full) {
+          await Promise.all([
+            reloadCatalog(),
+            reloadSchedule(true),
+            reloadWizardDrivers(),
+          ]);
+        } else if (silent) {
+          await reloadSchedule(true);
+        } else {
+          await Promise.all([reloadCatalog(), reloadSchedule(true)]);
+        }
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No se pudo cargar la planificación.",
+        );
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [reloadCatalog, reloadSchedule, reloadWizardDrivers],
+  );
+
+  useEffect(() => {
+    void reloadCatalog().catch((caught) => {
       setError(
         caught instanceof Error
           ? caught.message
           : "No se pudo cargar la planificación.",
       );
-    } finally {
-      setLoading(false);
-    }
-  }, [month, year]);
+    });
+  }, [reloadCatalog]);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    void reloadSchedule();
+  }, [reloadSchedule]);
+
+  useEffect(() => {
+    if (!generateOpen) return;
+    void reloadWizardDrivers();
+  }, [generateOpen, reloadWizardDrivers]);
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -384,8 +468,13 @@ export default function PlanificacionMensualPage() {
     );
   }, [filteredRows, groupBy]);
 
+  const deletePreviewAbortRef = useRef<AbortController | null>(null);
+
   const refreshDeletePreview = useCallback(
     async (form: GenerateForm) => {
+      deletePreviewAbortRef.current?.abort();
+      const controller = new AbortController();
+      deletePreviewAbortRef.current = controller;
       setDeletePreviewLoading(true);
       setDeletePreviewError("");
       try {
@@ -398,6 +487,7 @@ export default function PlanificacionMensualPage() {
         const response = await fetch(`/api/monthly-schedules?${params}`, {
           ...adminFetchInit,
           cache: "no-store",
+          signal: controller.signal,
         });
         const body = (await response.json()) as {
           message?: string;
@@ -408,6 +498,9 @@ export default function PlanificacionMensualPage() {
         }
         setDeletePreview(body.preview ?? null);
       } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          return;
+        }
         setDeletePreview(null);
         setDeletePreviewError(
           caught instanceof Error
@@ -415,7 +508,9 @@ export default function PlanificacionMensualPage() {
             : "No se pudo calcular el alcance.",
         );
       } finally {
-        setDeletePreviewLoading(false);
+        if (!controller.signal.aborted) {
+          setDeletePreviewLoading(false);
+        }
       }
     },
     [month, year],
@@ -425,7 +520,7 @@ export default function PlanificacionMensualPage() {
     if (!deleteOpen) return;
     const timer = window.setTimeout(() => {
       void refreshDeletePreview(deleteForm);
-    }, 250);
+    }, 400);
     return () => window.clearTimeout(timer);
   }, [deleteForm, deleteOpen, refreshDeletePreview]);
 
@@ -586,7 +681,7 @@ export default function PlanificacionMensualPage() {
       await new Promise((resolve) => window.setTimeout(resolve, 700));
       setDeleteOpen(false);
       setDeleteProgress(null);
-      await reload();
+      await reload({ silent: true });
       setMessage(
         `Eliminado: ${totals.daysDeleted} días de ${totals.driversTargeted} conductores${
           totals.monthlyCleared ? " · el mes quedó sin planificación" : ""
@@ -659,7 +754,7 @@ export default function PlanificacionMensualPage() {
       if (!response.ok) {
         throw new Error(body.message || "No se pudo copiar el mes.");
       }
-      await reload();
+      await reload({ silent: true });
       setMessage(
         `Mes copiado desde ${sourceLabel}: ${body.summary?.driversTargeted ?? 0} móviles · ${body.summary?.days ?? 0} días · creados ${body.summary?.created ?? 0} · actualizados ${body.summary?.updated ?? 0}.`,
       );
@@ -695,7 +790,7 @@ export default function PlanificacionMensualPage() {
       }
       setEdit(null);
       setEditDirty(false);
-      await reload();
+      await reloadSchedule(true);
       setMessage("Día actualizado correctamente.");
     } catch (caught) {
       setError(
@@ -751,8 +846,8 @@ export default function PlanificacionMensualPage() {
         <MaintainerPageHeader
           title="Planificación mensual"
           subtitle="Flota"
-          onRefresh={() => void reload()}
-          isRefreshing={loading}
+          onRefresh={() => void reload({ full: true })}
+          isRefreshing={loading || scheduleRefreshing}
           lastUpdatedAt={lastUpdatedAt}
         />
         <section className="mb-4 rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-4 shadow-lg shadow-slate-300/20">
@@ -971,7 +1066,11 @@ export default function PlanificacionMensualPage() {
         ) : null}
 
         {data?.schedule ? (
-          <section className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25">
+          <section
+            className={`overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 transition-opacity ${
+              scheduleRefreshing ? "opacity-70" : ""
+            }`}
+          >
             <div className="max-h-[68dvh] overflow-auto">
               <table className="border-separate border-spacing-0 text-xs">
                 <thead className="sticky top-0 z-30 bg-[#d7e7f8] text-[#0f2747]">
@@ -1165,14 +1264,20 @@ export default function PlanificacionMensualPage() {
         shifts={shiftDefinitions}
         drivers={wizardDrivers}
         holidays={holidays}
+        driversLoading={wizardDriversLoading}
         busy={busy}
         onClose={() => setGenerateOpen(false)}
         onGenerated={(text) => {
           setMessage(text);
-          void reload();
+          void reload({ silent: true });
         }}
         onError={(text) => setError(text)}
         onBusy={setBusy}
+        onShiftUpdated={(shift) => {
+          setShiftDefinitions((current) =>
+            current.map((item) => (item.id === shift.id ? shift : item)),
+          );
+        }}
       />
 
       {deleteOpen ? (

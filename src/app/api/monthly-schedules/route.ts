@@ -336,6 +336,27 @@ export async function POST(request: NextRequest) {
         ? assignModeRaw
         : "assign";
 
+    const forceShiftDayRules = Array.isArray(body.forceShiftDayRules)
+      ? body.forceShiftDayRules
+          .filter(
+            (item): item is Record<string, unknown> =>
+              Boolean(item) && typeof item === "object",
+          )
+          .map((item) => ({
+            weekday: Number(item.weekday),
+            works: item.works !== false,
+            startTime: asString(item.startTime),
+            endTime: asString(item.endTime),
+            defaultStatusCode: asString(item.defaultStatusCode) || "TRABAJA",
+          }))
+          .filter(
+            (item) =>
+              Number.isInteger(item.weekday) &&
+              item.weekday >= 1 &&
+              item.weekday <= 7,
+          )
+      : undefined;
+
     const generateOptions: Parameters<typeof generateMonthlySchedule>[0] = {
       year,
       month,
@@ -350,6 +371,7 @@ export async function POST(request: NextRequest) {
       patternBaseDate: asString(body.patternBaseDate) || undefined,
       dayOverrides,
       assignMode,
+      forceShiftDayRules,
     };
 
     if (!stream) {

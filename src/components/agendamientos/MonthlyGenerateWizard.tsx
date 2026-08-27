@@ -1,8 +1,14 @@
 "use client";
 
+import ShiftWeekdayGrid, {
+  cloneDayRules,
+} from "@/components/agendamientos/ShiftWeekdayGrid";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { previewMonthPattern } from "@/lib/shift-pattern-engine";
-import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
+import type {
+  ShiftDayRuleConfig,
+  ShiftDefinitionConfig,
+} from "@/lib/shift-definitions";
 import { useEffect, useMemo, useState } from "react";
 
 export type WizardDriver = {
@@ -36,11 +42,13 @@ type Props = {
   shifts: ShiftDefinitionConfig[];
   drivers: WizardDriver[];
   holidays: Array<{ date: string; isActive: boolean }>;
+  driversLoading?: boolean;
   busy: boolean;
   onClose: () => void;
   onGenerated: (message: string) => void;
   onError: (message: string) => void;
   onBusy: (busy: boolean) => void;
+  onShiftUpdated?: (shift: ShiftDefinitionConfig) => void;
 };
 
 const buttonClass =
@@ -64,15 +72,24 @@ export default function MonthlyGenerateWizard({
   shifts,
   drivers,
   holidays,
+  driversLoading = false,
   busy,
   onClose,
   onGenerated,
   onError,
   onBusy,
+  onShiftUpdated,
 }: Props) {
   const [step, setStep] = useState(0);
   const [shiftId, setShiftId] = useState("");
   const [shiftSearch, setShiftSearch] = useState("");
+  const [showShiftDays, setShowShiftDays] = useState(false);
+  const [editedDayRules, setEditedDayRules] = useState<ShiftDayRuleConfig[]>(
+    [],
+  );
+  const [shiftRulesDirty, setShiftRulesDirty] = useState(false);
+  const [savingShiftRules, setSavingShiftRules] = useState(false);
+  const [shiftRulesMessage, setShiftRulesMessage] = useState("");
   const [vehicleSearch, setVehicleSearch] = useState("");
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   const [patternMode, setPatternMode] = useState<"continue" | "start">(
@@ -99,6 +116,10 @@ export default function MonthlyGenerateWizard({
     setShiftId("");
     setSelectedVehicles([]);
     setOverrides([]);
+    setShowShiftDays(false);
+    setEditedDayRules([]);
+    setShiftRulesDirty(false);
+    setShiftRulesMessage("");
     setPatternBaseDate(`${year}-${String(month).padStart(2, "0")}-01`);
     setProgress({ percent: 0, message: "", phase: "idle" });
   }, [open, year, month]);
@@ -112,6 +133,23 @@ export default function MonthlyGenerateWizard({
     () => activeShifts.find((shift) => shift.id === shiftId) ?? null,
     [activeShifts, shiftId],
   );
+
+  useEffect(() => {
+    if (!selectedShift) {
+      setEditedDayRules([]);
+      setShiftRulesDirty(false);
+      return;
+    }
+    setEditedDayRules(
+      cloneDayRules(
+        selectedShift.dayRules,
+        selectedShift.startTime,
+        selectedShift.endTime,
+      ),
+    );
+    setShiftRulesDirty(false);
+    setShiftRulesMessage("");
+  }, [selectedShift]);
 
   const filteredShifts = useMemo(() => {
     const q = shiftSearch.trim().toLowerCase();
@@ -168,7 +206,9 @@ export default function MonthlyGenerateWizard({
         holidayRule: selectedShift.holidayRule,
         cycleLengthDays: selectedShift.cycleLengthDays,
         cycleStartDate: selectedShift.cycleStartDate,
-        dayRules: selectedShift.dayRules,
+        dayRules: editedDayRules.length
+          ? editedDayRules
+          : selectedShift.dayRules,
       },
       { patternBaseDate: base },
     ).map((day) => {
@@ -189,6 +229,7 @@ export default function MonthlyGenerateWizard({
     });
   }, [
     selectedShift,
+    editedDayRules,
     year,
     month,
     patternMode,
@@ -292,6 +333,40 @@ export default function MonthlyGenerateWizard({
     return true;
   }
 
+  async function saveShiftDayRules() {
+    if (!selectedShift || !shiftRulesDirty) return;
+    setSavingShiftRules(true);
+    setShiftRulesMessage("");
+    try {
+      const response = await fetch("/api/shift-definitions", {
+        ...adminFetchInit,
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedShift.id,
+          dayRules: editedDayRules,
+        }),
+      });
+      const body = (await response.json()) as {
+        message?: string;
+        shift?: ShiftDefinitionConfig;
+      };
+      if (!response.ok || !body.shift) {
+        throw new Error(body.message || "No se pudo guardar el turno.");
+      }
+      setEditedDayRules(cloneDayRules(body.shift.dayRules, body.shift.startTime, body.shift.endTime));
+      setShiftRulesDirty(false);
+      setShiftRulesMessage("Días del turno guardados.");
+      onShiftUpdated?.(body.shift);
+    } catch (caught) {
+      setShiftRulesMessage(
+        caught instanceof Error ? caught.message : "No se pudo guardar el turno.",
+      );
+    } finally {
+      setSavingShiftRules(false);
+    }
+  }
+
   async function runGenerate() {
     if (!selectedShift || !selectedVehicles.length) return;
     onBusy(true);
@@ -334,6 +409,17 @@ export default function MonthlyGenerateWizard({
             assignMode,
             preserveManualOverrides: preserveManual,
             dayOverrides: overrides,
+            ...(shiftRulesDirty
+              ? {
+                  forceShiftDayRules: editedDayRules.map((rule) => ({
+                    weekday: rule.weekday,
+                    works: rule.works,
+                    startTime: rule.startTime,
+                    endTime: rule.endTime,
+                    defaultStatusCode: rule.defaultStatusCode,
+                  })),
+                }
+              : {}),
           }),
         });
         const body = (await response.json()) as {
@@ -454,12 +540,15 @@ export default function MonthlyGenerateWizard({
                 placeholder="Buscar turno por código o nombre"
                 className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3"
               />
-              <div className="max-h-72 space-y-1 overflow-auto rounded-2xl border border-[#b7cce4] bg-white p-2">
+              <div className="max-h-48 space-y-1 overflow-auto rounded-2xl border border-[#b7cce4] bg-white p-2">
                 {filteredShifts.map((shift) => (
                   <button
                     key={shift.id}
                     type="button"
-                    onClick={() => setShiftId(shift.id)}
+                    onClick={() => {
+                      setShiftId(shift.id);
+                      setShowShiftDays(true);
+                    }}
                     className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs ${
                       shiftId === shift.id
                         ? "bg-[#d7e7f8] font-semibold"
@@ -479,11 +568,61 @@ export default function MonthlyGenerateWizard({
                   </button>
                 ))}
               </div>
+              {selectedShift ? (
+                <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className={ghostClass}
+                      onClick={() => setShowShiftDays((current) => !current)}
+                    >
+                      {showShiftDays ? "Ocultar días" : "Ver / editar días del turno"}
+                    </button>
+                    {shiftRulesDirty ? (
+                      <button
+                        type="button"
+                        disabled={savingShiftRules || busy}
+                        onClick={() => void saveShiftDayRules()}
+                        className={buttonClass}
+                      >
+                        {savingShiftRules ? "Guardando…" : "Guardar en turno"}
+                      </button>
+                    ) : null}
+                  </div>
+                  {shiftRulesMessage ? (
+                    <p className="mt-2 text-xs text-slate-600">{shiftRulesMessage}</p>
+                  ) : null}
+                  {showShiftDays ? (
+                    <ShiftWeekdayGrid
+                      compact
+                      dayRules={editedDayRules}
+                      defaultStartTime={selectedShift.startTime || "08:00"}
+                      defaultEndTime={selectedShift.endTime || "17:00"}
+                      onChange={(rules) => {
+                        setEditedDayRules(rules);
+                        setShiftRulesDirty(true);
+                        setShiftRulesMessage("");
+                      }}
+                    />
+                  ) : null}
+                  {shiftRulesDirty && !showShiftDays ? (
+                    <p className="mt-2 text-xs text-amber-700">
+                      Hay cambios en los días del turno. Se usarán al generar aunque
+                      no los guardes en el turno maestro.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           {step === 2 ? (
             <div className="grid gap-3">
+              {driversLoading ? (
+                <p className="rounded-2xl border border-[#b7cce4] bg-white px-3 py-4 text-xs text-slate-600">
+                  Cargando conductores y asignaciones de turno…
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={ghostClass} onClick={addFiltered}>
                   Agregar resultados filtrados
