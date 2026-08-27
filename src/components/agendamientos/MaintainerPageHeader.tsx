@@ -9,6 +9,7 @@ export default function MaintainerPageHeader({
   onRefresh,
   isRefreshing,
   lastUpdatedAt,
+  refreshVariant = "toolbar",
 }: {
   title: string;
   subtitle?: string;
@@ -16,14 +17,15 @@ export default function MaintainerPageHeader({
   onRefresh?: () => void;
   isRefreshing?: boolean;
   lastUpdatedAt?: Date | null;
+  refreshVariant?: "default" | "toolbar" | "prominent";
 }) {
   return (
-    <header className={`mb-4 flex flex-col gap-1.5 ${UI_CARD_SHELL} px-4 py-3 sm:flex-row sm:items-center sm:justify-between`}>
+    <header className={`mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between ${UI_CARD_SHELL} px-3 py-2 sm:px-4`}>
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0b5cab]">
           {subtitle}
         </p>
-        <h1 className="font-heading text-xl font-semibold text-[#0f2747] sm:text-2xl">
+        <h1 className="font-heading text-lg font-semibold text-[#0f2747] sm:text-xl">
           {title}
         </h1>
       </div>
@@ -34,7 +36,7 @@ export default function MaintainerPageHeader({
               onRefresh={onRefresh}
               isRefreshing={isRefreshing}
               lastUpdatedAt={lastUpdatedAt}
-              variant="toolbar"
+              variant={refreshVariant}
             />
             <span
               aria-hidden="true"

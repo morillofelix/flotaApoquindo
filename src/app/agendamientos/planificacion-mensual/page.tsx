@@ -132,6 +132,16 @@ const emptyGenerateForm = (): GenerateForm => ({
   shiftDefinitionId: "",
 });
 
+/** Columnas fijas izquierda de la matriz (compactas). */
+const STICKY = {
+  mobile: { left: 0, width: 54 },
+  driver: { left: 54, width: 132 },
+  group: { left: 186, width: 82 },
+  shift: { left: 268, width: 76 },
+  obs: { left: 344, width: 96 },
+} as const;
+const STICKY_COUNT = 5;
+
 function appendScopeParams(params: URLSearchParams, form: GenerateForm) {
   params.set("mode", form.mode);
   if (form.mode === "group" && form.groupId) params.set("groupId", form.groupId);
@@ -189,6 +199,7 @@ export default function PlanificacionMensualPage() {
   const [includeManualOnDelete, setIncludeManualOnDelete] = useState(true);
   const [deleteProgress, setDeleteProgress] =
     useState<GenerateProgressState | null>(null);
+  const [controlsOpen, setControlsOpen] = useState(true);
 
   const reloadCatalog = useCallback(async () => {
     const [statusList, holidayResponse, groups, shifts] = await Promise.all([
@@ -851,16 +862,35 @@ export default function PlanificacionMensualPage() {
   }).format(new Date(year, month - 1, 1));
 
   return (
-    <main className="w-full px-3 py-4 sm:px-6">
-      <div className="mx-auto max-w-[1900px]">
+    <main className="flex h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)] flex-col overflow-hidden px-2 py-1.5 sm:px-3">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1900px] flex-1 flex-col">
         <MaintainerPageHeader
           title="Planificación mensual"
           subtitle="Flota"
           onRefresh={() => void reload({ full: true })}
           isRefreshing={loading || scheduleRefreshing}
           lastUpdatedAt={lastUpdatedAt}
+          refreshVariant="prominent"
         />
-        <section className="mb-4 rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-4 shadow-lg shadow-slate-300/20">
+        <section className="mb-1.5 shrink-0 overflow-hidden rounded-[18px] border border-[#b7cce4] bg-[#f8fbff] shadow-lg shadow-slate-300/15">
+          <button
+            type="button"
+            onClick={() => setControlsOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-2 border-b border-[#d7e7f8] bg-white px-3 py-2 text-left text-xs font-semibold text-[#173b68] hover:bg-[#f8fbff]"
+            aria-expanded={controlsOpen}
+          >
+            <span>
+              Controles ·{" "}
+              <span className="font-normal capitalize text-slate-500">
+                {monthLabel}
+              </span>
+            </span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-[#b7cce4] bg-[#eef3f9] text-sm leading-none">
+              {controlsOpen ? "▾" : "▸"}
+            </span>
+          </button>
+          {controlsOpen ? (
+            <div className="p-3">
           <div className="flex flex-wrap items-end gap-2">
             <Label text="Mes">
               <select
@@ -1043,15 +1073,38 @@ export default function PlanificacionMensualPage() {
               Limpiar filtros
             </button>
           </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs text-[#173b68]">
+              <button type="button" onClick={() => moveMonth(-1)} className={buttonClass}>
+                ←
+              </button>
+              <span className="capitalize font-semibold">{monthLabel}</span>
+              <button type="button" onClick={() => moveMonth(1)} className={buttonClass}>
+                →
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={openGenerate}
+                className={buttonClass}
+              >
+                Generar
+              </button>
+              <span className="text-slate-500">
+                {filteredRows.length} filas visibles
+              </span>
+            </div>
+          )}
         </section>
 
         {message ? (
-          <p className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <p className="mb-1 shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-800">
             {message}
           </p>
         ) : null}
         {error ? (
-          <p className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mb-1 shrink-0 rounded-xl border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
             {error}
           </p>
         ) : null}
@@ -1077,34 +1130,34 @@ export default function PlanificacionMensualPage() {
 
         {data?.schedule ? (
           <section
-            className={`overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 transition-opacity ${
-              scheduleRefreshing ? "opacity-70" : ""
+            className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/20 transition-opacity ${
+              scheduleRefreshing ? "opacity-80" : ""
             }`}
           >
-            <div className="max-h-[68dvh] overflow-auto">
-              <table className="border-separate border-spacing-0 text-xs">
+            <div className="min-h-0 flex-1 overflow-auto">
+              <table className="border-separate border-spacing-0 text-[10px] leading-tight">
                 <thead className="sticky top-0 z-30 bg-[#d7e7f8] text-[#0f2747]">
                   <tr>
-                    <StickyHead left={0} width={76}>
+                    <StickyHead left={STICKY.mobile.left} width={STICKY.mobile.width}>
                       Móvil
                     </StickyHead>
-                    <StickyHead left={76} width={180}>
+                    <StickyHead left={STICKY.driver.left} width={STICKY.driver.width}>
                       Conductor
                     </StickyHead>
-                    <StickyHead left={256} width={120}>
+                    <StickyHead left={STICKY.group.left} width={STICKY.group.width}>
                       Grupo
                     </StickyHead>
-                    <StickyHead left={376} width={110}>
+                    <StickyHead left={STICKY.shift.left} width={STICKY.shift.width}>
                       Turno
                     </StickyHead>
-                    <StickyHead left={486} width={160}>
-                      Observación
+                    <StickyHead left={STICKY.obs.left} width={STICKY.obs.width}>
+                      Obs.
                     </StickyHead>
                     {calendarDays.map((column) => (
                       <th
                         key={column.date}
                         title={holidayMap.get(column.date)?.name}
-                        className={`min-w-[48px] border-b border-r border-[#b7cce4] px-1 py-2 text-center ${
+                        className={`min-w-[34px] border-b border-r border-[#b7cce4] px-0.5 py-0.5 text-center ${
                           holidayMap.has(column.date)
                             ? "bg-rose-200"
                             : isToday(column.date)
@@ -1114,8 +1167,10 @@ export default function PlanificacionMensualPage() {
                                 : "bg-[#d7e7f8]"
                         }`}
                       >
-                        <span className="block text-sm">{column.day}</span>
-                        <span className="text-[9px] uppercase">
+                        <span className="block text-[11px] font-semibold leading-none">
+                          {column.day}
+                        </span>
+                        <span className="text-[8px] uppercase leading-none">
                           {column.weekday}
                         </span>
                       </th>
@@ -1141,8 +1196,8 @@ export default function PlanificacionMensualPage() {
                             }
                           >
                             <td
-                              colSpan={calendarDays.length + 5}
-                              className="border-b border-[#b7cce4] px-3 py-2 text-xs font-semibold text-[#173b68]"
+                              colSpan={calendarDays.length + STICKY_COUNT}
+                              className="border-b border-[#b7cce4] px-2 py-1 text-[10px] font-semibold text-[#173b68]"
                             >
                               <span className="mr-2 inline-block w-4 text-center">
                                 {expanded ? "▾" : "▸"}
@@ -1157,21 +1212,42 @@ export default function PlanificacionMensualPage() {
                         {expanded
                           ? group.rows.map((row) => (
                               <tr key={row.id} className="hover:bg-[#eef5ff]">
-                                <StickyCell left={0} width={76}>
+                                <StickyCell
+                                  left={STICKY.mobile.left}
+                                  width={STICKY.mobile.width}
+                                >
                                   <strong>{row.vehicle}</strong>
                                 </StickyCell>
-                                <StickyCell left={76} width={180}>
-                                  {row.driverName}
-                                </StickyCell>
-                                <StickyCell left={256} width={120}>
-                                  {row.groupName}
-                                </StickyCell>
-                                <StickyCell left={376} width={110}>
-                                  {row.shift}
-                                </StickyCell>
-                                <StickyCell left={486} width={160}>
+                                <StickyCell
+                                  left={STICKY.driver.left}
+                                  width={STICKY.driver.width}
+                                >
                                   <span
-                                    className="block max-w-[145px] truncate"
+                                    className="block max-w-[120px] truncate"
+                                    title={row.driverName}
+                                  >
+                                    {row.driverName}
+                                  </span>
+                                </StickyCell>
+                                <StickyCell
+                                  left={STICKY.group.left}
+                                  width={STICKY.group.width}
+                                >
+                                  <span className="block truncate" title={row.groupName}>
+                                    {row.groupName}
+                                  </span>
+                                </StickyCell>
+                                <StickyCell
+                                  left={STICKY.shift.left}
+                                  width={STICKY.shift.width}
+                                >
+                                  <span className="block truncate" title={row.shift}>
+                                    {row.shift}
+                                  </span>
+                                </StickyCell>
+                                <StickyCell left={STICKY.obs.left} width={STICKY.obs.width}>
+                                  <span
+                                    className="block max-w-[88px] truncate"
                                     title={row.observation}
                                   >
                                     {row.observation || "—"}
@@ -1183,7 +1259,7 @@ export default function PlanificacionMensualPage() {
                                   return (
                                     <td
                                       key={column.date}
-                                      className={`h-10 min-w-[48px] border-b border-r border-[#d7e7f8] p-1 text-center ${
+                                      className={`h-7 min-w-[34px] border-b border-r border-[#d7e7f8] p-0.5 text-center ${
                                         column.weekend ? "bg-slate-50" : ""
                                       }`}
                                     >
@@ -1199,7 +1275,7 @@ export default function PlanificacionMensualPage() {
                                             });
                                             setEditDirty(false);
                                           }}
-                                          className="relative h-8 w-9 rounded-lg text-[10px] font-bold"
+                                          className="relative mx-auto flex h-6 w-7 items-center justify-center rounded-md text-[9px] font-bold"
                                           style={{
                                             color: status?.color,
                                             backgroundColor: `${status?.color ?? "#64748b"}20`,
@@ -1211,15 +1287,15 @@ export default function PlanificacionMensualPage() {
                                               ? status.code
                                               : status.code.slice(0, 1)
                                             : "—"}
-                                          <span className="absolute -right-1 -top-1 flex gap-0.5">
+                                          <span className="absolute -right-0.5 -top-0.5 flex gap-0.5">
                                             {day.eventsCount > 0 ? (
-                                              <i className="h-2 w-2 rounded-full bg-violet-500" />
+                                              <i className="h-1.5 w-1.5 rounded-full bg-violet-500" />
                                             ) : null}
                                             {day.observation ? (
-                                              <i className="h-2 w-2 rounded-full bg-amber-500" />
+                                              <i className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                                             ) : null}
                                             {day.isManualOverride ? (
-                                              <i className="h-2 w-2 rounded-full bg-[#0b5cab]" />
+                                              <i className="h-1.5 w-1.5 rounded-full bg-[#0b5cab]" />
                                             ) : null}
                                           </span>
                                         </button>
@@ -1243,16 +1319,16 @@ export default function PlanificacionMensualPage() {
                 </p>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-[#b7cce4] bg-[#eef3f9] px-4 py-3 text-xs text-[#173b68]">
-              <strong>{data.summary.drivers} conductores en matriz</strong>
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-[#b7cce4] bg-[#eef3f9] px-2 py-1.5 text-[10px] text-[#173b68]">
+              <strong>{data.summary.drivers} conductores</strong>
               <span>·</span>
-              <span>{data.summary.totalDays} días planificados</span>
+              <span>{data.summary.totalDays} días</span>
               <span>·</span>
-              <span>{data.summary.manualOverrides} ajustes manuales</span>
+              <span>{data.summary.manualOverrides} manuales</span>
               {Object.entries(data.summary.byStatus).map(([code, total]) => (
                 <span
                   key={code}
-                  className="rounded-full border border-[#b7cce4] bg-white px-2 py-1"
+                  className="rounded-full border border-[#b7cce4] bg-white px-1.5 py-0.5"
                 >
                   {code}: <strong>{total}</strong>
                 </span>
@@ -1701,7 +1777,7 @@ function StickyHead({
 }) {
   return (
     <th
-      className="sticky z-40 border-b border-r border-[#b7cce4] bg-[#d7e7f8] px-2 py-2 text-left text-[10px] uppercase tracking-wide"
+      className="sticky z-40 border-b border-r border-[#b7cce4] bg-[#d7e7f8] px-1 py-1 text-left text-[9px] uppercase tracking-wide"
       style={{ left, minWidth: width, width }}
     >
       {children}
@@ -1719,7 +1795,7 @@ function StickyCell({
 }) {
   return (
     <td
-      className="sticky z-20 border-b border-r border-[#d7e7f8] bg-white px-2 py-2 text-[#0f2747]"
+      className="sticky z-20 border-b border-r border-[#d7e7f8] bg-white px-1 py-0.5 text-[10px] text-[#0f2747]"
       style={{ left, minWidth: width, width }}
     >
       {children}
