@@ -666,7 +666,18 @@ export default function MonthlyGenerateWizard({
                 placeholder="Buscar móvil, conductor, RUT, patente, grupo, turno"
                 className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3"
               />
-              <div className="flex flex-wrap gap-2 rounded-2xl border border-[#b7cce4] bg-white p-3 min-h-16">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#b7cce4] bg-[#eef3f9] px-3 py-2 text-xs text-[#173b68]">
+                <span>
+                  <strong>{selectedVehicles.length}</strong>{" "}
+                  {selectedVehicles.length === 1
+                    ? "móvil seleccionado"
+                    : "móviles seleccionados"}
+                </span>
+                <span className="text-slate-500">
+                  Agrega con + abajo o quita con × en cada chip
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 rounded-2xl border border-[#b7cce4] bg-white p-3 min-h-16 max-h-40 overflow-auto">
                 {selectedDriverRows.length ? (
                   selectedDriverRows.map((row) => (
                     <span
