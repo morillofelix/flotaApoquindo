@@ -14,10 +14,40 @@ function readEnv(name: string) {
   return process.env[name]?.trim() ?? "";
 }
 
-export function getNotificaSmtpConfig() {
-  const citasPassword = readEnv("CITAS_SMTP_PASSWORD") || readEnv("NOTIFICA_SMTP_PASSWORD");
-  const legacyPassword = readEnv("SMTP_PASSWORD") || readEnv("SMTP_PASS");
+type NotificaSmtpConfig = {
+  host: string;
+  port: number;
+  secure: boolean;
+  auth: { user: string; pass: string };
+  from: string;
+  source: "legacy" | "citas";
+};
+
+export function getNotificaSmtpConfig(): NotificaSmtpConfig | null {
   const legacyUser = readEnv("SMTP_USER");
+  const legacyPassword = readEnv("SMTP_PASSWORD") || readEnv("SMTP_PASS");
+  const citasPassword =
+    readEnv("CITAS_SMTP_PASSWORD") || readEnv("NOTIFICA_SMTP_PASSWORD");
+
+  // Vercel ya tiene SMTP_USER/SMTP_PASSWORD para cita@ — esa pareja manda.
+  if (legacyPassword && legacyUser) {
+    const host = readEnv("SMTP_HOST") || CITAS_SMTP_DEFAULTS.host;
+    const port = Number(readEnv("SMTP_PORT") || String(CITAS_SMTP_DEFAULTS.port));
+    const from = readEnv("EMAIL_FROM") || legacyUser;
+
+    if (!host || !from) {
+      return null;
+    }
+
+    return {
+      host,
+      port,
+      secure: port === 465,
+      auth: { user: legacyUser, pass: legacyPassword },
+      from,
+      source: "legacy",
+    };
+  }
 
   if (citasPassword) {
     const host =
@@ -49,30 +79,49 @@ export function getNotificaSmtpConfig() {
       secure: port === 465,
       auth: { user, pass: citasPassword },
       from,
-      source: "citas" as const,
-    };
-  }
-
-  if (legacyPassword && legacyUser) {
-    const host = readEnv("SMTP_HOST") || CITAS_SMTP_DEFAULTS.host;
-    const port = Number(readEnv("SMTP_PORT") || String(CITAS_SMTP_DEFAULTS.port));
-    const from = readEnv("EMAIL_FROM") || legacyUser;
-
-    if (!host || !from) {
-      return null;
-    }
-
-    return {
-      host,
-      port,
-      secure: port === 465,
-      auth: { user: legacyUser, pass: legacyPassword },
-      from,
-      source: "legacy" as const,
+      source: "citas",
     };
   }
 
   return null;
+}
+
+export function getNotificaSmtpSummary() {
+  const config = getNotificaSmtpConfig();
+
+  if (!config) {
+    return {
+      configured: false as const,
+      env: {
+        SMTP_USER: Boolean(readEnv("SMTP_USER")),
+        SMTP_PASSWORD: Boolean(readEnv("SMTP_PASSWORD") || readEnv("SMTP_PASS")),
+        SMTP_HOST: Boolean(readEnv("SMTP_HOST")),
+        CITAS_SMTP_USER: Boolean(readEnv("CITAS_SMTP_USER")),
+        CITAS_SMTP_PASSWORD: Boolean(
+          readEnv("CITAS_SMTP_PASSWORD") || readEnv("NOTIFICA_SMTP_PASSWORD"),
+        ),
+      },
+    };
+  }
+
+  return {
+    configured: true as const,
+    source: config.source,
+    host: config.host,
+    port: config.port,
+    user: config.auth.user,
+    from: config.from,
+    passwordLength: config.auth.pass.length,
+    env: {
+      SMTP_USER: Boolean(readEnv("SMTP_USER")),
+      SMTP_PASSWORD: Boolean(readEnv("SMTP_PASSWORD") || readEnv("SMTP_PASS")),
+      SMTP_HOST: Boolean(readEnv("SMTP_HOST")),
+      CITAS_SMTP_USER: Boolean(readEnv("CITAS_SMTP_USER")),
+      CITAS_SMTP_PASSWORD: Boolean(
+        readEnv("CITAS_SMTP_PASSWORD") || readEnv("NOTIFICA_SMTP_PASSWORD"),
+      ),
+    },
+  };
 }
 
 export function isNotificaSmtpConfigured() {
@@ -83,7 +132,7 @@ export function getNotificaSmtpPublicErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
   if (message.includes("535") || /invalid login/i.test(message)) {
-    return "No se pudo autenticar el correo de citas. Revise CITAS_SMTP_USER y CITAS_SMTP_PASSWORD en Vercel.";
+    return "No se pudo autenticar el correo de citas. Revise SMTP_USER y SMTP_PASSWORD en Vercel (cuenta cita@transporteapoquindo.cl).";
   }
 
   if (/timeout|timed out|ETIMEDOUT|ECONNECTION/i.test(message)) {
@@ -91,6 +140,11 @@ export function getNotificaSmtpPublicErrorMessage(error: unknown) {
   }
 
   return "No se pudo enviar el correo.";
+}
+
+export async function verifyNotificaSmtpConnection() {
+  const transporter = createNotificaTransporter();
+  await transporter.verify();
 }
 
 export function createNotificaTransporter() {
