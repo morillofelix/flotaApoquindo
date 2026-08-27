@@ -363,6 +363,7 @@ export function appointmentAllowsExecutive(appointment: Appointment) {
 export function shouldSendDecisionEmail(appointment: Appointment) {
   return (
     (appointment.status === "aprobado" || appointment.status === "rechazado") &&
+    appointment.email.trim() !== "" &&
     (appointment.reasonUsesDateRange ||
       appointment.reasonUsesPermitDetails ||
       appointment.reasonUsesDaySwap)

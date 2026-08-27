@@ -1,5 +1,9 @@
 import { getAppointmentTicketLabel } from "@/lib/appointments";
-import { getRequiredDateSummary } from "@/lib/agendamientos-appointments";
+import {
+  getRequiredDateSummary,
+  shouldSendDecisionEmail,
+} from "@/lib/agendamientos-appointments";
+import { sendDecisionEmailServer } from "@/lib/appointment-decision-email-server";
 import {
   sendExecutiveAssignmentEmailsServer,
   shouldSendExecutiveAssignmentEmails,
@@ -25,7 +29,10 @@ function canResendAppointment(appointment: ReturnType<typeof toAppointment>) {
     return true;
   }
 
-  return shouldSendExecutiveAssignmentEmails(appointment);
+  return (
+    shouldSendExecutiveAssignmentEmails(appointment) ||
+    shouldSendDecisionEmail(appointment)
+  );
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -64,6 +71,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     let reminderSent = false;
     let emailsSent = false;
+    let decisionEmailSent = false;
 
     if (
       appointment.createdByType === "ejecutivo" &&
@@ -87,6 +95,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       emailsSent = true;
     }
 
+    if (shouldSendDecisionEmail(appointment)) {
+      await sendDecisionEmailServer(appointment);
+      decisionEmailSent = true;
+    }
+
     const updatedAppointment = await prisma.appointment.findUnique({
       where: { id },
     });
@@ -102,6 +115,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       ok: true,
       reminderSent,
       emailsSent,
+      decisionEmailSent,
       appointment: toAppointment(updatedAppointment, reason ?? undefined),
     });
   } catch (error) {

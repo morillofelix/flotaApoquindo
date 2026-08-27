@@ -829,6 +829,7 @@ function AppointmentsPageContent() {
         appointment?: Appointment;
         reminderSent?: boolean;
         emailsSent?: boolean;
+        decisionEmailSent?: boolean;
       };
 
       if (!response.ok) {
@@ -850,10 +851,23 @@ function AppointmentsPageContent() {
           status: "sent",
           message: "Solicitud reenviada al conductor y correos de cita enviados.",
         });
+      } else if (result.emailsSent && result.decisionEmailSent) {
+        setEmailNotice({
+          status: "sent",
+          message: "Correos de cita y de decisión reenviados.",
+        });
       } else if (result.emailsSent) {
         setEmailNotice({
           status: "sent",
           message: "Correos de cita reenviados.",
+        });
+      } else if (result.decisionEmailSent) {
+        setEmailNotice({
+          status: "sent",
+          message:
+            appointment.status === "aprobado"
+              ? "Correo de aprobación reenviado."
+              : "Correo de rechazo reenviado.",
         });
       } else if (result.reminderSent) {
         setEmailNotice({

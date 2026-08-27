@@ -2,7 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Appointment } from "@/lib/appointments";
-import { shouldSendCalendarInvite } from "@/lib/agendamientos-appointments";
+import {
+  shouldSendCalendarInvite,
+  shouldSendDecisionEmail,
+} from "@/lib/agendamientos-appointments";
 import { canEditAppointmentDates } from "@/lib/appointment-date-edit";
 
 type AppointmentRowActionsProps = {
@@ -21,7 +24,10 @@ export function canResendAppointmentReminder(appointment: Appointment) {
     return true;
   }
 
-  return shouldSendCalendarInvite(appointment);
+  return (
+    shouldSendCalendarInvite(appointment) ||
+    shouldSendDecisionEmail(appointment)
+  );
 }
 
 function PencilIcon() {
