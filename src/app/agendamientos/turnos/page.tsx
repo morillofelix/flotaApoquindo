@@ -194,6 +194,19 @@ export default function TurnosPage() {
     }));
   }
 
+  function applyHoursToGrid(startTime: string, endTime: string) {
+    setForm((current) => ({
+      ...current,
+      startTime,
+      endTime,
+      dayRules: current.dayRules.map((day) => ({
+        ...day,
+        startTime,
+        endTime,
+      })),
+    }));
+  }
+
   function handleGroupChange(groupId: string) {
     setForm((current) => ({
       ...current,
@@ -313,7 +326,9 @@ export default function TurnosPage() {
               <input
                 type="time"
                 value={form.startTime}
-                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                onChange={(e) =>
+                  applyHoursToGrid(e.target.value, form.endTime)
+                }
                 className={inputClass}
               />
             </Field>
@@ -321,7 +336,9 @@ export default function TurnosPage() {
               <input
                 type="time"
                 value={form.endTime}
-                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                onChange={(e) =>
+                  applyHoursToGrid(form.startTime, e.target.value)
+                }
                 className={inputClass}
               />
             </Field>
@@ -387,8 +404,9 @@ export default function TurnosPage() {
           <div className="mt-4 overflow-auto rounded-2xl border border-[#b7cce4] bg-white">
             <div className="border-b border-[#d7e7f8] bg-[#eef3f9] px-3 py-2 text-[11px] text-slate-600">
               Grilla semanal: <strong>tildado = trabaja</strong>,{" "}
-              <strong>sin tildar = libre</strong>. No hace falta poner LIBRE a
-              mano: al destildar ya queda libre.
+              <strong>sin tildar = libre</strong>. Las horas de arriba se
+              copian a todos los días; luego puedes cambiar solo un día si
+              hace falta.
             </div>
             <div className="min-w-[520px] grid grid-cols-[1fr_.55fr_.8fr_.8fr_.8fr] bg-[#d7e7f8] px-3 py-2 text-[10px] font-semibold uppercase text-[#0f2747]">
               <span>Día</span>
@@ -410,6 +428,12 @@ export default function TurnosPage() {
                     updateDay(index, {
                       works: e.target.checked,
                       defaultStatusCode: e.target.checked ? "TRABAJA" : "LIBRE",
+                      ...(e.target.checked
+                        ? {
+                            startTime: form.startTime,
+                            endTime: form.endTime,
+                          }
+                        : {}),
                     })
                   }
                   className="h-4 w-4 accent-[#0b5cab]"
