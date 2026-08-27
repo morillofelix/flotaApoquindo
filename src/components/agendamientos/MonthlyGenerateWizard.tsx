@@ -472,11 +472,11 @@ export default function MonthlyGenerateWizard({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f2747]/50 p-3"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f2747]/50 p-2 sm:p-4"
       role="dialog"
       aria-modal="true"
     >
-      <div className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] shadow-2xl">
+      <div className="flex max-h-[96dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] shadow-2xl xl:max-w-7xl">
         <div className="border-b border-[#b7cce4] bg-white px-5 py-4">
           <h2 className="font-heading text-lg font-semibold text-[#0f2747]">
             Generar planificación mensual
@@ -500,7 +500,13 @@ export default function MonthlyGenerateWizard({
           </ol>
         </div>
 
-        <div className="flex-1 overflow-auto px-5 py-4 text-sm text-[#0f2747]">
+        <div
+          className={`flex-1 px-5 py-4 text-sm text-[#0f2747] ${
+            step === 2
+              ? "flex min-h-0 flex-col overflow-hidden"
+              : "overflow-auto"
+          }`}
+        >
           {step === 0 ? (
             <div className="grid gap-3 md:grid-cols-2">
               <label className="grid gap-1">
@@ -617,13 +623,13 @@ export default function MonthlyGenerateWizard({
           ) : null}
 
           {step === 2 ? (
-            <div className="grid gap-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
               {driversLoading ? (
                 <p className="rounded-2xl border border-[#b7cce4] bg-white px-3 py-4 text-xs text-slate-600">
                   Cargando conductores y asignaciones de turno…
                 </p>
               ) : null}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 <button type="button" className={ghostClass} onClick={addFiltered}>
                   Agregar resultados filtrados
                 </button>
@@ -647,7 +653,7 @@ export default function MonthlyGenerateWizard({
                 </button>
               </div>
               {groups.length ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
                   {groups.map(([id, name]) => (
                     <button
                       key={id}
@@ -664,49 +670,54 @@ export default function MonthlyGenerateWizard({
                 value={vehicleSearch}
                 onChange={(e) => setVehicleSearch(e.target.value)}
                 placeholder="Buscar móvil, conductor, RUT, patente, grupo, turno"
-                className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-3"
+                className="h-10 shrink-0 rounded-2xl border border-[#9fb8d9] bg-white px-3"
               />
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#b7cce4] bg-[#eef3f9] px-3 py-2 text-xs text-[#173b68]">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#b7cce4] bg-[#eef3f9] px-3 py-2 text-xs text-[#173b68]">
                 <span>
                   <strong>{selectedVehicles.length}</strong>{" "}
                   {selectedVehicles.length === 1
                     ? "móvil seleccionado"
                     : "móviles seleccionados"}
                 </span>
-                <span className="text-slate-500">
+                <span className="hidden text-slate-500 sm:inline">
                   Agrega con + abajo o quita con × en cada chip
                 </span>
               </div>
-              <div className="flex flex-wrap gap-2 rounded-2xl border border-[#b7cce4] bg-white p-3 min-h-16 max-h-40 overflow-auto">
+              <div className="min-h-[min(36dvh,280px)] flex-1 overflow-y-auto rounded-2xl border border-[#b7cce4] bg-white p-3">
                 {selectedDriverRows.length ? (
-                  selectedDriverRows.map((row) => (
-                    <span
-                      key={row.vehicleNumber}
-                      title={`${row.vehicleNumber} · ${row.fullName} · ${row.groupName} · ${row.shiftName || "Sin turno"}`}
-                      className="inline-flex items-center gap-1 rounded-full border border-[#9fb8d9] bg-[#eef3f9] px-2.5 py-1 text-[11px] font-semibold"
-                    >
-                      {row.vehicleNumber}
-                      {!row.shiftId ? (
-                        <span className="text-amber-700">· sin turno</span>
-                      ) : row.shiftId !== shiftId ? (
-                        <span className="text-amber-700">· otro turno</span>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => removeVehicle(row.vehicleNumber)}
-                        aria-label={`Quitar ${row.vehicleNumber}`}
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(6.75rem,1fr))] gap-1.5 sm:grid-cols-[repeat(auto-fill,minmax(7.25rem,1fr))]">
+                    {selectedDriverRows.map((row) => (
+                      <span
+                        key={row.vehicleNumber}
+                        title={`${row.vehicleNumber} · ${row.fullName} · ${row.groupName} · ${row.shiftName || "Sin turno"}`}
+                        className="inline-flex items-center justify-between gap-1 rounded-xl border border-[#9fb8d9] bg-[#eef3f9] px-2 py-1 text-[11px] font-semibold"
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))
+                        <span className="truncate">
+                          {row.vehicleNumber}
+                          {!row.shiftId ? (
+                            <span className="text-amber-700"> · s/t</span>
+                          ) : row.shiftId !== shiftId ? (
+                            <span className="text-amber-700"> · otro</span>
+                          ) : null}
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 leading-none text-slate-500 hover:text-red-600"
+                          onClick={() => removeVehicle(row.vehicleNumber)}
+                          aria-label={`Quitar ${row.vehicleNumber}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 ) : (
                   <span className="text-xs text-slate-500">
                     Agrega uno o más móviles.
                   </span>
                 )}
               </div>
-              <div className="max-h-48 space-y-1 overflow-auto rounded-2xl border border-[#b7cce4] bg-white p-2">
+              <div className="max-h-[min(28dvh,240px)] shrink-0 space-y-1 overflow-y-auto rounded-2xl border border-[#b7cce4] bg-white p-2">
                 {filteredDrivers.map((row) => (
                   <button
                     key={row.id}
