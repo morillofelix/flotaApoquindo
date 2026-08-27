@@ -10,6 +10,7 @@ import {
 } from "@/lib/appointment-emails-server";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { getNotificaSmtpPublicErrorMessage } from "@/lib/notifica-smtp";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -121,10 +122,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   } catch (error) {
     console.error("POST /api/appointments/[id]/resend failed:", error);
 
-    const message =
-      error instanceof Error && error.message
-        ? error.message
-        : "No se pudo reenviar la solicitud.";
+    const message = getNotificaSmtpPublicErrorMessage(error);
 
     return NextResponse.json({ message }, { status: 502 });
   }

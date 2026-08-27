@@ -10,53 +10,87 @@ const CITAS_SMTP_DEFAULTS = {
 
 const SMTP_TIMEOUT_MS = 12_000;
 
-export function getNotificaSmtpConfig() {
-  const host = (
-    process.env.CITAS_SMTP_HOST ??
-    process.env.NOTIFICA_SMTP_HOST ??
-    CITAS_SMTP_DEFAULTS.host
-  ).trim();
-  const port = Number(
-    (
-      process.env.CITAS_SMTP_PORT ??
-      process.env.NOTIFICA_SMTP_PORT ??
-      String(CITAS_SMTP_DEFAULTS.port)
-    ).trim(),
-  );
-  const user = (
-    process.env.CITAS_SMTP_USER ??
-    process.env.NOTIFICA_SMTP_USER ??
-    CITAS_SMTP_DEFAULTS.user
-  ).trim();
-  const pass = (
-    process.env.CITAS_SMTP_PASSWORD ??
-    process.env.NOTIFICA_SMTP_PASSWORD ??
-    process.env.SMTP_PASSWORD ??
-    process.env.SMTP_PASS ??
-    ""
-  ).trim();
-  const from = (
-    process.env.CITAS_EMAIL_FROM ??
-    process.env.NOTIFICA_EMAIL_FROM ??
-    process.env.EMAIL_FROM ??
-    CITAS_SMTP_DEFAULTS.from
-  ).trim();
+function readEnv(name: string) {
+  return process.env[name]?.trim() ?? "";
+}
 
-  if (!host || !user || !pass || !from) {
-    return null;
+export function getNotificaSmtpConfig() {
+  const citasPassword = readEnv("CITAS_SMTP_PASSWORD") || readEnv("NOTIFICA_SMTP_PASSWORD");
+  const legacyPassword = readEnv("SMTP_PASSWORD") || readEnv("SMTP_PASS");
+  const legacyUser = readEnv("SMTP_USER");
+
+  if (citasPassword) {
+    const host =
+      readEnv("CITAS_SMTP_HOST") ||
+      readEnv("NOTIFICA_SMTP_HOST") ||
+      CITAS_SMTP_DEFAULTS.host;
+    const port = Number(
+      readEnv("CITAS_SMTP_PORT") ||
+        readEnv("NOTIFICA_SMTP_PORT") ||
+        String(CITAS_SMTP_DEFAULTS.port),
+    );
+    const user =
+      readEnv("CITAS_SMTP_USER") ||
+      readEnv("NOTIFICA_SMTP_USER") ||
+      CITAS_SMTP_DEFAULTS.user;
+    const from =
+      readEnv("CITAS_EMAIL_FROM") ||
+      readEnv("NOTIFICA_EMAIL_FROM") ||
+      readEnv("EMAIL_FROM") ||
+      CITAS_SMTP_DEFAULTS.from;
+
+    if (!host || !user || !from) {
+      return null;
+    }
+
+    return {
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass: citasPassword },
+      from,
+      source: "citas" as const,
+    };
   }
 
-  return {
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-    from,
-  };
+  if (legacyPassword && legacyUser) {
+    const host = readEnv("SMTP_HOST") || CITAS_SMTP_DEFAULTS.host;
+    const port = Number(readEnv("SMTP_PORT") || String(CITAS_SMTP_DEFAULTS.port));
+    const from = readEnv("EMAIL_FROM") || legacyUser;
+
+    if (!host || !from) {
+      return null;
+    }
+
+    return {
+      host,
+      port,
+      secure: port === 465,
+      auth: { user: legacyUser, pass: legacyPassword },
+      from,
+      source: "legacy" as const,
+    };
+  }
+
+  return null;
 }
 
 export function isNotificaSmtpConfigured() {
   return getNotificaSmtpConfig() !== null;
+}
+
+export function getNotificaSmtpPublicErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("535") || /invalid login/i.test(message)) {
+    return "No se pudo autenticar el correo de citas. Revise CITAS_SMTP_USER y CITAS_SMTP_PASSWORD en Vercel.";
+  }
+
+  if (/timeout|timed out|ETIMEDOUT|ECONNECTION/i.test(message)) {
+    return "No se pudo conectar al servidor de correo. Intente nuevamente en unos minutos.";
+  }
+
+  return "No se pudo enviar el correo.";
 }
 
 export function createNotificaTransporter() {

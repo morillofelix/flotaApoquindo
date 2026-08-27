@@ -3,7 +3,7 @@ import {
   isDecisionEmailPayload,
   sendDecisionEmailServer,
 } from "@/lib/appointment-decision-email-server";
-import { getNotificaSmtpConfig } from "@/lib/notifica-smtp";
+import { getNotificaSmtpConfig, getNotificaSmtpPublicErrorMessage } from "@/lib/notifica-smtp";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[send-approval-email] SMTP send failed:", error);
     return NextResponse.json(
-      { message: "No se pudo enviar el correo de aprobación." },
+      { message: getNotificaSmtpPublicErrorMessage(error) },
       { status: 502 },
     );
   }
