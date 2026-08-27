@@ -1,7 +1,9 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { writeAuditLog } from "@/lib/audit-log";
 import { readAdminSession } from "@/lib/driver-auth";
 import { isValidPlanningMonth } from "@/lib/fleet-schedule";
 import {
+  copyMonthlyScheduleFromPrevious,
   deleteMonthlyScheduleScope,
   generateMonthlySchedule,
   previewMonthlyScheduleDeletion,
@@ -256,11 +258,52 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
+      const session = readAdminSession(request);
       const summary = await deleteMonthlyScheduleScope({
         year,
         month,
         scope,
         includeManualOverrides: body.includeManualOverrides !== false,
+      });
+      await writeAuditLog({
+        module: "planificacion-mensual",
+        action: "delete-generation",
+        entityType: "MonthlySchedule",
+        entityId: `${year}-${String(month).padStart(2, "0")}`,
+        newValue: { ...summary, scope },
+        userEmail: session?.email ?? "",
+        origin: "manual",
+      });
+      return NextResponse.json({ summary });
+    }
+
+    if (action === "copyMonth") {
+      const session = readAdminSession(request);
+      const sourceYear = Number(body.sourceYear);
+      const sourceMonth = Number(body.sourceMonth);
+      if (!isValidPlanningMonth(sourceYear, sourceMonth)) {
+        return NextResponse.json(
+          { message: "Mes origen inválido." },
+          { status: 400 },
+        );
+      }
+      const summary = await copyMonthlyScheduleFromPrevious({
+        sourceYear,
+        sourceMonth,
+        year,
+        month,
+        generatedByEmail: session?.email ?? "",
+        scope,
+        preserveManualOverrides: body.preserveManualOverrides !== false,
+      });
+      await writeAuditLog({
+        module: "planificacion-mensual",
+        action: "copy-month",
+        entityType: "MonthlySchedule",
+        entityId: summary.monthlyScheduleId,
+        newValue: summary,
+        userEmail: session?.email ?? "",
+        origin: "manual",
       });
       return NextResponse.json({ summary });
     }
@@ -271,17 +314,55 @@ export async function POST(request: NextRequest) {
 
     const session = readAdminSession(request);
     const stream = body.stream === true;
-    const generateOptions = {
+    const dayOverrides = Array.isArray(body.dayOverrides)
+      ? body.dayOverrides
+          .filter(
+            (item): item is Record<string, unknown> =>
+              Boolean(item) && typeof item === "object",
+          )
+          .map((item) => ({
+            date: asString(item.date),
+            statusCode: asString(item.statusCode) || "TRABAJA",
+            startTime: asString(item.startTime) || undefined,
+            endTime: asString(item.endTime) || undefined,
+            observation: asString(item.observation) || undefined,
+          }))
+          .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date))
+      : undefined;
+
+    const assignModeRaw = asString(body.assignMode);
+    const assignMode: "assign" | "keep" | "exception" =
+      assignModeRaw === "keep" || assignModeRaw === "exception"
+        ? assignModeRaw
+        : "assign";
+
+    const generateOptions: Parameters<typeof generateMonthlySchedule>[0] = {
       year,
       month,
       generatedByEmail: session?.email ?? "",
       preserveManualOverrides: body.preserveManualOverrides !== false,
       overwriteCalculated: body.overwriteCalculated !== false,
       scope,
+      forceShiftDefinitionId:
+        asString(body.forceShiftDefinitionId) ||
+        scope.shiftDefinitionId ||
+        undefined,
+      patternBaseDate: asString(body.patternBaseDate) || undefined,
+      dayOverrides,
+      assignMode,
     };
 
     if (!stream) {
       const summary = await generateMonthlySchedule(generateOptions);
+      await writeAuditLog({
+        module: "planificacion-mensual",
+        action: "generate",
+        entityType: "MonthlySchedule",
+        entityId: summary.monthlyScheduleId,
+        newValue: { ...summary, scope, assignMode, forceShiftDefinitionId: generateOptions.forceShiftDefinitionId },
+        userEmail: session?.email ?? "",
+        origin: "manual",
+      });
       return NextResponse.json({ summary });
     }
 
@@ -305,6 +386,20 @@ export async function POST(request: NextRequest) {
             onProgress: async (progress) => {
               send({ type: "progress", ...progress });
             },
+          });
+          await writeAuditLog({
+            module: "planificacion-mensual",
+            action: "generate",
+            entityType: "MonthlySchedule",
+            entityId: summary.monthlyScheduleId,
+            newValue: {
+              ...summary,
+              scope,
+              assignMode,
+              forceShiftDefinitionId: generateOptions.forceShiftDefinitionId,
+            },
+            userEmail: session?.email ?? "",
+            origin: "manual",
           });
           send({ type: "done", summary });
         } catch (error) {

@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
         driverOwner: { select: { vehicleNumber: true, fullName: true } },
       },
       orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
-      take: driverOwnerId ? 50 : 200,
+      take: driverOwnerId ? 50 : 5000,
     });
 
     return NextResponse.json({

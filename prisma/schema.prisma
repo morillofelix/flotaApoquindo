@@ -497,6 +497,11 @@ model DailySchedule {
   observation        String                 @default("") @db.Text
   changeOrigin       String                 @default("generated")
   isManualOverride   Boolean                @default(false)
+  /// Horario efectivo del día (copiado del turno o ajustado manualmente).
+  startTime          String                 @default("")
+  endTime            String                 @default("")
+  /// Posición 0-based en el ciclo rotativo (si aplica).
+  cyclePosition      Int?
   modifiedByEmail    String                 @default("")
   modifiedAt         DateTime?
   version            Int                    @default(1)

@@ -1,9 +1,13 @@
 "use client";
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
+import MonthlyGenerateWizard, {
+  type WizardDriver,
+} from "@/components/agendamientos/MonthlyGenerateWizard";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import {
   loadDriverGroups,
+  loadDriverOwners,
   loadMonthlySchedule,
   loadOperationalStatuses,
   loadShiftDefinitions,
@@ -13,7 +17,7 @@ import type { HolidayConfig } from "@/lib/holidays";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 type StatusBrief = Pick<
   OperationalStatusConfig,
@@ -79,13 +83,6 @@ type GenerateForm = {
   vehicleTo: string;
   shiftDefinitionId: string;
 };
-type GeneratePreview = {
-  driversCount: number;
-  daysPerDriver: number;
-  estimatedCells: number;
-  vehicleNumbers?: string[];
-  sample: Array<{ vehicleNumber: string; fullName: string; groupName: string }>;
-};
 type DeletePreview = {
   driversCount: number;
   driversInScope?: number;
@@ -150,6 +147,13 @@ export default function PlanificacionMensualPage() {
   const [shiftDefinitions, setShiftDefinitions] = useState<
     ShiftDefinitionConfig[]
   >([]);
+  const [wizardDrivers, setWizardDrivers] = useState<WizardDriver[]>([]);
+  const [groupBy, setGroupBy] = useState<
+    "none" | "group" | "shift" | "group_shift"
+  >("none");
+  const [groupsExpanded, setGroupsExpanded] = useState<Record<string, boolean>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -165,18 +169,12 @@ export default function PlanificacionMensualPage() {
   });
   const [generateOpen, setGenerateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [generateForm, setGenerateForm] = useState<GenerateForm>(emptyGenerateForm);
   const [deleteForm, setDeleteForm] = useState<GenerateForm>(emptyGenerateForm);
-  const [preview, setPreview] = useState<GeneratePreview | null>(null);
   const [deletePreview, setDeletePreview] = useState<DeletePreview | null>(null);
-  const [previewError, setPreviewError] = useState("");
   const [deletePreviewError, setDeletePreviewError] = useState("");
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [includeManualOnDelete, setIncludeManualOnDelete] = useState(true);
-  const [generateProgress, setGenerateProgress] =
-    useState<GenerateProgressState | null>(null);
   const [deleteProgress, setDeleteProgress] =
     useState<GenerateProgressState | null>(null);
 
@@ -184,7 +182,7 @@ export default function PlanificacionMensualPage() {
     setLoading(true);
     setError("");
     try {
-      const [schedule, statusList, holidayResponse, groups, shifts] =
+      const [schedule, statusList, holidayResponse, groups, shifts, owners, assignRes] =
         await Promise.all([
           loadMonthlySchedule(year, month),
           loadOperationalStatuses(),
@@ -197,12 +195,51 @@ export default function PlanificacionMensualPage() {
           ),
           loadDriverGroups(),
           loadShiftDefinitions(),
+          loadDriverOwners(),
+          fetch("/api/driver-shift-assignments?active=true", {
+            ...adminFetchInit,
+            cache: "no-store",
+          }).then(async (response) => {
+            if (!response.ok) return { assignments: [] as Array<{ driverOwnerId?: string; shiftDefinitionId?: string | null; shiftDefinition?: { id: string; code: string; name: string } | null }> };
+            return (await response.json()) as {
+              assignments?: Array<{
+                driverOwnerId?: string;
+                shiftDefinitionId?: string | null;
+                shiftDefinition?: { id: string; code: string; name: string } | null;
+              }>;
+            };
+          }),
         ]);
       setData(schedule as SchedulePayload);
       setStatuses(statusList);
       setHolidays(holidayResponse.holidays ?? []);
       setDriverGroups(groups);
       setShiftDefinitions(shifts.filter((shift) => shift.isActive));
+      const assignByDriver = new Map(
+        (assignRes.assignments ?? []).map((item) => [
+          item.driverOwnerId ?? "",
+          item,
+        ]),
+      );
+      setWizardDrivers(
+        owners.map((owner) => {
+          const assign = assignByDriver.get(owner.id ?? "");
+          return {
+            id: owner.id ?? owner.vehicleNumber,
+            vehicleNumber: owner.vehicleNumber,
+            fullName: owner.fullName,
+            rut: owner.rut ?? "",
+            licensePlate: owner.licensePlate ?? "",
+            groupId: owner.groupId ?? "",
+            groupName: owner.groupName || "Sin grupo",
+            isActive: owner.isActive,
+            isConductor: owner.isConductor,
+            shiftId: assign?.shiftDefinition?.id || assign?.shiftDefinitionId || "",
+            shiftCode: assign?.shiftDefinition?.code || "",
+            shiftName: assign?.shiftDefinition?.name || "",
+          };
+        }),
+      );
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -320,42 +357,32 @@ export default function PlanificacionMensualPage() {
     [filters, rows],
   );
 
-  const refreshPreview = useCallback(
-    async (form: GenerateForm) => {
-      setPreviewLoading(true);
-      setPreviewError("");
-      try {
-        const params = new URLSearchParams({
-          year: String(year),
-          month: String(month),
-          preview: "1",
-        });
-        appendScopeParams(params, form);
-        const response = await fetch(`/api/monthly-schedules?${params}`, {
-          ...adminFetchInit,
-          cache: "no-store",
-        });
-        const body = (await response.json()) as {
-          message?: string;
-          preview?: GeneratePreview;
-        };
-        if (!response.ok) {
-          throw new Error(body.message || "No se pudo calcular el alcance.");
-        }
-        setPreview(body.preview ?? null);
-      } catch (caught) {
-        setPreview(null);
-        setPreviewError(
-          caught instanceof Error
-            ? caught.message
-            : "No se pudo calcular el alcance.",
-        );
-      } finally {
-        setPreviewLoading(false);
+  const groupedMatrix = useMemo(() => {
+    if (groupBy === "none") {
+      return [{ key: "all", label: "", rows: filteredRows }];
+    }
+    const map = new Map<string, { key: string; label: string; rows: Row[] }>();
+    for (const row of filteredRows) {
+      let key = "";
+      let label = "";
+      if (groupBy === "group") {
+        key = row.groupId || "sin-grupo";
+        label = row.groupName || "Sin grupo";
+      } else if (groupBy === "shift") {
+        key = row.shift || "sin-turno";
+        label = row.shift || "Sin turno";
+      } else {
+        key = `${row.groupId || "sin-grupo"}::${row.shift || "sin-turno"}`;
+        label = `${row.groupName || "Sin grupo"} · ${row.shift || "Sin turno"}`;
       }
-    },
-    [month, year],
-  );
+      const bucket = map.get(key) ?? { key, label, rows: [] };
+      bucket.rows.push(row);
+      map.set(key, bucket);
+    }
+    return [...map.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "es", { numeric: true }),
+    );
+  }, [filteredRows, groupBy]);
 
   const refreshDeletePreview = useCallback(
     async (form: GenerateForm) => {
@@ -395,14 +422,6 @@ export default function PlanificacionMensualPage() {
   );
 
   useEffect(() => {
-    if (!generateOpen) return;
-    const timer = window.setTimeout(() => {
-      void refreshPreview(generateForm);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [generateForm, generateOpen, refreshPreview]);
-
-  useEffect(() => {
     if (!deleteOpen) return;
     const timer = window.setTimeout(() => {
       void refreshDeletePreview(deleteForm);
@@ -432,10 +451,6 @@ export default function PlanificacionMensualPage() {
   }
 
   function openGenerate() {
-    setGenerateForm(emptyGenerateForm());
-    setPreview(null);
-    setPreviewError("");
-    setGenerateProgress(null);
     setGenerateOpen(true);
   }
 
@@ -599,151 +614,59 @@ export default function PlanificacionMensualPage() {
     }
   }
 
-  async function runGenerate() {
-    if (!preview?.driversCount) {
-      setPreviewError("No hay conductores en el alcance seleccionado.");
-      return;
-    }
+  async function copyPreviousMonth() {
+    const source = new Date(year, month - 2, 1);
+    const sourceYear = source.getFullYear();
+    const sourceMonth = source.getMonth() + 1;
+    const sourceLabel = new Intl.DateTimeFormat("es-CL", {
+      month: "long",
+      year: "numeric",
+    }).format(source);
     if (
-      generateForm.mode === "all" &&
-      preview.driversCount > 200 &&
       !window.confirm(
-        `Vas a generar ${preview.driversCount} conductores (~${preview.estimatedCells} celdas). Verás el avance lote a lote. ¿Continuar?`,
+        `¿Copiar la planificación de ${sourceLabel} hacia ${monthLabel}? Se respetan ajustes manuales del mes destino y se reaplican feriados/bloqueos/citas del mes actual.`,
       )
     ) {
       return;
     }
-
-    const vehicles = preview.vehicleNumbers?.filter(Boolean) ?? [];
-    if (!vehicles.length) {
-      setPreviewError(
-        "No se pudo obtener la lista de móviles. Cambia el alcance o vuelve a abrir el modal.",
-      );
-      return;
-    }
-
-    const chunkSize = 40;
-    const batchCount = Math.ceil(vehicles.length / chunkSize);
-
     setBusy(true);
     setError("");
     setMessage("");
-    setGenerateProgress({
-      phase: "preparing",
-      processed: 0,
-      total: vehicles.length,
-      percent: 0,
-      message: `Preparando ${vehicles.length} conductores en ${batchCount} lotes…`,
-      batchIndex: 0,
-      batchCount,
-    });
-
-    const totals = {
-      driversTargeted: 0,
-      created: 0,
-      updated: 0,
-      preservedManualOverrides: 0,
-      days: 0,
-    };
-
     try {
-      for (let offset = 0; offset < vehicles.length; offset += chunkSize) {
-        const chunk = vehicles.slice(offset, offset + chunkSize);
-        const batchIndex = Math.floor(offset / chunkSize) + 1;
-
-        setGenerateProgress({
-          phase: "batch",
-          processed: offset,
-          total: vehicles.length,
-          percent: Math.round((offset / vehicles.length) * 100),
-          message: `Procesando lote ${batchIndex}/${batchCount} (${chunk[0]}…${chunk[chunk.length - 1]})`,
-          batchIndex,
-          batchCount,
-        });
-
-        const response = await fetch("/api/monthly-schedules", {
-          ...adminFetchInit,
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "generate",
-            year,
-            month,
-            preserveManualOverrides: true,
-            mode: "vehicles",
-            vehicleNumbers: chunk,
-          }),
-        });
-        const body = (await response.json()) as {
-          message?: string;
-          summary?: {
-            driversTargeted?: number;
-            created?: number;
-            updated?: number;
-            preservedManualOverrides?: number;
-            days?: number;
-          };
-        };
-        if (!response.ok) {
-          throw new Error(
-            body.message ||
-              `Error en lote ${batchIndex}/${batchCount}. Se generaron ${totals.driversTargeted} conductores antes del fallo.`,
-          );
-        }
-
-        totals.driversTargeted += body.summary?.driversTargeted ?? chunk.length;
-        totals.created += body.summary?.created ?? 0;
-        totals.updated += body.summary?.updated ?? 0;
-        totals.preservedManualOverrides +=
-          body.summary?.preservedManualOverrides ?? 0;
-        totals.days += body.summary?.days ?? 0;
-
-        const processed = Math.min(offset + chunk.length, vehicles.length);
-        setGenerateProgress({
-          phase: "batch",
-          processed,
-          total: vehicles.length,
-          percent: Math.round((processed / vehicles.length) * 100),
-          message: `Lote ${batchIndex}/${batchCount} listo · ${processed} de ${vehicles.length}`,
-          batchIndex,
-          batchCount,
-        });
-      }
-
-      setGenerateProgress({
-        phase: "done",
-        processed: vehicles.length,
-        total: vehicles.length,
-        percent: 100,
-        message: "Generación completada",
-        batchIndex: batchCount,
-        batchCount,
+      const response = await fetch("/api/monthly-schedules", {
+        ...adminFetchInit,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "copyMonth",
+          year,
+          month,
+          sourceYear,
+          sourceMonth,
+          preserveManualOverrides: true,
+          mode: "all",
+        }),
       });
-
-      await new Promise((resolve) => window.setTimeout(resolve, 700));
-      setGenerateOpen(false);
-      setGenerateProgress(null);
+      const body = (await response.json()) as {
+        message?: string;
+        summary?: {
+          driversTargeted?: number;
+          created?: number;
+          updated?: number;
+          days?: number;
+        };
+      };
+      if (!response.ok) {
+        throw new Error(body.message || "No se pudo copiar el mes.");
+      }
       await reload();
       setMessage(
-        `Completado: ${totals.driversTargeted} conductores · ${totals.days} días · creados ${totals.created} · actualizados ${totals.updated} · manuales conservados ${totals.preservedManualOverrides}.`,
+        `Mes copiado desde ${sourceLabel}: ${body.summary?.driversTargeted ?? 0} móviles · ${body.summary?.days ?? 0} días · creados ${body.summary?.created ?? 0} · actualizados ${body.summary?.updated ?? 0}.`,
       );
     } catch (caught) {
-      const text =
-        caught instanceof Error
-          ? caught.message
-          : "No se pudo generar la planificación.";
-      setGenerateProgress((current) =>
-        current
-          ? { ...current, phase: "error", message: text }
-          : {
-              phase: "error",
-              processed: 0,
-              total: vehicles.length,
-              percent: 0,
-              message: text,
-            },
+      setError(
+        caught instanceof Error ? caught.message : "No se pudo copiar el mes.",
       );
-      setError(text);
     } finally {
       setBusy(false);
     }
@@ -886,6 +809,14 @@ export default function PlanificacionMensualPage() {
               </button>
               <button
                 type="button"
+                disabled={busy}
+                onClick={() => void copyPreviousMonth()}
+                className={buttonClass}
+              >
+                Copiar mes anterior
+              </button>
+              <button
+                type="button"
                 disabled={busy || !(data?.summary.totalDays ?? 0)}
                 onClick={openDelete}
                 className={dangerButtonClass}
@@ -904,11 +835,12 @@ export default function PlanificacionMensualPage() {
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
             Periodo activo: <strong className="capitalize">{monthLabel}</strong>.
-            Genera por grupo o por rango de móviles para controlar el alcance.
-            La generación anterior se cortó ~a 7 por timeout; ahora puedes
-            generar por lotes.
+            Usa el asistente de generación para elegir turno y móviles, o{" "}
+            <strong>Copiar mes anterior</strong> para traer la planificación del
+            mes previo respetando ajustes manuales y reaplicando feriados del
+            mes actual.
           </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr_1fr_auto_auto]">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr_1fr_1fr_auto_auto]">
             <Label text="Móvil">
               <input
                 value={filters.vehicle}
@@ -957,6 +889,26 @@ export default function PlanificacionMensualPage() {
                     {status.name}
                   </option>
                 ))}
+              </select>
+            </Label>
+            <Label text="Agrupar">
+              <select
+                value={groupBy}
+                onChange={(e) =>
+                  setGroupBy(
+                    e.target.value as
+                      | "none"
+                      | "group"
+                      | "shift"
+                      | "group_shift",
+                  )
+                }
+                className={controlClass}
+              >
+                <option value="none">Sin agrupar</option>
+                <option value="group">Por grupo</option>
+                <option value="shift">Por turno</option>
+                <option value="group_shift">Grupo + turno</option>
               </select>
             </Label>
             <label className="flex h-9 items-center gap-2 self-end rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]">
@@ -1062,84 +1014,122 @@ export default function PlanificacionMensualPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => (
-                    <tr key={row.id} className="hover:bg-[#eef5ff]">
-                      <StickyCell left={0} width={76}>
-                        <strong>{row.vehicle}</strong>
-                      </StickyCell>
-                      <StickyCell left={76} width={180}>
-                        {row.driverName}
-                      </StickyCell>
-                      <StickyCell left={256} width={120}>
-                        {row.groupName}
-                      </StickyCell>
-                      <StickyCell left={376} width={110}>
-                        {row.shift}
-                      </StickyCell>
-                      <StickyCell left={486} width={160}>
-                        <span
-                          className="block max-w-[145px] truncate"
-                          title={row.observation}
-                        >
-                          {row.observation || "—"}
-                        </span>
-                      </StickyCell>
-                      {calendarDays.map((column) => {
-                        const day = row.byDate.get(column.date);
-                        const status = day?.effectiveStatus;
-                        return (
-                          <td
-                            key={column.date}
-                            className={`h-10 min-w-[48px] border-b border-r border-[#d7e7f8] p-1 text-center ${
-                              column.weekend ? "bg-slate-50" : ""
-                            }`}
+                  {groupedMatrix.map((group) => {
+                    const expanded =
+                      groupsExpanded[group.key] !== undefined
+                        ? groupsExpanded[group.key]
+                        : true;
+                    return (
+                      <Fragment key={group.key}>
+                        {groupBy !== "none" ? (
+                          <tr
+                            className="cursor-pointer bg-[#eef3f9] hover:bg-[#e2ebf5]"
+                            onClick={() =>
+                              setGroupsExpanded((current) => ({
+                                ...current,
+                                [group.key]: !expanded,
+                              }))
+                            }
                           >
-                            {day ? (
-                              <button
-                                type="button"
-                                title={`${status?.name ?? "Sin estado"}${
-                                  day.observation ? ` · ${day.observation}` : ""
-                                }`}
-                                onClick={() => {
-                                  setEdit({
-                                    day,
-                                    statusCode: status?.code ?? "",
-                                    observation: day.observation,
-                                  });
-                                  setEditDirty(false);
-                                }}
-                                className="relative h-8 w-9 rounded-lg text-[10px] font-bold"
-                                style={{
-                                  color: status?.color,
-                                  backgroundColor: `${status?.color ?? "#64748b"}20`,
-                                  border: `1px solid ${status?.color ?? "#94a3b8"}55`,
-                                }}
-                              >
-                                {status?.code
-                                  ? status.code.length <= 4
-                                    ? status.code
-                                    : status.code.slice(0, 1)
-                                  : "—"}
-                                <span className="absolute -right-1 -top-1 flex gap-0.5">
-                                  {day.eventsCount > 0 ? (
-                                    <i className="h-2 w-2 rounded-full bg-violet-500" />
-                                  ) : null}
-                                  {day.observation ? (
-                                    <i className="h-2 w-2 rounded-full bg-amber-500" />
-                                  ) : null}
-                                  {day.isManualOverride ? (
-                                    <i className="h-2 w-2 rounded-full bg-[#0b5cab]" />
-                                  ) : null}
-                                </span>
-                              </button>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                            <td
+                              colSpan={calendarDays.length + 5}
+                              className="border-b border-[#b7cce4] px-3 py-2 text-xs font-semibold text-[#173b68]"
+                            >
+                              <span className="mr-2 inline-block w-4 text-center">
+                                {expanded ? "▾" : "▸"}
+                              </span>
+                              {group.label}
+                              <span className="ml-2 font-normal text-slate-500">
+                                ({group.rows.length})
+                              </span>
+                            </td>
+                          </tr>
+                        ) : null}
+                        {expanded
+                          ? group.rows.map((row) => (
+                              <tr key={row.id} className="hover:bg-[#eef5ff]">
+                                <StickyCell left={0} width={76}>
+                                  <strong>{row.vehicle}</strong>
+                                </StickyCell>
+                                <StickyCell left={76} width={180}>
+                                  {row.driverName}
+                                </StickyCell>
+                                <StickyCell left={256} width={120}>
+                                  {row.groupName}
+                                </StickyCell>
+                                <StickyCell left={376} width={110}>
+                                  {row.shift}
+                                </StickyCell>
+                                <StickyCell left={486} width={160}>
+                                  <span
+                                    className="block max-w-[145px] truncate"
+                                    title={row.observation}
+                                  >
+                                    {row.observation || "—"}
+                                  </span>
+                                </StickyCell>
+                                {calendarDays.map((column) => {
+                                  const day = row.byDate.get(column.date);
+                                  const status = day?.effectiveStatus;
+                                  return (
+                                    <td
+                                      key={column.date}
+                                      className={`h-10 min-w-[48px] border-b border-r border-[#d7e7f8] p-1 text-center ${
+                                        column.weekend ? "bg-slate-50" : ""
+                                      }`}
+                                    >
+                                      {day ? (
+                                        <button
+                                          type="button"
+                                          title={`${status?.name ?? "Sin estado"}${
+                                            day.observation
+                                              ? ` · ${day.observation}`
+                                              : ""
+                                          }`}
+                                          onClick={() => {
+                                            setEdit({
+                                              day,
+                                              statusCode: status?.code ?? "",
+                                              observation: day.observation,
+                                            });
+                                            setEditDirty(false);
+                                          }}
+                                          className="relative h-8 w-9 rounded-lg text-[10px] font-bold"
+                                          style={{
+                                            color: status?.color,
+                                            backgroundColor: `${status?.color ?? "#64748b"}20`,
+                                            border: `1px solid ${status?.color ?? "#94a3b8"}55`,
+                                          }}
+                                        >
+                                          {status?.code
+                                            ? status.code.length <= 4
+                                              ? status.code
+                                              : status.code.slice(0, 1)
+                                            : "—"}
+                                          <span className="absolute -right-1 -top-1 flex gap-0.5">
+                                            {day.eventsCount > 0 ? (
+                                              <i className="h-2 w-2 rounded-full bg-violet-500" />
+                                            ) : null}
+                                            {day.observation ? (
+                                              <i className="h-2 w-2 rounded-full bg-amber-500" />
+                                            ) : null}
+                                            {day.isManualOverride ? (
+                                              <i className="h-2 w-2 rounded-full bg-[#0b5cab]" />
+                                            ) : null}
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        "—"
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                          : null}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               {!filteredRows.length ? (
@@ -1167,257 +1157,23 @@ export default function PlanificacionMensualPage() {
         ) : null}
       </div>
 
-      {generateOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f2747]/45 p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-lg rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-5 shadow-2xl">
-            <h2 className="font-heading text-lg font-semibold text-[#0f2747]">
-              Generar planificación
-            </h2>
-            <p className="mt-1 text-sm capitalize text-slate-600">
-              Periodo: {monthLabel}
-            </p>
-            <div className="mt-4 grid gap-3">
-              <Label text="Alcance">
-                <select
-                  value={generateForm.mode}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setGenerateForm({
-                      ...generateForm,
-                      mode: e.target.value as GenerateMode,
-                    })
-                  }
-                  className={controlClass}
-                >
-                  <option value="range">Rango de móviles</option>
-                  <option value="group">Por grupo principal</option>
-                  <option value="shift">Por turno</option>
-                  <option value="vehicle">Un móvil</option>
-                  <option value="all">Toda la flota activa</option>
-                </select>
-              </Label>
-              {generateForm.mode === "group" ? (
-                <Label text="Grupo">
-                  <select
-                    value={generateForm.groupId}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setGenerateForm({
-                        ...generateForm,
-                        groupId: e.target.value,
-                      })
-                    }
-                    className={controlClass}
-                  >
-                    <option value="">Selecciona</option>
-                    {driverGroups
-                      .filter((group) => group.isActive)
-                      .map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                  </select>
-                </Label>
-              ) : null}
-              {generateForm.mode === "shift" ? (
-                <Label text="Turno">
-                  <select
-                    value={generateForm.shiftDefinitionId}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setGenerateForm({
-                        ...generateForm,
-                        shiftDefinitionId: e.target.value,
-                      })
-                    }
-                    className={controlClass}
-                  >
-                    <option value="">Selecciona</option>
-                    {shiftDefinitions.map((shift) => (
-                      <option key={shift.id} value={shift.id}>
-                        {shift.name} ({shift.code})
-                      </option>
-                    ))}
-                  </select>
-                </Label>
-              ) : null}
-              {generateForm.mode === "vehicle" ? (
-                <Label text="Número de móvil">
-                  <input
-                    value={generateForm.vehicleNumber}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setGenerateForm({
-                        ...generateForm,
-                        vehicleNumber: e.target.value,
-                      })
-                    }
-                    placeholder="Ej: 025"
-                    className={controlClass}
-                  />
-                </Label>
-              ) : null}
-              {generateForm.mode === "range" ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <Label text="Desde">
-                    <input
-                      value={generateForm.vehicleFrom}
-                      disabled={busy}
-                      onChange={(e) =>
-                        setGenerateForm({
-                          ...generateForm,
-                          vehicleFrom: e.target.value,
-                        })
-                      }
-                      placeholder="001"
-                      className={controlClass}
-                    />
-                  </Label>
-                  <Label text="Hasta">
-                    <input
-                      value={generateForm.vehicleTo}
-                      disabled={busy}
-                      onChange={(e) =>
-                        setGenerateForm({
-                          ...generateForm,
-                          vehicleTo: e.target.value,
-                        })
-                      }
-                      placeholder="050"
-                      className={controlClass}
-                    />
-                  </Label>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-[#b7cce4] bg-white p-3 text-xs text-[#173b68]">
-              {previewLoading ? (
-                <p>Calculando alcance…</p>
-              ) : previewError ? (
-                <p className="text-red-700">{previewError}</p>
-              ) : preview ? (
-                <>
-                  <p>
-                    Se generarán{" "}
-                    <strong>{preview.driversCount} conductores</strong> ×{" "}
-                    <strong>{preview.daysPerDriver} días</strong> ={" "}
-                    <strong>{preview.estimatedCells}</strong> celdas.
-                  </p>
-                  {preview.sample.length ? (
-                    <ul className="mt-2 space-y-1 text-slate-600">
-                      {preview.sample.map((item) => (
-                        <li key={item.vehicleNumber}>
-                          {item.vehicleNumber} · {item.fullName} ·{" "}
-                          {item.groupName}
-                        </li>
-                      ))}
-                      {preview.driversCount > preview.sample.length ? (
-                        <li>
-                          … y {preview.driversCount - preview.sample.length} más
-                        </li>
-                      ) : null}
-                    </ul>
-                  ) : null}
-                  <p className="mt-2 text-slate-500">
-                    Se conservan modificaciones manuales ya guardadas. Puedes
-                    generar toda la flota; el avance se muestra abajo.
-                  </p>
-                </>
-              ) : (
-                <p>Define el alcance para ver cuántos se generarán.</p>
-              )}
-            </div>
-
-            {generateProgress ? (
-              <div
-                className={`mt-4 rounded-2xl border p-3 ${
-                  generateProgress.phase === "done"
-                    ? "border-emerald-300 bg-emerald-50"
-                    : generateProgress.phase === "error"
-                      ? "border-red-300 bg-red-50"
-                      : "border-[#b7cce4] bg-white"
-                }`}
-                aria-live="polite"
-              >
-                <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-[#0f2747]">
-                  <span>
-                    {generateProgress.phase === "done"
-                      ? "Completado"
-                      : generateProgress.phase === "error"
-                        ? "Error en la generación"
-                        : "Generando…"}
-                  </span>
-                  <span>{generateProgress.percent}%</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-[#d7e4f4]">
-                  <div
-                    className={`h-full rounded-full transition-[width] duration-300 ease-out ${
-                      generateProgress.phase === "done"
-                        ? "bg-emerald-600"
-                        : generateProgress.phase === "error"
-                          ? "bg-red-500"
-                          : "bg-[#0b5cab]"
-                    }`}
-                    style={{
-                      width: `${Math.min(100, Math.max(0, generateProgress.percent))}%`,
-                    }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-slate-600">
-                  {generateProgress.message}
-                </p>
-                {generateProgress.total > 0 ? (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    {generateProgress.processed} / {generateProgress.total}{" "}
-                    conductores
-                    {generateProgress.batchIndex && generateProgress.batchCount
-                      ? ` · lote ${generateProgress.batchIndex}/${generateProgress.batchCount}`
-                      : ""}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  if (busy) return;
-                  setGenerateOpen(false);
-                  setGenerateProgress(null);
-                }}
-                className={buttonClass}
-              >
-                {generateProgress?.phase === "error" ? "Cerrar" : "Cancelar"}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  busy ||
-                  previewLoading ||
-                  !preview?.driversCount ||
-                  generateProgress?.phase === "done"
-                }
-                onClick={() => void runGenerate()}
-                className={buttonClass}
-              >
-                {busy
-                  ? "Generando…"
-                  : generateProgress?.phase === "error"
-                    ? "Reintentar"
-                    : "Confirmar generación"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MonthlyGenerateWizard
+        open={generateOpen}
+        year={year}
+        month={month}
+        monthLabel={monthLabel}
+        shifts={shiftDefinitions}
+        drivers={wizardDrivers}
+        holidays={holidays}
+        busy={busy}
+        onClose={() => setGenerateOpen(false)}
+        onGenerated={(text) => {
+          setMessage(text);
+          void reload();
+        }}
+        onError={(text) => setError(text)}
+        onBusy={setBusy}
+      />
 
       {deleteOpen ? (
         <div

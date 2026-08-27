@@ -9,6 +9,7 @@ import {
 } from "@/lib/fleet-schedule";
 import { ensureDefaultOperationalStatuses } from "@/lib/operational-status";
 import { prisma } from "@/lib/prisma";
+import { resolveShiftDayStatus } from "@/lib/shift-pattern-engine";
 import type { Prisma } from "@prisma/client";
 
 export type GenerateScope = {
@@ -22,6 +23,14 @@ export type GenerateScope = {
   vehicleNumbers?: string[];
   /** Turno operativo (ShiftDefinition.id). */
   shiftDefinitionId?: string;
+};
+
+export type DayOverrideInput = {
+  date: string;
+  statusCode: string;
+  startTime?: string;
+  endTime?: string;
+  observation?: string;
 };
 
 export type GenerateProgress = {
@@ -42,6 +51,18 @@ export type GenerateMonthlyScheduleOptions = {
   preserveManualOverrides?: boolean;
   overwriteCalculated?: boolean;
   scope?: GenerateScope;
+  /** Forzar este turno para todos los móviles del alcance. */
+  forceShiftDefinitionId?: string;
+  /** Fecha base del ciclo rotativo (YYYY-MM-DD). */
+  patternBaseDate?: string;
+  /** Excepciones de la vista previa (solo esta generación). */
+  dayOverrides?: DayOverrideInput[];
+  /**
+   * assign: crear asignación si no tienen turno.
+   * keep: no cambiar asignación; generar solo si ya coincide o sin forzar.
+   * exception: generar con el turno forzado sin cambiar asignación permanente.
+   */
+  assignMode?: "assign" | "keep" | "exception";
   /** Tamaño de lote de conductores por transacción. */
   batchSize?: number;
   onProgress?: (progress: GenerateProgress) => void | Promise<void>;
@@ -53,11 +74,6 @@ function atUtcNoon(year: number, month: number, day: number) {
   return new Date(
     `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T12:00:00.000Z`,
   );
-}
-
-function isoWeekday(date: Date) {
-  const day = date.getUTCDay();
-  return day === 0 ? 7 : day;
 }
 
 function normalizeVehicleKey(value: string) {
@@ -91,50 +107,43 @@ function vehicleInRange(vehicleNumber: string, from: string, to: string) {
   return value >= (a < b ? a : b) && value <= (a > b ? a : b);
 }
 
-/** Estado base del día según las reglas del turno (Lun–Dom). */
-function baseStatusCodeFromShift(
+/** Estado base del día según turno (weekday o ciclo rotativo). */
+function baseFromShift(
   date: Date,
   shift:
     | {
+        startTime?: string;
+        endTime?: string;
         saturdayRule: string;
         sundayRule: string;
         holidayRule?: string;
+        cycleLengthDays?: number;
+        cycleStartDate?: Date | null;
         dayRules: Array<{
           weekday: number;
           works: boolean;
+          startTime: string;
+          endTime: string;
           defaultStatusCode: string;
         }>;
+        pattern?: {
+          cycleLengthDays: number;
+          baseDate: Date | null;
+          days: Array<{
+            dayOffset: number;
+            statusCode: string;
+            startTime: string;
+            endTime: string;
+          }>;
+        } | null;
       }
     | null
     | undefined,
+  patternBaseDate?: string,
 ) {
-  const weekday = isoWeekday(date);
-  const baseCode = weekday >= 6 ? "LIBRE" : "TRABAJA";
-
-  if (!shift) {
-    return baseCode;
-  }
-
-  const rule = shift.dayRules.find((item) => item.weekday === weekday);
-  if (rule) {
-    return rule.defaultStatusCode || (rule.works ? "TRABAJA" : "LIBRE");
-  }
-
-  if (
-    (weekday === 6 && shift.saturdayRule === "work") ||
-    (weekday === 7 && shift.sundayRule === "work")
-  ) {
-    return "TRABAJA";
-  }
-
-  if (
-    (weekday === 6 && shift.saturdayRule === "free") ||
-    (weekday === 7 && shift.sundayRule === "free")
-  ) {
-    return "LIBRE";
-  }
-
-  return baseCode;
+  return resolveShiftDayStatus(date, shift ?? null, {
+    patternBaseDate: patternBaseDate ?? null,
+  });
 }
 
 type ShiftWithRules = {
@@ -143,15 +152,31 @@ type ShiftWithRules = {
   name: string;
   groupId: string | null;
   categorySubgroupId: string | null;
+  startTime: string;
+  endTime: string;
   saturdayRule: string;
   sundayRule: string;
   holidayRule: string;
+  cycleLengthDays: number;
+  cycleStartDate: Date | null;
   isActive: boolean;
   dayRules: Array<{
     weekday: number;
     works: boolean;
+    startTime: string;
+    endTime: string;
     defaultStatusCode: string;
   }>;
+  pattern: {
+    cycleLengthDays: number;
+    baseDate: Date | null;
+    days: Array<{
+      dayOffset: number;
+      statusCode: string;
+      startTime: string;
+      endTime: string;
+    }>;
+  } | null;
 };
 
 type DriverAssignmentWithShift = {
@@ -650,7 +675,10 @@ export async function generateMonthlySchedule(
     }),
     prisma.shiftDefinition.findMany({
       where: { isActive: true },
-      include: { dayRules: true },
+      include: {
+        dayRules: true,
+        pattern: { include: { days: true } },
+      },
     }),
   ]);
 
@@ -678,7 +706,10 @@ export async function generateMonthlySchedule(
         },
         include: {
           shiftDefinition: {
-            include: { dayRules: true },
+            include: {
+              dayRules: true,
+              pattern: { include: { days: true } },
+            },
           },
         },
         orderBy: { effectiveFrom: "desc" },
@@ -686,6 +717,22 @@ export async function generateMonthlySchedule(
     },
     orderBy: [{ vehicleNumber: "asc" }],
   });
+
+  const forceShiftId =
+    options.forceShiftDefinitionId?.trim() ||
+    options.scope?.shiftDefinitionId?.trim() ||
+    "";
+  const forcedShift = forceShiftId
+    ? catalogShifts.find((shift) => shift.id === forceShiftId) ?? null
+    : null;
+  if (forceShiftId && !forcedShift) {
+    throw new Error("El turno seleccionado no existe o está inactivo.");
+  }
+
+  const assignMode = options.assignMode ?? "assign";
+  const overrideByDate = new Map(
+    (options.dayOverrides ?? []).map((item) => [item.date, item]),
+  );
 
   if (!drivers.length) {
     throw new Error("No hay conductores activos que coincidan con el alcance.");
@@ -705,18 +752,52 @@ export async function generateMonthlySchedule(
     message: `Preparando ${drivers.length} conductores…`,
   });
 
-  // Si no hay asignación explícita, materializa una desde Grupo + Categoría
-  // (ej. Diurno + A → turno TA) para que la matriz muestre el turno y el
-  // cálculo use las reglas Lun–Dom del mantenedor.
+  // Materializa asignaciones según modo / turno forzado.
   let assignmentsFromClassification = 0;
   for (const driver of drivers) {
-    const hasCoveringAssignment = driver.shiftAssignments.some(
+    const covering = driver.shiftAssignments.find(
       (item) =>
         item.shiftDefinition &&
         item.effectiveFrom <= lastDate &&
         (!item.effectiveTo || item.effectiveTo >= firstDate),
     );
-    if (hasCoveringAssignment) continue;
+
+    if (forcedShift && assignMode === "assign") {
+      if (covering?.shiftDefinitionId === forcedShift.id) continue;
+      if (covering) {
+        await prisma.driverShiftAssignment.update({
+          where: { id: covering.id },
+          data: {
+            effectiveTo: new Date(firstDate.getTime() - 86_400_000),
+            isActive: false,
+          },
+        });
+      }
+      const created = await prisma.driverShiftAssignment.create({
+        data: {
+          driverOwnerId: driver.id,
+          shiftDefinitionId: forcedShift.id,
+          effectiveFrom: firstDate,
+          isActive: true,
+          observation: `Asignado al generar planificación ${options.year}-${String(options.month).padStart(2, "0")}.`,
+          createdByEmail: options.generatedByEmail.trim().toLowerCase(),
+        },
+        include: {
+          shiftDefinition: {
+            include: {
+              dayRules: true,
+              pattern: { include: { days: true } },
+            },
+          },
+        },
+      });
+      driver.shiftAssignments = [created, ...driver.shiftAssignments];
+      assignmentsFromClassification += 1;
+      continue;
+    }
+
+    if (covering) continue;
+    if (forcedShift && assignMode === "exception") continue;
 
     const resolved = resolveShiftForDriver({
       date: firstDate,
@@ -741,7 +822,12 @@ export async function generateMonthlySchedule(
         createdByEmail: options.generatedByEmail.trim().toLowerCase(),
       },
       include: {
-        shiftDefinition: { include: { dayRules: true } },
+        shiftDefinition: {
+          include: {
+            dayRules: true,
+            pattern: { include: { days: true } },
+          },
+        },
       },
     });
     driver.shiftAssignments = [created, ...driver.shiftAssignments];
@@ -871,14 +957,39 @@ export async function generateMonthlySchedule(
               assignments: driver.shiftAssignments,
               shifts: catalogShifts,
             });
-            const assignmentId = resolved.assignmentId;
-            const shift = resolved.shift;
-            const baseCode = baseStatusCodeFromShift(date, shift);
+            const shiftForDay =
+              assignMode === "exception" && forcedShift
+                ? forcedShift
+                : forcedShift && assignMode === "assign"
+                  ? forcedShift
+                  : resolved.shift;
+            const assignmentId =
+              assignMode === "exception" && forcedShift
+                ? resolved.assignmentId
+                : resolved.assignmentId ??
+                  driver.shiftAssignments.find(
+                    (item) => item.shiftDefinitionId === forcedShift?.id,
+                  )?.id ??
+                  null;
+
+            const dayResolved = baseFromShift(
+              date,
+              shiftForDay,
+              options.patternBaseDate,
+            );
+            const override = overrideByDate.get(dateKey);
+            const baseCode = override?.statusCode || dayResolved.statusCode;
+            const dayStartTime = override?.startTime ?? dayResolved.startTime;
+            const dayEndTime = override?.endTime ?? dayResolved.endTime;
             const baseStatus =
               statusByCode.get(baseCode) ?? statusByCode.get("TRABAJA")!;
             const candidates = [baseStatus];
             const isHoliday = holidayDates.has(dateKey);
-            if (isHoliday && shift?.holidayRule !== "work") {
+            if (
+              isHoliday &&
+              shiftForDay?.holidayRule !== "work" &&
+              !override
+            ) {
               candidates.push(statusByCode.get("FERIADO")!);
               summary.holidayDays += 1;
             }
@@ -914,22 +1025,26 @@ export async function generateMonthlySchedule(
                 (left, right) => left.priority - right.priority,
               )[0] ?? baseStatus;
 
-            const changeOrigin = dayAppointments.length
-              ? "appointment"
-              : block
-                ? "block"
-                : isHoliday
-                  ? "holiday"
-                  : "generated";
+            const changeOrigin = override
+              ? "manual"
+              : dayAppointments.length
+                ? "appointment"
+                : block
+                  ? "block"
+                  : isHoliday
+                    ? "holiday"
+                    : "generated";
 
             const existing = existingByKey.get(`${driver.id}:${dateKey}`);
             const preserveManual =
               options.preserveManualOverrides !== false &&
-              existing?.isManualOverride === true;
+              existing?.isManualOverride === true &&
+              !override;
             const preserveCalculated =
               options.overwriteCalculated === false &&
               Boolean(existing) &&
-              !preserveManual;
+              !preserveManual &&
+              !override;
 
             if (!existing) {
               creates.push({
@@ -942,7 +1057,12 @@ export async function generateMonthlySchedule(
                 effectiveStatusId: effectiveStatus.id,
                 appointmentId: dayAppointments[0]?.id ?? null,
                 driverBlockId: block?.id ?? null,
+                observation: override?.observation ?? "",
                 changeOrigin,
+                isManualOverride: Boolean(override),
+                startTime: dayStartTime,
+                endTime: dayEndTime,
+                cyclePosition: dayResolved.cyclePosition,
               });
               summary.created += 1;
             } else {
@@ -962,7 +1082,12 @@ export async function generateMonthlySchedule(
                     effectiveStatusId: effectiveStatus.id,
                     appointmentId: dayAppointments[0]?.id ?? null,
                     driverBlockId: block?.id ?? null,
-                    changeOrigin: "regenerated",
+                    observation: override?.observation ?? existing.observation,
+                    changeOrigin: override ? "manual" : "regenerated",
+                    isManualOverride: Boolean(override) || existing.isManualOverride,
+                    startTime: dayStartTime,
+                    endTime: dayEndTime,
+                    cyclePosition: dayResolved.cyclePosition,
                     modifiedByEmail: options.generatedByEmail
                       .trim()
                       .toLowerCase(),
@@ -1069,6 +1194,204 @@ export async function generateMonthlySchedule(
     percent: 100,
     message: `Completado: ${drivers.length} conductores`,
   });
+
+  return summary;
+}
+
+/**
+ * Copia estados/horarios del mes origen al mes destino por día del mes
+ * (día 15 → día 15). Conserva overrides manuales del destino si se pide.
+ * Luego conviene regenerar si se quieren reaplicar citas/bloqueos/feriados:
+ * esta copia es literal de baseStatus/effectiveStatus/start/end.
+ */
+export async function copyMonthlyScheduleFromPrevious(options: {
+  sourceYear: number;
+  sourceMonth: number;
+  year: number;
+  month: number;
+  generatedByEmail: string;
+  scope?: GenerateScope;
+  preserveManualOverrides?: boolean;
+}) {
+  if (
+    !isValidPlanningMonth(options.sourceYear, options.sourceMonth) ||
+    !isValidPlanningMonth(options.year, options.month)
+  ) {
+    throw new Error("Mes de planificación inválido.");
+  }
+  if (
+    options.sourceYear === options.year &&
+    options.sourceMonth === options.month
+  ) {
+    throw new Error("El mes origen y destino deben ser distintos.");
+  }
+
+  await ensureDefaultOperationalStatuses();
+
+  const sourceFirst = atUtcNoon(options.sourceYear, options.sourceMonth, 1);
+  const sourceLast = atUtcNoon(
+    options.sourceYear,
+    options.sourceMonth,
+    daysInMonth(options.sourceYear, options.sourceMonth),
+  );
+  const targetFirst = atUtcNoon(options.year, options.month, 1);
+  const targetLastDay = daysInMonth(options.year, options.month);
+  const targetLast = atUtcNoon(options.year, options.month, targetLastDay);
+
+  const { drivers } = await listDriversForScope({
+    year: options.year,
+    month: options.month,
+    scope: options.scope ?? { mode: "all" },
+  });
+  if (!drivers.length) {
+    throw new Error("No hay conductores en el alcance.");
+  }
+
+  const driverIds = drivers.map((driver) => driver.id);
+  const sourceDays = await prisma.dailySchedule.findMany({
+    where: {
+      driverOwnerId: { in: driverIds },
+      date: { gte: sourceFirst, lte: sourceLast },
+    },
+    select: {
+      driverOwnerId: true,
+      vehicleNumber: true,
+      date: true,
+      baseStatusId: true,
+      effectiveStatusId: true,
+      shiftAssignmentId: true,
+      observation: true,
+      isManualOverride: true,
+      startTime: true,
+      endTime: true,
+      cyclePosition: true,
+    },
+  });
+
+  if (!sourceDays.length) {
+    throw new Error(
+      "El mes origen no tiene planificación para el alcance seleccionado.",
+    );
+  }
+
+  const sourceByDriverDay = new Map<string, (typeof sourceDays)[number]>();
+  for (const day of sourceDays) {
+    const dayNum = day.date.getUTCDate();
+    sourceByDriverDay.set(`${day.driverOwnerId}:${dayNum}`, day);
+  }
+
+  const driversWithSource = new Set(sourceDays.map((d) => d.driverOwnerId));
+  const targetDrivers = drivers.filter((d) => driversWithSource.has(d.id));
+
+  const monthly = await prisma.monthlySchedule.upsert({
+    where: {
+      year_month: { year: options.year, month: options.month },
+    },
+    create: {
+      year: options.year,
+      month: options.month,
+      status: "draft",
+      generatedAt: new Date(),
+      generatedByEmail: options.generatedByEmail.trim().toLowerCase(),
+    },
+    update: {
+      generatedAt: new Date(),
+      generatedByEmail: options.generatedByEmail.trim().toLowerCase(),
+    },
+  });
+
+  const existingTarget = await prisma.dailySchedule.findMany({
+    where: {
+      driverOwnerId: { in: targetDrivers.map((d) => d.id) },
+      date: { gte: targetFirst, lte: targetLast },
+    },
+  });
+  const existingByKey = new Map(
+    existingTarget.map((row) => [
+      `${row.driverOwnerId}:${row.date.toISOString().slice(0, 10)}`,
+      row,
+    ]),
+  );
+
+  const summary = {
+    monthlyScheduleId: monthly.id,
+    year: options.year,
+    month: options.month,
+    sourceYear: options.sourceYear,
+    sourceMonth: options.sourceMonth,
+    driversTargeted: targetDrivers.length,
+    days: 0,
+    created: 0,
+    updated: 0,
+    preservedManualOverrides: 0,
+  };
+
+  const email = options.generatedByEmail.trim().toLowerCase();
+  const creates: Prisma.DailyScheduleCreateManyInput[] = [];
+
+  for (const driver of targetDrivers) {
+    for (let dayNum = 1; dayNum <= targetLastDay; dayNum += 1) {
+      const source = sourceByDriverDay.get(`${driver.id}:${dayNum}`);
+      if (!source) continue;
+      const date = atUtcNoon(options.year, options.month, dayNum);
+      const dateKey = date.toISOString().slice(0, 10);
+      const existing = existingByKey.get(`${driver.id}:${dateKey}`);
+      summary.days += 1;
+
+      if (
+        existing &&
+        options.preserveManualOverrides !== false &&
+        existing.isManualOverride
+      ) {
+        summary.preservedManualOverrides += 1;
+        continue;
+      }
+
+      if (!existing) {
+        creates.push({
+          monthlyScheduleId: monthly.id,
+          date,
+          driverOwnerId: driver.id,
+          vehicleNumber: driver.vehicleNumber,
+          shiftAssignmentId: source.shiftAssignmentId,
+          baseStatusId: source.baseStatusId,
+          effectiveStatusId: source.effectiveStatusId,
+          observation: source.observation,
+          changeOrigin: "copied",
+          isManualOverride: source.isManualOverride,
+          startTime: source.startTime,
+          endTime: source.endTime,
+          cyclePosition: source.cyclePosition,
+        });
+        summary.created += 1;
+      } else {
+        await prisma.dailySchedule.update({
+          where: { id: existing.id },
+          data: {
+            monthlyScheduleId: monthly.id,
+            vehicleNumber: driver.vehicleNumber,
+            shiftAssignmentId: source.shiftAssignmentId,
+            baseStatusId: source.baseStatusId,
+            effectiveStatusId: source.effectiveStatusId,
+            observation: source.observation,
+            changeOrigin: "copied",
+            isManualOverride: source.isManualOverride,
+            startTime: source.startTime,
+            endTime: source.endTime,
+            cyclePosition: source.cyclePosition,
+            modifiedByEmail: email,
+            modifiedAt: new Date(),
+            version: { increment: 1 },
+          },
+        });
+        summary.updated += 1;
+      }
+    }
+  }
+
+  if (creates.length) {
+    await prisma.dailySchedule.createMany({ data: creates });
+  }
 
   return summary;
 }
