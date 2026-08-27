@@ -143,6 +143,15 @@ export async function GET(request: NextRequest) {
                 indicatesAvailability: true,
               },
             },
+            appointment: {
+              select: {
+                appointmentReason: true,
+                permitType: true,
+                observation: true,
+                permitStartTime: true,
+                permitEndTime: true,
+              },
+            },
             shiftAssignment: {
               select: {
                 shiftDefinition: {
@@ -183,6 +192,17 @@ export async function GET(request: NextRequest) {
         observation: day.observation,
         changeOrigin: day.changeOrigin,
         isManualOverride: day.isManualOverride,
+        startTime: day.startTime,
+        endTime: day.endTime,
+        appointment: day.appointment
+          ? {
+              appointmentReason: day.appointment.appointmentReason,
+              permitType: day.appointment.permitType,
+              observation: day.appointment.observation,
+              permitStartTime: day.appointment.permitStartTime,
+              permitEndTime: day.appointment.permitEndTime,
+            }
+          : null,
         version: day.version,
         eventsCount: day._count.events,
       };

@@ -17,6 +17,7 @@ import type { HolidayConfig } from "@/lib/holidays";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import Link from "next/link";
+import { planningDayTooltip } from "@/lib/planning-day-tooltip";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type StatusBrief = Pick<
@@ -43,8 +44,17 @@ type ScheduleDay = {
   changeOrigin: string;
   isManualOverride: boolean;
   version: number;
-  eventsCount: number;
   shift?: { code?: string; name?: string } | null;
+  eventsCount: number;
+  startTime?: string;
+  endTime?: string;
+  appointment?: {
+    appointmentReason: string;
+    permitType: string;
+    observation: string;
+    permitStartTime: string;
+    permitEndTime: string;
+  } | null;
 };
 type SchedulePayload = {
   schedule: null | {
@@ -1180,11 +1190,7 @@ export default function PlanificacionMensualPage() {
                                       {day ? (
                                         <button
                                           type="button"
-                                          title={`${status?.name ?? "Sin estado"}${
-                                            day.observation
-                                              ? ` · ${day.observation}`
-                                              : ""
-                                          }`}
+                                          title={planningDayTooltip(day)}
                                           onClick={() => {
                                             setEdit({
                                               day,
