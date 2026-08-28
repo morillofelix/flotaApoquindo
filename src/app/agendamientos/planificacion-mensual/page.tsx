@@ -112,7 +112,7 @@ function createEditForm(day: ScheduleDay): EditForm {
   const block = day.driverBlock;
   return {
     day,
-    statusCode: day.effectiveStatus?.code ?? "",
+    statusCode: (day.effectiveStatus?.code ?? "").toUpperCase(),
     observation: block?.observation || day.observation || "",
     blockMode: block?.isHourBlock ? "hours" : "days",
     blockStartDate: block?.startDate || day.date,
@@ -1721,11 +1721,11 @@ export default function PlanificacionMensualPage() {
 
       {edit ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f2747]/45 p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0f2747]/45 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-lg rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-5 shadow-2xl">
+          <div className="my-auto w-full max-w-lg max-h-[min(92vh,920px)] overflow-y-auto rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-5 shadow-2xl">
             <h2 className="font-heading text-lg font-semibold text-[#0f2747]">
               Editar día
             </h2>
@@ -1749,7 +1749,7 @@ export default function PlanificacionMensualPage() {
                 <select
                   value={edit.statusCode}
                   onChange={(e) => {
-                    const nextCode = e.target.value;
+                    const nextCode = e.target.value.toUpperCase();
                     setEdit((prev) => {
                       if (!prev) return prev;
                       const next: EditForm = { ...prev, statusCode: nextCode };
