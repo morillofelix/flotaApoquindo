@@ -47,6 +47,7 @@ type DriverOwnerBody = {
   inspectionExpiryDate?: unknown;
   vehicleType?: unknown;
   subscriptionDate?: unknown;
+  observation?: unknown;
   isActive?: unknown;
 };
 
@@ -109,6 +110,7 @@ function parseDriverOwnerBody(body: DriverOwnerBody) {
     inspectionExpiryDate: parseDateValue(asString(body.inspectionExpiryDate)),
     vehicleType: asString(body.vehicleType),
     subscriptionDate: parseDateValue(asString(body.subscriptionDate)),
+    observation: asString(body.observation),
     isActive: body.isActive === undefined ? true : body.isActive === true,
   };
 }

@@ -623,67 +623,70 @@ export default function MonthlyGenerateWizard({
           ) : null}
 
           {step === 2 ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-              {driversLoading ? (
-                <p className="rounded-2xl border border-[#b7cce4] bg-white px-3 py-4 text-xs text-slate-600">
-                  Cargando conductores y asignaciones de turno…
-                </p>
-              ) : null}
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <button type="button" className={ghostClass} onClick={addFiltered}>
-                  Agregar resultados filtrados
-                </button>
-                <button type="button" className={ghostClass} onClick={addWithoutShift}>
-                  Sin turno
-                </button>
-                <button
-                  type="button"
-                  className={ghostClass}
-                  onClick={addOfSelectedShift}
-                  disabled={!shiftId}
-                >
-                  Del turno seleccionado
-                </button>
-                <button
-                  type="button"
-                  className={ghostClass}
-                  onClick={() => setSelectedVehicles([])}
-                >
-                  Quitar todos
-                </button>
-              </div>
-              {groups.length ? (
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  {groups.map(([id, name]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className={ghostClass}
-                      onClick={() => addByGroup(id)}
-                    >
-                      Grupo {name}
-                    </button>
-                  ))}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+              <div className="shrink-0 space-y-2 border-b border-[#b7cce4] pb-3">
+                {driversLoading ? (
+                  <p className="rounded-2xl border border-[#b7cce4] bg-white px-3 py-2 text-xs text-slate-600">
+                    Cargando conductores y asignaciones de turno…
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={ghostClass} onClick={addFiltered}>
+                    Agregar resultados filtrados
+                  </button>
+                  <button type="button" className={ghostClass} onClick={addWithoutShift}>
+                    Sin turno
+                  </button>
+                  <button
+                    type="button"
+                    className={ghostClass}
+                    onClick={addOfSelectedShift}
+                    disabled={!shiftId}
+                  >
+                    Del turno seleccionado
+                  </button>
+                  <button
+                    type="button"
+                    className={ghostClass}
+                    onClick={() => setSelectedVehicles([])}
+                  >
+                    Quitar todos
+                  </button>
                 </div>
-              ) : null}
-              <input
-                value={vehicleSearch}
-                onChange={(e) => setVehicleSearch(e.target.value)}
-                placeholder="Buscar móvil, conductor, RUT, patente, grupo, turno"
-                className="h-10 shrink-0 rounded-2xl border border-[#9fb8d9] bg-white px-3"
-              />
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#b7cce4] bg-[#eef3f9] px-3 py-2 text-xs text-[#173b68]">
-                <span>
-                  <strong>{selectedVehicles.length}</strong>{" "}
-                  {selectedVehicles.length === 1
-                    ? "móvil seleccionado"
-                    : "móviles seleccionados"}
-                </span>
-                <span className="hidden text-slate-500 sm:inline">
-                  Agrega con + abajo o quita con × en cada chip
-                </span>
+                {groups.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {groups.map(([id, name]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={ghostClass}
+                        onClick={() => addByGroup(id)}
+                      >
+                        Grupo {name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <input
+                  value={vehicleSearch}
+                  onChange={(e) => setVehicleSearch(e.target.value)}
+                  placeholder="Buscar móvil, conductor, RUT, patente, grupo, turno"
+                  className="h-10 w-full rounded-2xl border border-[#9fb8d9] bg-white px-3"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#b7cce4] bg-[#eef3f9] px-3 py-2 text-xs text-[#173b68]">
+                  <span>
+                    <strong>{selectedVehicles.length}</strong>{" "}
+                    {selectedVehicles.length === 1
+                      ? "móvil seleccionado"
+                      : "móviles seleccionados"}
+                  </span>
+                  <span className="hidden text-slate-500 sm:inline">
+                    Agrega con + abajo o quita con × en cada chip
+                  </span>
+                </div>
               </div>
-              <div className="min-h-[min(36dvh,280px)] flex-1 overflow-y-auto rounded-2xl border border-[#b7cce4] bg-white p-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+              <div className="min-h-[140px] shrink-0 rounded-2xl border border-[#b7cce4] bg-white p-3">
                 {selectedDriverRows.length ? (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(6.75rem,1fr))] gap-1.5 sm:grid-cols-[repeat(auto-fill,minmax(7.25rem,1fr))]">
                     {selectedDriverRows.map((row) => (
@@ -717,7 +720,7 @@ export default function MonthlyGenerateWizard({
                   </span>
                 )}
               </div>
-              <div className="max-h-[min(28dvh,240px)] shrink-0 space-y-1 overflow-y-auto rounded-2xl border border-[#b7cce4] bg-white p-2">
+              <div className="max-h-[min(32dvh,260px)] shrink-0 space-y-1 overflow-y-auto rounded-2xl border border-[#b7cce4] bg-white p-2">
                 {filteredDrivers.map((row) => (
                   <button
                     key={row.id}
@@ -735,6 +738,7 @@ export default function MonthlyGenerateWizard({
                     <span>+</span>
                   </button>
                 ))}
+              </div>
               </div>
             </div>
           ) : null}

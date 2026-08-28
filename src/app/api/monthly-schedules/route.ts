@@ -133,6 +133,7 @@ export async function GET(request: NextRequest) {
                 id: true,
                 vehicleNumber: true,
                 fullName: true,
+                observation: true,
                 group: { select: { id: true, code: true, name: true } },
               },
             },

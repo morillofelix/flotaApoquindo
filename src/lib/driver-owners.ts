@@ -32,6 +32,7 @@ export type DriverOwnerConfig = {
   inspectionExpiryDate: string;
   vehicleType: string;
   subscriptionDate: string;
+  observation: string;
   isActive: boolean;
 };
 
@@ -1253,6 +1254,7 @@ export function parseDriverOwnersCsv(content: string) {
       inspectionExpiryDate: parseDateValue(record.inspectionExpiryDate ?? ""),
       vehicleType: (record.vehicleType ?? "").trim(),
       subscriptionDate: parseDateValue(record.subscriptionDate ?? ""),
+      observation: "",
       isActive: hasMobileNumber
         ? normalizeCatalogActive(record.catalogActive ?? "si")
         : false,
@@ -1325,6 +1327,7 @@ export function toDriverOwner(value: {
   vehicleType: string;
   subscriptionDate: Date | null;
   isActive: boolean;
+  observation: string;
 }): DriverOwnerConfig {
   const formatDate = (date: Date | null) =>
     date ? date.toISOString().split("T")[0] ?? "" : "";
@@ -1368,6 +1371,7 @@ export function toDriverOwner(value: {
     inspectionExpiryDate: formatDate(value.inspectionExpiryDate),
     vehicleType: value.vehicleType,
     subscriptionDate: formatDate(value.subscriptionDate),
+    observation: value.observation,
     isActive: value.isActive,
   };
 }
@@ -1395,6 +1399,7 @@ export function toDriverOwnerCreateData(row: {
   inspectionExpiryDate: string;
   vehicleType: string;
   subscriptionDate: string;
+  observation?: string;
   isActive: boolean;
 }) {
   return {
@@ -1420,6 +1425,7 @@ export function toDriverOwnerCreateData(row: {
     inspectionExpiryDate: parseOptionalDate(row.inspectionExpiryDate),
     vehicleType: row.vehicleType,
     subscriptionDate: parseOptionalDate(row.subscriptionDate),
+    observation: row.observation?.trim() ?? "",
     isActive: row.isActive,
   };
 }

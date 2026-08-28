@@ -165,6 +165,7 @@ const emptyDriverOwnerForm: DriverOwnerForm = {
   inspectionExpiryDate: "",
   vehicleType: "",
   subscriptionDate: "",
+  observation: "",
   isActive: true,
 };
 
@@ -469,6 +470,7 @@ export default function ConductoresPage() {
       inspectionExpiryDate: driverOwner.inspectionExpiryDate,
       vehicleType: driverOwner.vehicleType,
       subscriptionDate: driverOwner.subscriptionDate,
+      observation: driverOwner.observation ?? "",
       isActive: driverOwner.isActive,
     });
     setDriverOwnerMessage("");
@@ -1855,6 +1857,24 @@ export default function ConductoresPage() {
                       }))
                     }
                     className="h-10 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Observación
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={driverOwnerForm.observation}
+                    placeholder="Restricciones, alertas operativas o comentarios permanentes del conductor…"
+                    onChange={(event) =>
+                      setDriverOwnerForm((currentForm) => ({
+                        ...currentForm,
+                        observation: event.target.value,
+                      }))
+                    }
+                    className="rounded-2xl border border-[#9fb8d9] bg-white p-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
                 </label>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import MaintainerPageHeader from "@/components/agendamientos/MaintainerPageHeader";
+import DriverObservationEditor from "@/components/agendamientos/DriverObservationEditor";
 import MonthlyGenerateWizard, {
   type WizardDriver,
 } from "@/components/agendamientos/MonthlyGenerateWizard";
@@ -37,6 +38,7 @@ type ScheduleDay = {
     id: string;
     vehicleNumber: string;
     fullName: string;
+    observation?: string;
     group: { id: string; code: string; name: string } | null;
   };
   baseStatus: StatusBrief | null;
@@ -91,6 +93,7 @@ type Row = {
   id: string;
   vehicle: string;
   driverName: string;
+  driverObservation: string;
   groupId: string;
   groupName: string;
   shift: string;
@@ -171,11 +174,11 @@ const emptyGenerateForm = (): GenerateForm => ({
 
 /** Columnas fijas izquierda de la matriz (compactas). */
 const STICKY = {
-  mobile: { left: 0, width: 54 },
-  driver: { left: 54, width: 132 },
-  group: { left: 186, width: 82 },
-  shift: { left: 268, width: 76 },
-  obs: { left: 344, width: 96 },
+  mobile: { left: 0, width: 76 },
+  driver: { left: 76, width: 132 },
+  group: { left: 208, width: 82 },
+  shift: { left: 290, width: 76 },
+  obs: { left: 366, width: 96 },
 } as const;
 const STICKY_COUNT = 5;
 
@@ -219,6 +222,9 @@ export default function PlanificacionMensualPage() {
   const [message, setMessage] = useState("");
   const [edit, setEdit] = useState<EditForm | null>(null);
   const [editDirty, setEditDirty] = useState(false);
+  const [driverObservationOverrides, setDriverObservationOverrides] = useState<
+    Record<string, string>
+  >({});
   const [filters, setFilters] = useState({
     vehicle: "",
     driver: "",
@@ -432,10 +438,15 @@ export default function PlanificacionMensualPage() {
   const rows = useMemo(() => {
     const map = new Map<string, Row>();
     for (const day of data?.days ?? []) {
+      const driverObservation =
+        driverObservationOverrides[day.driverOwnerId] ??
+        day.driver.observation ??
+        "";
       const current = map.get(day.driverOwnerId) ?? {
         id: day.driverOwnerId,
         vehicle: day.vehicleNumber || day.driver.vehicleNumber,
         driverName: day.driver.fullName,
+        driverObservation,
         groupId: day.driver.group?.id ?? "",
         groupName: day.driver.group?.name ?? "Sin grupo",
         shift: day.shift?.name || day.shift?.code || "—",
@@ -443,6 +454,9 @@ export default function PlanificacionMensualPage() {
         byDate: new Map<string, ScheduleDay>(),
       };
       current.byDate.set(day.date, day);
+      if (!current.driverObservation && driverObservation) {
+        current.driverObservation = driverObservation;
+      }
       if (!current.observation && day.observation) {
         current.observation = day.observation;
       }
@@ -454,7 +468,7 @@ export default function PlanificacionMensualPage() {
     return [...map.values()].sort((a, b) =>
       a.vehicle.localeCompare(b.vehicle, "es", { numeric: true }),
     );
-  }, [data]);
+  }, [data, driverObservationOverrides]);
   const filterGroups = useMemo(
     () => [
       ...new Map(
@@ -1251,7 +1265,23 @@ export default function PlanificacionMensualPage() {
                                   left={STICKY.mobile.left}
                                   width={STICKY.mobile.width}
                                 >
-                                  <strong>{row.vehicle}</strong>
+                                  <span className="inline-flex items-center gap-1">
+                                    <strong>{row.vehicle}</strong>
+                                    <DriverObservationEditor
+                                      driverOwnerId={row.id}
+                                      vehicleNumber={row.vehicle}
+                                      driverName={row.driverName}
+                                      observation={row.driverObservation}
+                                      onSaved={(savedObservation) => {
+                                        setDriverObservationOverrides(
+                                          (current) => ({
+                                            ...current,
+                                            [row.id]: savedObservation,
+                                          }),
+                                        );
+                                      }}
+                                    />
+                                  </span>
                                 </StickyCell>
                                 <StickyCell
                                   left={STICKY.driver.left}
