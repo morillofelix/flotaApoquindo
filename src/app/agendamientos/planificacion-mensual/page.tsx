@@ -18,7 +18,7 @@ import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import { downloadMonthlyPlanningExcel } from "@/lib/monthly-planning-excel-export";
 import Link from "next/link";
-import { planningDayTooltip } from "@/lib/planning-day-tooltip";
+import { planningBlockDetailLabel, planningDayTooltip } from "@/lib/planning-day-tooltip";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type StatusBrief = Pick<
@@ -56,6 +56,19 @@ type ScheduleDay = {
     permitStartTime: string;
     permitEndTime: string;
   } | null;
+  driverBlock?: {
+    id: string;
+    startsAt: string;
+    endsAt: string | null;
+    observation: string;
+    isActive: boolean;
+    status: string;
+    isHourBlock: boolean;
+    startTime: string;
+    endTime: string;
+    startDate: string;
+    endDate: string;
+  } | null;
 };
 type SchedulePayload = {
   schedule: null | {
@@ -84,7 +97,30 @@ type Row = {
   observation: string;
   byDate: Map<string, ScheduleDay>;
 };
-type EditForm = { day: ScheduleDay; statusCode: string; observation: string };
+type EditForm = {
+  day: ScheduleDay;
+  statusCode: string;
+  observation: string;
+  blockMode: "days" | "hours";
+  blockStartDate: string;
+  blockEndDate: string;
+  blockStartTime: string;
+  blockEndTime: string;
+};
+
+function createEditForm(day: ScheduleDay): EditForm {
+  const block = day.driverBlock;
+  return {
+    day,
+    statusCode: day.effectiveStatus?.code ?? "",
+    observation: block?.observation || day.observation || "",
+    blockMode: block?.isHourBlock ? "hours" : "days",
+    blockStartDate: block?.startDate || day.date,
+    blockEndDate: block?.endDate || block?.startDate || day.date,
+    blockStartTime: block?.startTime || "08:00",
+    blockEndTime: block?.endTime || "18:00",
+  };
+}
 type GenerateMode = "all" | "group" | "vehicle" | "range" | "shift";
 type GenerateForm = {
   mode: GenerateMode;
@@ -794,17 +830,30 @@ export default function PlanificacionMensualPage() {
     setBusy(true);
     setError("");
     try {
+      const payload: Record<string, unknown> = {
+        id: edit.day.id,
+        statusCode: edit.statusCode,
+        observation: edit.observation,
+        expectedVersion: edit.day.version,
+        isManualOverride: true,
+      };
+
+      if (edit.statusCode === "BLOQUEADO") {
+        payload.blockMode = edit.blockMode;
+        payload.blockStartDate = edit.blockStartDate;
+        if (edit.blockMode === "days") {
+          payload.blockEndDate = edit.blockEndDate;
+        } else {
+          payload.blockStartTime = edit.blockStartTime;
+          payload.blockEndTime = edit.blockEndTime;
+        }
+      }
+
       const response = await fetch("/api/monthly-schedules/day", {
         ...adminFetchInit,
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: edit.day.id,
-          statusCode: edit.statusCode,
-          observation: edit.observation,
-          expectedVersion: edit.day.version,
-          isManualOverride: true,
-        }),
+        body: JSON.stringify(payload),
       });
       const body = (await response.json()) as { message?: string };
       if (!response.ok) {
@@ -1242,42 +1291,57 @@ export default function PlanificacionMensualPage() {
                                 {calendarDays.map((column) => {
                                   const day = row.byDate.get(column.date);
                                   const status = day?.effectiveStatus;
+                                  const isBlocked = status?.code === "BLOQUEADO";
+                                  const blockDetail = isBlocked
+                                    ? planningBlockDetailLabel(day.driverBlock)
+                                    : "";
                                   return (
                                     <td
                                       key={column.date}
                                       className={`h-7 min-w-[34px] border-b border-r border-[#d7e7f8] p-0.5 text-center ${
                                         column.weekend ? "bg-slate-50" : ""
-                                      }`}
+                                      } ${isBlocked ? "bg-red-50/80" : ""}`}
                                     >
                                       {day ? (
                                         <button
                                           type="button"
                                           title={planningDayTooltip(day)}
                                           onClick={() => {
-                                            setEdit({
-                                              day,
-                                              statusCode: status?.code ?? "",
-                                              observation: day.observation,
-                                            });
+                                            setEdit(createEditForm(day));
                                             setEditDirty(false);
                                           }}
-                                          className="relative mx-auto flex h-6 w-7 items-center justify-center rounded-md text-[9px] font-bold"
+                                          className={`relative mx-auto flex h-6 w-7 flex-col items-center justify-center rounded-md text-[8px] font-bold leading-none ${
+                                            isBlocked
+                                              ? "ring-2 ring-red-500 ring-offset-1"
+                                              : ""
+                                          }`}
                                           style={{
-                                            color: status?.color,
-                                            backgroundColor: `${status?.color ?? "#64748b"}20`,
-                                            border: `1px solid ${status?.color ?? "#94a3b8"}55`,
+                                            color: isBlocked ? "#991b1b" : status?.color,
+                                            backgroundColor: isBlocked
+                                              ? "#fecaca"
+                                              : `${status?.color ?? "#64748b"}20`,
+                                            border: isBlocked
+                                              ? "1px solid #ef4444"
+                                              : `1px solid ${status?.color ?? "#94a3b8"}55`,
                                           }}
                                         >
-                                          {status?.code
-                                            ? status.code.length <= 4
-                                              ? status.code
-                                              : status.code.slice(0, 1)
-                                            : "—"}
+                                          <span>
+                                            {status?.code
+                                              ? status.code.length <= 4
+                                                ? status.code.slice(0, 4)
+                                                : status.code.slice(0, 1)
+                                              : "—"}
+                                          </span>
+                                          {blockDetail ? (
+                                            <span className="mt-px max-w-full truncate px-0.5 text-[6px] font-semibold normal-case text-red-800">
+                                              {blockDetail}
+                                            </span>
+                                          ) : null}
                                           <span className="absolute -right-0.5 -top-0.5 flex gap-0.5">
                                             {day.eventsCount > 0 ? (
                                               <i className="h-1.5 w-1.5 rounded-full bg-violet-500" />
                                             ) : null}
-                                            {day.observation ? (
+                                            {day.observation || day.driverBlock?.observation ? (
                                               <i className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                                             ) : null}
                                             {day.isManualOverride ? (
@@ -1661,7 +1725,7 @@ export default function PlanificacionMensualPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-5 shadow-2xl">
+          <div className="w-full max-w-lg rounded-[22px] border border-[#b7cce4] bg-[#f8fbff] p-5 shadow-2xl">
             <h2 className="font-heading text-lg font-semibold text-[#0f2747]">
               Editar día
             </h2>
@@ -1685,7 +1749,16 @@ export default function PlanificacionMensualPage() {
                 <select
                   value={edit.statusCode}
                   onChange={(e) => {
-                    setEdit({ ...edit, statusCode: e.target.value });
+                    const nextCode = e.target.value;
+                    setEdit((prev) => {
+                      if (!prev) return prev;
+                      const next: EditForm = { ...prev, statusCode: nextCode };
+                      if (nextCode === "BLOQUEADO" && !prev.day.driverBlock) {
+                        next.blockStartDate = prev.day.date;
+                        next.blockEndDate = prev.day.date;
+                      }
+                      return next;
+                    });
                     setEditDirty(true);
                   }}
                   className={controlClass}
@@ -1699,10 +1772,137 @@ export default function PlanificacionMensualPage() {
                     ))}
                 </select>
               </Label>
-              <Label text="Observación">
+
+              {edit.day.effectiveStatus?.code === "BLOQUEADO" &&
+              edit.statusCode !== "BLOQUEADO" ? (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Al cambiar a <strong>{edit.statusCode || "otro estado"}</strong>{" "}
+                  desbloquea solo este día, sin esperar el fin del rango de bloqueo.
+                </p>
+              ) : null}
+
+              {edit.statusCode === "BLOQUEADO" ? (
+                <div className="grid gap-3 rounded-2xl border border-red-200 bg-red-50/60 p-3">
+                  <p className="text-xs font-semibold text-red-900">
+                    Configuración del bloqueo
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEdit({ ...edit, blockMode: "days" });
+                        setEditDirty(true);
+                      }}
+                      className={`flex-1 rounded-xl border px-2 py-1.5 text-xs font-semibold transition ${
+                        edit.blockMode === "days"
+                          ? "border-red-500 bg-white text-red-800"
+                          : "border-red-200 bg-red-50 text-red-700"
+                      }`}
+                    >
+                      Por días
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEdit({
+                          ...edit,
+                          blockMode: "hours",
+                          blockStartDate: edit.day.date,
+                        });
+                        setEditDirty(true);
+                      }}
+                      className={`flex-1 rounded-xl border px-2 py-1.5 text-xs font-semibold transition ${
+                        edit.blockMode === "hours"
+                          ? "border-red-500 bg-white text-red-800"
+                          : "border-red-200 bg-red-50 text-red-700"
+                      }`}
+                    >
+                      Por horas
+                    </button>
+                  </div>
+                  {edit.blockMode === "days" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Label text="Desde">
+                        <input
+                          type="date"
+                          value={edit.blockStartDate}
+                          onChange={(e) => {
+                            setEdit({ ...edit, blockStartDate: e.target.value });
+                            setEditDirty(true);
+                          }}
+                          className={controlClass}
+                        />
+                      </Label>
+                      <Label text="Hasta">
+                        <input
+                          type="date"
+                          value={edit.blockEndDate}
+                          min={edit.blockStartDate}
+                          onChange={(e) => {
+                            setEdit({ ...edit, blockEndDate: e.target.value });
+                            setEditDirty(true);
+                          }}
+                          className={controlClass}
+                        />
+                      </Label>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <Label text="Fecha">
+                        <input
+                          type="date"
+                          value={edit.blockStartDate}
+                          onChange={(e) => {
+                            setEdit({ ...edit, blockStartDate: e.target.value });
+                            setEditDirty(true);
+                          }}
+                          className={controlClass}
+                        />
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Label text="Hora desde">
+                          <input
+                            type="time"
+                            value={edit.blockStartTime}
+                            onChange={(e) => {
+                              setEdit({ ...edit, blockStartTime: e.target.value });
+                              setEditDirty(true);
+                            }}
+                            className={controlClass}
+                          />
+                        </Label>
+                        <Label text="Hora hasta">
+                          <input
+                            type="time"
+                            value={edit.blockEndTime}
+                            onChange={(e) => {
+                              setEdit({ ...edit, blockEndTime: e.target.value });
+                              setEditDirty(true);
+                            }}
+                            className={controlClass}
+                          />
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              <Label
+                text={
+                  edit.statusCode === "BLOQUEADO"
+                    ? "Motivo del bloqueo"
+                    : "Observación"
+                }
+              >
                 <textarea
-                  rows={4}
+                  rows={edit.statusCode === "BLOQUEADO" ? 3 : 4}
                   value={edit.observation}
+                  placeholder={
+                    edit.statusCode === "BLOQUEADO"
+                      ? "Ej.: licencia médica, mantención, sanción…"
+                      : undefined
+                  }
                   onChange={(e) => {
                     setEdit({ ...edit, observation: e.target.value });
                     setEditDirty(true);

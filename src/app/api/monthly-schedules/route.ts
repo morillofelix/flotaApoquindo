@@ -10,6 +10,10 @@ import {
   previewMonthlyScheduleGeneration,
   type GenerateScope,
 } from "@/lib/monthly-schedule-engine";
+import {
+  expireExpiredPlanningBlocks,
+  serializePlanningDriverBlock,
+} from "@/lib/planning-block-sync";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -117,6 +121,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    await expireExpiredPlanningBlocks();
+
     const schedule = await prisma.monthlySchedule.findUnique({
       where: { year_month: { year, month } },
       include: {
@@ -157,6 +163,16 @@ export async function GET(request: NextRequest) {
                 shiftDefinition: {
                   select: { id: true, code: true, name: true },
                 },
+              },
+            },
+            driverBlock: {
+              select: {
+                id: true,
+                startsAt: true,
+                endsAt: true,
+                observation: true,
+                isActive: true,
+                status: true,
               },
             },
             _count: { select: { events: true } },
@@ -205,6 +221,7 @@ export async function GET(request: NextRequest) {
           : null,
         version: day.version,
         eventsCount: day._count.events,
+        driverBlock: serializePlanningDriverBlock(day.driverBlock),
       };
     });
     return NextResponse.json({

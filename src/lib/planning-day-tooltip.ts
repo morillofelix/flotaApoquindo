@@ -4,6 +4,28 @@ const reasonLabels = new Map(
   defaultAppointmentReasons.map((reason) => [reason.value, reason.label]),
 );
 
+export type PlanningDriverBlockSummary = {
+  observation?: string;
+  isHourBlock?: boolean;
+  startTime?: string;
+  endTime?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+export function planningBlockDetailLabel(block: PlanningDriverBlockSummary | null | undefined) {
+  if (!block) {
+    return "";
+  }
+  if (block.isHourBlock && block.startTime && block.endTime) {
+    return `${block.startTime} – ${block.endTime}`;
+  }
+  if (block.startDate && block.endDate && block.startDate !== block.endDate) {
+    return `${block.startDate} al ${block.endDate}`;
+  }
+  return block.startDate ?? "";
+}
+
 export type PlanningDayTooltipSource = {
   effectiveStatus?: { code?: string; name?: string } | null;
   startTime?: string;
@@ -11,6 +33,7 @@ export type PlanningDayTooltipSource = {
   observation?: string;
   changeOrigin?: string;
   isManualOverride?: boolean;
+  driverBlock?: PlanningDriverBlockSummary | null;
   appointment?: {
     appointmentReason?: string;
     permitType?: string;
@@ -67,14 +90,19 @@ export function planningDayTooltip(day: PlanningDayTooltipSource): string {
   }
 
   if (code === "BLOQUEADO") {
-    parts.push("Bloqueo activo");
+    const blockDetail = planningBlockDetailLabel(day.driverBlock);
+    if (blockDetail) parts.push(blockDetail);
+    const blockObservation =
+      day.driverBlock?.observation?.trim() || day.observation?.trim() || "";
+    if (blockObservation) parts.push(blockObservation);
+    else parts.push("Bloqueo activo");
   }
 
   if (code === "LIBRE" || code === "TURNO_DIA_LIBRE") {
     parts.push("Día libre según turno");
   }
 
-  if (day.observation?.trim() && !appt?.observation?.trim()) {
+  if (day.observation?.trim() && !appt?.observation?.trim() && code !== "BLOQUEADO") {
     parts.push(day.observation.trim());
   }
 
