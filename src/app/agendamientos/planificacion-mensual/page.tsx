@@ -16,6 +16,7 @@ import type { DriverGroupConfig } from "@/lib/driver-groups";
 import type { HolidayConfig } from "@/lib/holidays";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
+import { downloadMonthlyPlanningExcel } from "@/lib/monthly-planning-excel-export";
 import Link from "next/link";
 import { planningDayTooltip } from "@/lib/planning-day-tooltip";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -823,31 +824,16 @@ export default function PlanificacionMensualPage() {
   }
 
   async function exportExcel() {
-    const XLSX = await import("xlsx");
-    const sheetRows = filteredRows.map((row) => {
-      const base: Record<string, string> = {
-        Móvil: row.vehicle,
-        Conductor: row.driverName,
-        Grupo: row.groupName,
-        Turno: row.shift,
-        Observación: row.observation,
-      };
-      for (const column of calendarDays) {
-        base[`${column.day} ${column.weekday}`] =
-          row.byDate.get(column.date)?.effectiveStatus?.code ?? "";
-      }
-      return base;
+    const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    await downloadMonthlyPlanningExcel({
+      rows: filteredRows,
+      calendarDays,
+      holidayDates: new Set([...holidayMap.keys()]),
+      todayDate,
+      statuses,
+      year,
+      month,
     });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.json_to_sheet(sheetRows),
-      "Planificación",
-    );
-    XLSX.writeFile(
-      workbook,
-      `planificacion-${year}-${String(month).padStart(2, "0")}.xlsx`,
-    );
   }
 
   const lastUpdatedAt = data?.schedule?.updatedAt
