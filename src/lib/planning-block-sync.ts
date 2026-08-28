@@ -1,4 +1,4 @@
-import { createDriverBlock, endDriverBlock } from "@/lib/driver-blocks";
+import { createDriverBlock } from "@/lib/driver-blocks";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 

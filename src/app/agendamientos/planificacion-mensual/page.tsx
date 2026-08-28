@@ -1292,9 +1292,10 @@ export default function PlanificacionMensualPage() {
                                   const day = row.byDate.get(column.date);
                                   const status = day?.effectiveStatus;
                                   const isBlocked = status?.code === "BLOQUEADO";
-                                  const blockDetail = isBlocked
-                                    ? planningBlockDetailLabel(day.driverBlock)
-                                    : "";
+                                  const blockDetail =
+                                    isBlocked && day
+                                      ? planningBlockDetailLabel(day.driverBlock)
+                                      : "";
                                   return (
                                     <td
                                       key={column.date}
