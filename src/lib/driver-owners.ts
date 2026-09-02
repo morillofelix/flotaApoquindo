@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 export type ShiftType = "diurno" | "nocturno" | "intermedio";
 
 export type DriverOwnerConfig = {
@@ -915,6 +917,23 @@ export function isBinarySpreadsheetBytes(bytes: Uint8Array) {
   return looksLikeBinaryExcel(bytes) || looksLikeXlsxArchive(bytes);
 }
 
+function parseXlsxBytesToCsv(bytes: Uint8Array) {
+  const workbook = XLSX.read(bytes, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+
+  if (!sheetName) {
+    throw new Error("El archivo Excel no contiene hojas.");
+  }
+
+  const sheet = workbook.Sheets[sheetName];
+
+  if (!sheet) {
+    throw new Error("No se pudo leer la hoja del Excel.");
+  }
+
+  return XLSX.utils.sheet_to_csv(sheet);
+}
+
 function looksLikeUtf16LeText(bytes: Uint8Array) {
   if (bytes.length < 8) {
     return false;
@@ -940,8 +959,16 @@ function looksLikeUtf16LeText(bytes: Uint8Array) {
 }
 
 export function readSpreadsheetTextContent(bytes: Uint8Array) {
-  if (looksLikeBinaryExcel(bytes) || looksLikeXlsxArchive(bytes)) {
-    throw new Error("BINARY_SPREADSHEET");
+  if (looksLikeXlsxArchive(bytes) || looksLikeBinaryExcel(bytes)) {
+    try {
+      return parseXlsxBytesToCsv(bytes);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Excel")) {
+        throw error;
+      }
+
+      throw new Error("BINARY_SPREADSHEET");
+    }
   }
 
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
@@ -1083,6 +1110,20 @@ export function prepareDriverOwnerUploadContent(
   }
 
   if (isSpreadsheetExtension) {
+    const headerLine =
+      rawContent.split(/\r?\n/).find((line) => line.trim().length > 0) ?? "";
+    const looksLikeNativeCsv =
+      headerLine.includes(",") &&
+      /nombre/i.test(headerLine) &&
+      /roles/i.test(headerLine);
+
+    if (looksLikeNativeCsv) {
+      return {
+        csvContent: rawContent,
+        format: extension === "xlsx" ? ("xlsx" as const) : ("xls" as const),
+      };
+    }
+
     const matrix = parseSpreadsheetContentToMatrix(rawContent);
 
     if (matrix) {
