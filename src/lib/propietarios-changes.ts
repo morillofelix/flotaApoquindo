@@ -21,6 +21,7 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
   bankGuaranteePdfFileName: "Certificado bancario (PDF)",
   isProvisionalBankData: "Datos bancarios provisorios",
   inactiveReason: "Motivo de inactivación",
+  activationReason: "Motivo de activación",
   desvinculacionReason: "Motivo de desvinculación",
   desvinculacionDays: "Días de desvinculación",
   desvinculadoUntil: "Desvinculado hasta",
@@ -29,6 +30,7 @@ export const PROPIETARIO_FIELD_LABELS: Record<string, string> = {
 const TRACKED_FIELDS = Object.keys(PROPIETARIO_FIELD_LABELS).filter(
   (field) =>
     field !== "inactiveReason" &&
+    field !== "activationReason" &&
     field !== "desvinculacionReason" &&
     field !== "desvinculacionDays" &&
     field !== "desvinculadoUntil",
@@ -181,6 +183,7 @@ export function diffPropietarioChanges(
 
   const detailFields: Array<keyof typeof PROPIETARIO_FIELD_LABELS> = [
     "inactiveReason",
+    "activationReason",
     "desvinculacionReason",
     "desvinculacionDays",
     "desvinculadoUntil",
@@ -190,7 +193,7 @@ export function diffPropietarioChanges(
     const beforeValue = normalizeComparableValue(before[field], field);
     const afterValue = normalizeComparableValue(after[field], field);
 
-    if (beforeValue === afterValue || !afterValue) {
+    if (beforeValue === afterValue) {
       continue;
     }
 
@@ -199,6 +202,28 @@ export function diffPropietarioChanges(
       label: PROPIETARIO_FIELD_LABELS[field] ?? field,
       before: displayValue(displayComparableValue(before[field], field, before)),
       after: displayValue(displayComparableValue(after[field], field, after)),
+    });
+  }
+
+  const previousPdfData = String(before.bankGuaranteePdfData ?? "").trim();
+  const nextPdfData = String(after.bankGuaranteePdfData ?? "").trim();
+  const alreadyTrackedPdf = changes.some(
+    (change) => change.field === "bankGuaranteePdfFileName",
+  );
+
+  if (previousPdfData !== nextPdfData && !alreadyTrackedPdf) {
+    changes.push({
+      field: "bankGuaranteePdfFileName",
+      label:
+        PROPIETARIO_FIELD_LABELS.bankGuaranteePdfFileName ??
+        "Certificado bancario (PDF)",
+      before: previousPdfData
+        ? String(before.bankGuaranteePdfFileName ?? "").trim() ||
+          "Documento existente"
+        : "(vacío)",
+      after:
+        String(after.bankGuaranteePdfFileName ?? "").trim() ||
+        "Documento reemplazado",
     });
   }
 

@@ -37,6 +37,7 @@ function parsePermissions(value: unknown): Partial<AccessPermissions> {
     ejecutivos: Boolean(permissions.ejecutivos),
     conductores: Boolean(permissions.conductores),
     propietarios: Boolean(permissions.propietarios),
+    historial: Boolean(permissions.historial),
     pagoPropietario: Boolean(permissions.pagoPropietario),
   };
 }
@@ -107,6 +108,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     canEjecutivos?: boolean;
     canConductores?: boolean;
     canPropietarios?: boolean;
+    canHistorial?: boolean;
     canPagoPropietario?: boolean;
   } = {
     email: nextEmail,

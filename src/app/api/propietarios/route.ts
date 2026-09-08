@@ -1,5 +1,6 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { parseDateValue } from "@/lib/driver-owners";
+import { resolveHistoryActor } from "@/lib/history-auth-server";
 import { listPropietariosWithAutoStatus } from "@/lib/propietarios-auto-status";
 import { diffPropietarioChanges } from "@/lib/propietarios-changes";
 import { notifyPropietarioUpdateSafely } from "@/lib/propietarios-notify-mail";
@@ -81,6 +82,7 @@ type PropietarioBody = {
   bankGuaranteePdfData?: unknown;
   bankGuaranteePdfFileName?: unknown;
   isProvisionalBankData?: unknown;
+  updatedAt?: unknown;
 };
 
 function asString(value: unknown) {
@@ -393,117 +395,237 @@ export async function PATCH(request: NextRequest) {
 
   const id = typeof body.id === "string" ? body.id : "";
   const input = parsePropietarioBody(body);
-
-  const existingPropietario = id
-    ? await prisma.propietario.findUnique({ where: { id } })
-    : null;
-
-  if (!existingPropietario) {
-    return NextResponse.json({ message: "Registro no encontrado." }, { status: 404 });
-  }
-
   const validationMessage = validatePropietarioInput(input);
 
   if (validationMessage) {
     return NextResponse.json({ message: validationMessage }, { status: 400 });
   }
 
-  const statusFields = buildStatusPayload(input, existingPropietario);
-  const statusValidationMessage = validatePropietarioStatusFields(statusFields);
+  const expectedUpdatedAt =
+    typeof body.updatedAt === "string" ? body.updatedAt.trim() : "";
 
-  if (statusValidationMessage) {
-    return NextResponse.json({ message: statusValidationMessage }, { status: 400 });
+  if (expectedUpdatedAt && Number.isNaN(Date.parse(expectedUpdatedAt))) {
+    return NextResponse.json(
+      { message: "La versión del registro no es válida." },
+      { status: 400 },
+    );
   }
-
-  const bankGuaranteeFields = resolveBankGuaranteeFields(input, existingPropietario);
-  const bankGuaranteeValidation = validateManualBankGuaranteePdf(bankGuaranteeFields);
-
-  if (bankGuaranteeValidation) {
-    return NextResponse.json({ message: bankGuaranteeValidation }, { status: 400 });
-  }
-
-  const previousStatus =
-    existingPropietario.status ||
-    (existingPropietario.isActive ? "activo" : "inactivo");
-  const createData = toPropietarioCreateData({
-    ...input,
-    importKey: existingPropietario.importKey,
-    ...statusFields,
-    ...bankGuaranteeFields,
-    activationReason:
-      statusFields.status === "activo" && previousStatus !== "activo"
-        ? input.activationReason
-        : "",
-  });
-  const changes = diffPropietarioChanges(existingPropietario, createData);
-  const inactiveReasonForEmail =
-    statusFields.status === "inactivo" &&
-    statusFields.inactiveReason &&
-    (previousStatus !== "inactivo" ||
-      (existingPropietario.inactiveReason ?? "").trim() !==
-        statusFields.inactiveReason)
-      ? statusFields.inactiveReason
-      : undefined;
-  const desvinculacionReasonForEmail =
-    statusFields.status === "desvinculado" &&
-    statusFields.desvinculacionReason &&
-    (previousStatus !== "desvinculado" ||
-      (existingPropietario.desvinculacionReason ?? "").trim() !==
-        statusFields.desvinculacionReason ||
-      existingPropietario.desvinculacionDays !== statusFields.desvinculacionDays)
-      ? statusFields.desvinculacionReason
-      : undefined;
-  const activationReasonForEmail =
-    statusFields.status === "activo" && previousStatus !== "activo"
-      ? input.activationReason.trim() ||
-        (previousStatus === "revision"
-          ? "Activación del propietario tras finalizar la revisión inicial."
-          : "Reactivación manual del registro de propietario.")
-      : undefined;
-  const shouldNotify = shouldSendPropietarioUpdateNotification(
-    previousStatus,
-    statusFields.status,
-    changes.length,
-    {
-      inactiveReason: inactiveReasonForEmail,
-      activationReason: activationReasonForEmail,
-      desvinculacionReason: desvinculacionReasonForEmail,
-    },
-  );
 
   try {
-    const propietario = await prisma.propietario.update({
-      where: { id },
-      data: createData,
-    });
+    const actor = await resolveHistoryActor(request);
+    const result = await prisma.$transaction(async (transaction) => {
+      const existingPropietario = id
+        ? await transaction.propietario.findUnique({ where: { id } })
+        : null;
 
-    const notificationSent = shouldNotify
-      ? await notifyPropietarioUpdateSafely({
-          actor: getPropietarioNotifyActor(request),
-          fullName: propietario.fullName,
-          rut: propietario.rut,
-          vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
-          changes,
+      if (!existingPropietario) {
+        throw new Error("PROPIETARIO_NOT_FOUND");
+      }
+
+      if (
+        expectedUpdatedAt &&
+        existingPropietario.updatedAt.toISOString() !==
+          new Date(expectedUpdatedAt).toISOString()
+      ) {
+        throw new Error("PROPIETARIO_VERSION_CONFLICT");
+      }
+
+      const statusFields = buildStatusPayload(input, existingPropietario);
+      const statusValidationMessage =
+        validatePropietarioStatusFields(statusFields);
+
+      if (statusValidationMessage) {
+        throw new Error(`PROPIETARIO_VALIDATION:${statusValidationMessage}`);
+      }
+
+      const bankGuaranteeFields = resolveBankGuaranteeFields(
+        input,
+        existingPropietario,
+      );
+      const bankGuaranteeValidation =
+        validateManualBankGuaranteePdf(bankGuaranteeFields);
+
+      if (bankGuaranteeValidation) {
+        throw new Error(`PROPIETARIO_VALIDATION:${bankGuaranteeValidation}`);
+      }
+
+      const previousStatus = normalizePropietarioStatus(
+        existingPropietario.status ||
+          (existingPropietario.isActive ? "activo" : "inactivo"),
+      );
+      const createData = toPropietarioCreateData({
+        ...input,
+        importKey: existingPropietario.importKey,
+        ...statusFields,
+        ...bankGuaranteeFields,
+        activationReason:
+          statusFields.status === "activo" && previousStatus !== "activo"
+            ? input.activationReason
+            : "",
+      });
+      const changes = diffPropietarioChanges(existingPropietario, createData);
+      const inactiveReasonForEmail =
+        statusFields.status === "inactivo" &&
+        statusFields.inactiveReason &&
+        (previousStatus !== "inactivo" ||
+          (existingPropietario.inactiveReason ?? "").trim() !==
+            statusFields.inactiveReason)
+          ? statusFields.inactiveReason
+          : undefined;
+      const desvinculacionReasonForEmail =
+        statusFields.status === "desvinculado" &&
+        statusFields.desvinculacionReason &&
+        (previousStatus !== "desvinculado" ||
+          (existingPropietario.desvinculacionReason ?? "").trim() !==
+            statusFields.desvinculacionReason ||
+          existingPropietario.desvinculacionDays !==
+            statusFields.desvinculacionDays)
+          ? statusFields.desvinculacionReason
+          : undefined;
+      const activationReasonForEmail =
+        statusFields.status === "activo" && previousStatus !== "activo"
+          ? input.activationReason.trim() ||
+            (previousStatus === "revision"
+              ? "Activación del propietario tras finalizar la revisión inicial."
+              : "Reactivación manual del registro de propietario.")
+          : undefined;
+      const shouldNotify = shouldSendPropietarioUpdateNotification(
+        previousStatus,
+        statusFields.status,
+        changes.length,
+        {
           inactiveReason: inactiveReasonForEmail,
           activationReason: activationReasonForEmail,
           desvinculacionReason: desvinculacionReasonForEmail,
+        },
+      );
+
+      if (changes.length === 0) {
+        return {
+          propietario: existingPropietario,
+          changes,
+          historyId: null,
+          shouldNotify: false,
+          statusFields,
+          inactiveReasonForEmail,
+          activationReasonForEmail,
+          desvinculacionReasonForEmail,
+        };
+      }
+
+      const updatedCount = await transaction.propietario.updateMany({
+        where: {
+          id,
+          updatedAt: existingPropietario.updatedAt,
+        },
+        data: createData,
+      });
+
+      if (updatedCount.count !== 1) {
+        throw new Error("PROPIETARIO_VERSION_CONFLICT");
+      }
+
+      const propietario = await transaction.propietario.findUniqueOrThrow({
+        where: { id },
+      });
+      const statusChanged = previousStatus !== statusFields.status;
+      const history = await transaction.propietarioHistory.create({
+        data: {
+          propietarioId: propietario.id,
+          actorAccessUserId: actor.actorAccessUserId,
+          actorName: actor.actorName,
+          actorEmail: actor.actorEmail,
+          movementType: statusChanged ? "status_change" : "data_update",
+          propietarioName: propietario.fullName,
+          propietarioRut: propietario.rut,
+          vehicleNumber: displayVehicleNumber(propietario.vehicleNumber),
+          changes,
+          changedFields: changes.map((change) => change.field),
+          previousStatus,
+          newStatus: statusFields.status,
+          notificationStatus: shouldNotify ? "pending" : "not_required",
+        },
+      });
+
+      return {
+        propietario,
+        changes,
+        historyId: history.id,
+        shouldNotify,
+        statusFields,
+        inactiveReasonForEmail,
+        activationReasonForEmail,
+        desvinculacionReasonForEmail,
+      };
+    });
+
+    const notificationSent = result.shouldNotify
+      ? await notifyPropietarioUpdateSafely({
+          actor: getPropietarioNotifyActor(request),
+          fullName: result.propietario.fullName,
+          rut: result.propietario.rut,
+          vehicleNumber: displayVehicleNumber(result.propietario.vehicleNumber),
+          changes: result.changes,
+          inactiveReason: result.inactiveReasonForEmail,
+          activationReason: result.activationReasonForEmail,
+          desvinculacionReason: result.desvinculacionReasonForEmail,
           desvinculacionDays:
-            statusFields.status === "desvinculado"
-              ? statusFields.desvinculacionDays
+            result.statusFields.status === "desvinculado"
+              ? result.statusFields.desvinculacionDays
               : undefined,
           desvinculadoUntil:
-            statusFields.status === "desvinculado"
-              ? statusFields.desvinculadoUntil
+            result.statusFields.status === "desvinculado"
+              ? result.statusFields.desvinculadoUntil
               : undefined,
         })
       : false;
 
+    if (result.historyId && result.shouldNotify) {
+      await prisma.propietarioHistory
+        .update({
+          where: { id: result.historyId },
+          data: {
+            notificationStatus: notificationSent ? "sent" : "failed",
+            notificationUpdatedAt: new Date(),
+          },
+        })
+        .catch((error) => {
+          console.error("Propietario history notification update failed:", error);
+        });
+    }
+
     return NextResponse.json({
-      propietario: toPropietario(propietario) as PropietarioConfig,
+      propietario: toPropietario(result.propietario) as PropietarioConfig,
       notificationSent,
-      changesDetected: changes.length,
+      changesDetected: result.changes.length,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "PROPIETARIO_NOT_FOUND") {
+        return NextResponse.json(
+          { message: "Registro no encontrado." },
+          { status: 404 },
+        );
+      }
+
+      if (error.message === "PROPIETARIO_VERSION_CONFLICT") {
+        return NextResponse.json(
+          {
+            message:
+              "El propietario fue modificado por otro usuario. Recarga los datos antes de guardar.",
+          },
+          { status: 409 },
+        );
+      }
+
+      if (error.message.startsWith("PROPIETARIO_VALIDATION:")) {
+        return NextResponse.json(
+          { message: error.message.slice("PROPIETARIO_VALIDATION:".length) },
+          { status: 400 },
+        );
+      }
+    }
+
     return NextResponse.json(
       { message: "No se pudo actualizar el registro." },
       { status: 500 },

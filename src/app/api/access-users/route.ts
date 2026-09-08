@@ -42,6 +42,7 @@ function parsePermissions(value: unknown): Partial<AccessPermissions> {
     ejecutivos: Boolean(permissions.ejecutivos),
     conductores: Boolean(permissions.conductores),
     propietarios: Boolean(permissions.propietarios),
+    historial: Boolean(permissions.historial),
     pagoPropietario: Boolean(permissions.pagoPropietario),
   };
 }

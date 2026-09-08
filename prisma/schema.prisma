@@ -264,6 +264,7 @@ model Propietario {
   isProvisionalBankData    Boolean  @default(false)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  historyEntries        PropietarioHistory[]
 
   @@index([isActive])
   @@index([fullName])
@@ -319,9 +320,11 @@ model AccessUser {
   canEjecutivos      Boolean   @default(false)
   canConductores     Boolean   @default(false)
   canPropietarios    Boolean   @default(false)
+  canHistorial       Boolean   @default(false)
   canPagoPropietario Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  propietarioHistoryEntries PropietarioHistory[]
 
   @@index([isActive])
   @@index([isSuperAdmin])
@@ -623,4 +626,34 @@ model AuditLog {
   @@index([module, createdAt])
   @@index([entityType, entityId])
   @@index([userEmail, createdAt])
+}
+
+model PropietarioHistory {
+  id                    String       @id @default(uuid())
+  propietarioId         String?
+  propietario           Propietario? @relation(fields: [propietarioId], references: [id], onDelete: SetNull)
+  actorAccessUserId     String?
+  actorAccessUser       AccessUser?  @relation(fields: [actorAccessUserId], references: [id], onDelete: SetNull)
+  actorName             String       @default("")
+  actorEmail            String       @default("")
+  movementType          String
+  propietarioName       String
+  propietarioRut        String       @default("")
+  vehicleNumber         String       @default("")
+  changes               Json
+  changedFields         String[]     @default([])
+  previousStatus        String       @default("")
+  newStatus             String       @default("")
+  notificationStatus    String       @default("not_required")
+  notificationUpdatedAt DateTime?
+  createdAt             DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([propietarioId, createdAt])
+  @@index([propietarioRut, createdAt])
+  @@index([vehicleNumber, createdAt])
+  @@index([actorAccessUserId, createdAt])
+  @@index([movementType, createdAt])
+  @@index([newStatus, createdAt])
+  @@index([changedFields], type: Gin)
 }

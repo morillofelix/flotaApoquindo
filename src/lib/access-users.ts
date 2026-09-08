@@ -5,6 +5,7 @@ export type AccessPermissionKey =
   | "ejecutivos"
   | "conductores"
   | "propietarios"
+  | "historial"
   | "pagoPropietario";
 
 export type AccessPermissions = Record<AccessPermissionKey, boolean>;
@@ -16,6 +17,7 @@ export const ACCESS_PERMISSION_LABELS: Record<AccessPermissionKey, string> = {
   ejecutivos: "Ejecutivos",
   conductores: "Conductores",
   propietarios: "Propietarios",
+  historial: "Historial",
   pagoPropietario: "Pago propietario",
 };
 
@@ -30,6 +32,7 @@ export const FULL_ACCESS_PERMISSIONS: AccessPermissions = {
   ejecutivos: true,
   conductores: true,
   propietarios: true,
+  historial: true,
   pagoPropietario: true,
 };
 
@@ -80,6 +83,7 @@ export type AccessUserPermissionRecord = {
   canEjecutivos: boolean;
   canConductores: boolean;
   canPropietarios: boolean;
+  canHistorial: boolean;
   canPagoPropietario: boolean;
 };
 
@@ -90,6 +94,7 @@ export function permissionsFromAccessUser(user: {
   canEjecutivos: boolean;
   canConductores: boolean;
   canPropietarios: boolean;
+  canHistorial: boolean;
   canPagoPropietario: boolean;
 }): AccessPermissions {
   return {
@@ -99,6 +104,7 @@ export function permissionsFromAccessUser(user: {
     ejecutivos: user.canEjecutivos,
     conductores: user.canConductores,
     propietarios: user.canPropietarios,
+    historial: user.canHistorial,
     pagoPropietario: user.canPagoPropietario,
   };
 }
@@ -128,6 +134,7 @@ export function permissionsToDbData(permissions: Partial<AccessPermissions>) {
     canEjecutivos: Boolean(permissions.ejecutivos),
     canConductores: Boolean(permissions.conductores),
     canPropietarios: Boolean(permissions.propietarios),
+    canHistorial: Boolean(permissions.historial),
     canPagoPropietario: Boolean(permissions.pagoPropietario),
   };
 }

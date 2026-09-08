@@ -34,6 +34,7 @@ const emptyPermissions = (): AccessPermissions => ({
   ejecutivos: false,
   conductores: false,
   propietarios: false,
+  historial: false,
   pagoPropietario: false,
 });
 

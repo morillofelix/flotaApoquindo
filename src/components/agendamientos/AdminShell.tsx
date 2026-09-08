@@ -31,6 +31,7 @@ const emptyPermissions = (): AccessPermissions => ({
   ejecutivos: false,
   conductores: false,
   propietarios: false,
+  historial: false,
   pagoPropietario: false,
 });
 
@@ -85,6 +86,10 @@ function AdminNavigation({
               );
 
               if (item.kind === "link") {
+                if (item.hideWhenDenied && !allowed) {
+                  return null;
+                }
+
                 const active = item.isActive(pathname, vista);
 
                 return (

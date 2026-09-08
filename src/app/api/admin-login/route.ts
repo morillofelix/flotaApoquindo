@@ -51,6 +51,7 @@ function buildAccessUserSession(
     canEjecutivos: boolean;
     canConductores: boolean;
     canPropietarios: boolean;
+    canHistorial: boolean;
     canPagoPropietario: boolean;
   },
 ): AdminSession {

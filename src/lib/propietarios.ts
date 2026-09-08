@@ -117,6 +117,7 @@ export type PropietarioConfig = {
   hasBankGuaranteePdf?: boolean;
   bankGuaranteePdfData?: string;
   isProvisionalBankData: boolean;
+  updatedAt?: string;
 };
 
 export type ParsedPropietarioRow = Omit<PropietarioConfig, "id" | "importKey"> & {
@@ -886,6 +887,7 @@ export function toPropietario(value: {
   bankGuaranteePdfFileName?: string | null;
   bankGuaranteePdfData?: string | null;
   isProvisionalBankData?: boolean | null;
+  updatedAt: Date;
 }): PropietarioConfig {
   const status = resolvePropietarioStatusFromRecord(value);
 
@@ -942,6 +944,7 @@ export function toPropietario(value: {
     bankGuaranteePdfFileName: value.bankGuaranteePdfFileName ?? "",
     hasBankGuaranteePdf: Boolean(value.bankGuaranteePdfData?.trim()),
     isProvisionalBankData: value.isProvisionalBankData === true,
+    updatedAt: value.updatedAt.toISOString(),
   };
 }
 

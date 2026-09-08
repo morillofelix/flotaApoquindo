@@ -5,6 +5,7 @@ export type AdminNavLeaf = {
   label: string;
   href: string;
   permission: AccessPermissionKey;
+  hideWhenDenied?: boolean;
   isActive: (pathname: string, vista: string | null) => boolean;
 };
 
@@ -105,6 +106,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: "/agendamientos/propietarios",
     permission: "propietarios",
     isActive: (pathname) => pathname.startsWith("/agendamientos/propietarios"),
+  },
+  {
+    kind: "link",
+    label: "Historial",
+    href: "/agendamientos/historial",
+    permission: "historial",
+    hideWhenDenied: true,
+    isActive: (pathname) => pathname.startsWith("/agendamientos/historial"),
   },
   {
     kind: "link",

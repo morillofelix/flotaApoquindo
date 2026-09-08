@@ -79,6 +79,7 @@ export function normalizeAdminSession(
       ejecutivos: false,
       conductores: false,
       propietarios: false,
+      historial: false,
       pagoPropietario: false,
     },
   };
