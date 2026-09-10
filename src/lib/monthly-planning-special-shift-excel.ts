@@ -342,17 +342,6 @@ function buildLinearSheet(rows: SpecialShiftExportRow[]) {
   </Worksheet>`;
 }
 
-function colLetter(columnIndex: number) {
-  let value = columnIndex;
-  let result = "";
-  while (value > 0) {
-    const rem = (value - 1) % 26;
-    result = String.fromCharCode(65 + rem) + result;
-    value = Math.floor((value - 1) / 26);
-  }
-  return result;
-}
-
 function buildGridSheet(blocks: ShiftBlock[]) {
   if (!blocks.length) {
     return `
@@ -419,11 +408,8 @@ function buildGridSheet(blocks: ShiftBlock[]) {
     .map((block) => {
       const numberCol = block.startCol;
       const labelCol = block.startCol + 1;
-      const startLetter = colLetter(block.startCol);
-      const endLetter = colLetter(block.startCol + GRID_COLS - 1);
-      const formula = `=COUNTA(${startLetter}${gridStartRow}:${endLetter}${gridEndRow})`;
       return [
-        `<Cell ss:Index="${numberCol}" ss:StyleID="TotalNumber" ss:Formula="${escapeXml(formula)}"><Data ss:Type="Number">${block.vehicles.length}</Data></Cell>`,
+        `<Cell ss:Index="${numberCol}" ss:StyleID="TotalNumber"><Data ss:Type="Number">${block.vehicles.length}</Data></Cell>`,
         `<Cell ss:Index="${labelCol}" ss:MergeAcross="4" ss:StyleID="TotalLabel"><Data ss:Type="String">*Total Móviles*</Data></Cell>`,
       ].join("");
     })
