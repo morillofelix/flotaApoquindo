@@ -18,6 +18,7 @@ import type { HolidayConfig } from "@/lib/holidays";
 import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import { downloadMonthlyPlanningExcel } from "@/lib/monthly-planning-excel-export";
+import { downloadMonthlyPlanningSpecialShiftExcel } from "@/lib/monthly-planning-special-shift-excel";
 import Link from "next/link";
 import { planningBlockDetailLabel, planningDayTooltip } from "@/lib/planning-day-tooltip";
 import {
@@ -982,6 +983,19 @@ export default function PlanificacionMensualPage() {
     });
   }
 
+  const canExportSpecialShift =
+    selectedDayDates.length > 0 && filteredRows.length > 0;
+
+  async function exportSpecialShiftExcel() {
+    if (!canExportSpecialShift) return;
+    await downloadMonthlyPlanningSpecialShiftExcel({
+      rows: filteredRows,
+      calendarDays: visibleCalendarDays,
+      year,
+      month,
+    });
+  }
+
   const lastUpdatedAt = data?.schedule?.updatedAt
     ? new Date(data.schedule.updatedAt)
     : null;
@@ -1098,6 +1112,19 @@ export default function PlanificacionMensualPage() {
               >
                 Exportar Excel
               </button>
+              <button
+                type="button"
+                disabled={!canExportSpecialShift}
+                onClick={() => void exportSpecialShiftExcel()}
+                title={
+                  canExportSpecialShift
+                    ? "Descarga lista lineal + grilla por día/turno según filtros y días seleccionados"
+                    : "Selecciona al menos un día (columnas) para habilitar Turno especial"
+                }
+                className="inline-flex h-9 items-center rounded-2xl border border-amber-500 bg-amber-500 px-4 text-xs font-semibold text-white shadow-sm shadow-amber-700/20 disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+              >
+                Descargar turno especial
+              </button>
             </div>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
@@ -1190,7 +1217,7 @@ export default function PlanificacionMensualPage() {
                 {selectedDayDates.length === 1
                   ? "columna de día seleccionada"
                   : "columnas de día seleccionadas"}{" "}
-                para pantalla y Excel.
+                para pantalla, Excel y Turno especial.
               </span>
               <button
                 type="button"
@@ -1204,7 +1231,8 @@ export default function PlanificacionMensualPage() {
             <p className="mt-2 text-[11px] text-slate-500">
               Haz clic en el encabezado de un día para seleccionar columnas.
               Puedes marcar varios días; Excel exportará filtros y columnas
-              visibles.
+              visibles. Con días seleccionados se habilita{" "}
+              <strong>Descargar turno especial</strong>.
             </p>
           )}
             </div>
