@@ -20,7 +20,14 @@ import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import { downloadMonthlyPlanningExcel } from "@/lib/monthly-planning-excel-export";
 import Link from "next/link";
 import { planningBlockDetailLabel, planningDayTooltip } from "@/lib/planning-day-tooltip";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type StatusBrief = Pick<
   OperationalStatusConfig,
@@ -208,9 +215,9 @@ export default function PlanificacionMensualPage() {
     ShiftDefinitionConfig[]
   >([]);
   const [wizardDrivers, setWizardDrivers] = useState<WizardDriver[]>([]);
-  const [groupBy, setGroupBy] = useState<
-    "none" | "group" | "shift" | "group_shift"
-  >("none");
+  const [groupByModes, setGroupByModes] = useState<Array<"group" | "shift">>(
+    [],
+  );
   const [groupsExpanded, setGroupsExpanded] = useState<Record<string, boolean>>(
     {},
   );
@@ -228,10 +235,11 @@ export default function PlanificacionMensualPage() {
   const [filters, setFilters] = useState({
     vehicle: "",
     driver: "",
-    group: "",
-    status: "",
+    groups: [] as string[],
+    statuses: [] as string[],
     blocked: false,
   });
+  const [selectedDayDates, setSelectedDayDates] = useState<string[]>([]);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteForm, setDeleteForm] = useState<GenerateForm>(emptyGenerateForm);
@@ -494,11 +502,20 @@ export default function PlanificacionMensualPage() {
         ) {
           return false;
         }
-        if (filters.group && row.groupId !== filters.group) return false;
+        if (
+          filters.groups.length > 0 &&
+          !filters.groups.includes(row.groupId)
+        ) {
+          return false;
+        }
         const days = [...row.byDate.values()];
         if (
-          filters.status &&
-          !days.some((day) => day.effectiveStatus?.code === filters.status)
+          filters.statuses.length > 0 &&
+          !days.some(
+            (day) =>
+              day.effectiveStatus?.code &&
+              filters.statuses.includes(day.effectiveStatus.code),
+          )
         ) {
           return false;
         }
@@ -512,6 +529,23 @@ export default function PlanificacionMensualPage() {
       }),
     [filters, rows],
   );
+
+  const groupBy = useMemo(() => {
+    const hasGroup = groupByModes.includes("group");
+    const hasShift = groupByModes.includes("shift");
+    if (hasGroup && hasShift) return "group_shift" as const;
+    if (hasGroup) return "group" as const;
+    if (hasShift) return "shift" as const;
+    return "none" as const;
+  }, [groupByModes]);
+
+  const visibleCalendarDays = useMemo(() => {
+    if (selectedDayDates.length === 0) {
+      return calendarDays;
+    }
+    const selected = new Set(selectedDayDates);
+    return calendarDays.filter((column) => selected.has(column.date));
+  }, [calendarDays, selectedDayDates]);
 
   const groupedMatrix = useMemo(() => {
     if (groupBy === "none") {
@@ -608,8 +642,29 @@ export default function PlanificacionMensualPage() {
     setEdit(null);
     setEditDirty(false);
     setMessage("");
+    setSelectedDayDates([]);
     setYear(nextYear);
     setMonth(nextMonth);
+  }
+
+  function toggleDayColumn(date: string) {
+    setSelectedDayDates((current) =>
+      current.includes(date)
+        ? current.filter((value) => value !== date)
+        : [...current, date].sort(),
+    );
+  }
+
+  function clearFilters() {
+    setFilters({
+      vehicle: "",
+      driver: "",
+      groups: [],
+      statuses: [],
+      blocked: false,
+    });
+    setGroupByModes([]);
+    setSelectedDayDates([]);
   }
 
   function moveMonth(delta: number) {
@@ -890,7 +945,7 @@ export default function PlanificacionMensualPage() {
     const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     await downloadMonthlyPlanningExcel({
       rows: filteredRows,
-      calendarDays,
+      calendarDays: visibleCalendarDays,
       holidayDates: new Set([...holidayMap.keys()]),
       todayDate,
       statuses,
@@ -1009,7 +1064,7 @@ export default function PlanificacionMensualPage() {
               </button>
               <button
                 type="button"
-                disabled={!filteredRows.length}
+                disabled={!filteredRows.length || !visibleCalendarDays.length}
                 onClick={() => void exportExcel()}
                 className="inline-flex h-9 items-center rounded-2xl border border-emerald-500 bg-white px-4 text-xs font-semibold text-emerald-700 disabled:border-slate-300 disabled:text-slate-400"
               >
@@ -1044,56 +1099,42 @@ export default function PlanificacionMensualPage() {
               />
             </Label>
             <Label text="Grupo">
-              <select
-                value={filters.group}
-                onChange={(e) =>
-                  setFilters({ ...filters, group: e.target.value })
-                }
-                className={controlClass}
-              >
-                <option value="">Todos</option>
-                {filterGroups.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              <FilterMultiSelect
+                options={filterGroups.map(([id, name]) => ({
+                  value: id,
+                  label: name,
+                }))}
+                selectedValues={filters.groups}
+                onChange={(groups) => setFilters({ ...filters, groups })}
+                emptyLabel="Todos"
+                countLabel="grupos"
+              />
             </Label>
             <Label text="Estado">
-              <select
-                value={filters.status}
-                onChange={(e) =>
-                  setFilters({ ...filters, status: e.target.value })
-                }
-                className={controlClass}
-              >
-                <option value="">Todos</option>
-                {statuses.map((status) => (
-                  <option key={status.id} value={status.code}>
-                    {status.name}
-                  </option>
-                ))}
-              </select>
+              <FilterMultiSelect
+                options={statuses.map((status) => ({
+                  value: status.code,
+                  label: status.name,
+                }))}
+                selectedValues={filters.statuses}
+                onChange={(statuses) => setFilters({ ...filters, statuses })}
+                emptyLabel="Todos"
+                countLabel="estados"
+              />
             </Label>
             <Label text="Agrupar">
-              <select
-                value={groupBy}
-                onChange={(e) =>
-                  setGroupBy(
-                    e.target.value as
-                      | "none"
-                      | "group"
-                      | "shift"
-                      | "group_shift",
-                  )
+              <FilterMultiSelect
+                options={[
+                  { value: "group", label: "Por grupo" },
+                  { value: "shift", label: "Por turno" },
+                ]}
+                selectedValues={groupByModes}
+                onChange={(values) =>
+                  setGroupByModes(values as Array<"group" | "shift">)
                 }
-                className={controlClass}
-              >
-                <option value="none">Sin agrupar</option>
-                <option value="group">Por grupo</option>
-                <option value="shift">Por turno</option>
-                <option value="group_shift">Grupo + turno</option>
-              </select>
+                emptyLabel="Sin agrupar"
+                countLabel="modos"
+              />
             </Label>
             <label className="flex h-9 items-center gap-2 self-end rounded-2xl border border-[#9fb8d9] bg-white px-3 text-xs font-semibold text-[#173b68]">
               <input
@@ -1108,20 +1149,36 @@ export default function PlanificacionMensualPage() {
             </label>
             <button
               type="button"
-              onClick={() =>
-                setFilters({
-                  vehicle: "",
-                  driver: "",
-                  group: "",
-                  status: "",
-                  blocked: false,
-                })
-              }
+              onClick={clearFilters}
               className={`${buttonClass} self-end`}
             >
               Limpiar filtros
             </button>
           </div>
+          {selectedDayDates.length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[#173b68]">
+              <span>
+                {selectedDayDates.length}{" "}
+                {selectedDayDates.length === 1
+                  ? "columna de día seleccionada"
+                  : "columnas de día seleccionadas"}{" "}
+                para pantalla y Excel.
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedDayDates([])}
+                className="inline-flex h-7 items-center rounded-full border border-[#9fb8d9] bg-white px-3 text-[11px] font-semibold text-[#173b68]"
+              >
+                Mostrar todos los días
+              </button>
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-slate-500">
+              Haz clic en el encabezado de un día para seleccionar columnas.
+              Puedes marcar varios días; Excel exportará filtros y columnas
+              visibles.
+            </p>
+          )}
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs text-[#173b68]">
@@ -1183,6 +1240,58 @@ export default function PlanificacionMensualPage() {
               scheduleRefreshing ? "opacity-80" : ""
             }`}
           >
+            <div className="shrink-0 border-b border-[#d7e7f8] bg-[#f8fbff] px-2 py-1.5">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-[#173b68]">
+                  Columnas de día
+                </p>
+                {selectedDayDates.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDayDates([])}
+                    className="text-[11px] font-semibold text-[#0b5cab] hover:underline"
+                  >
+                    Mostrar todos
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-slate-500">
+                    Clic en un día para filtrar columnas
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {calendarDays.map((column) => {
+                  const isSelected = selectedDayDates.includes(column.date);
+                  const hasSelection = selectedDayDates.length > 0;
+                  return (
+                    <button
+                      key={`day-chip-${column.date}`}
+                      type="button"
+                      title={
+                        holidayMap.get(column.date)?.name ||
+                        `Día ${column.day}`
+                      }
+                      onClick={() => toggleDayColumn(column.date)}
+                      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold transition ${
+                        isSelected
+                          ? "border-[#0b5cab] bg-[#0b5cab] text-white"
+                          : hasSelection
+                            ? "border-[#c5d8eb] bg-white text-slate-400 hover:border-[#0b5cab] hover:text-[#0b5cab]"
+                            : holidayMap.has(column.date)
+                              ? "border-rose-300 bg-rose-100 text-rose-900 hover:border-[#0b5cab]"
+                              : isToday(column.date)
+                                ? "border-amber-300 bg-amber-100 text-amber-950 hover:border-[#0b5cab]"
+                                : column.weekend
+                                  ? "border-slate-300 bg-slate-100 text-slate-700 hover:border-[#0b5cab]"
+                                  : "border-[#b7cce4] bg-white text-[#173b68] hover:border-[#0b5cab]"
+                      }`}
+                    >
+                      {column.day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="border-separate border-spacing-0 text-[10px] leading-tight">
                 <thead className="sticky top-0 z-30 bg-[#d7e7f8] text-[#0f2747]">
@@ -1202,28 +1311,37 @@ export default function PlanificacionMensualPage() {
                     <StickyHead left={STICKY.obs.left} width={STICKY.obs.width}>
                       Obs.
                     </StickyHead>
-                    {calendarDays.map((column) => (
-                      <th
-                        key={column.date}
-                        title={holidayMap.get(column.date)?.name}
-                        className={`min-w-[34px] border-b border-r border-[#b7cce4] px-0.5 py-0.5 text-center ${
-                          holidayMap.has(column.date)
-                            ? "bg-rose-200"
-                            : isToday(column.date)
-                              ? "bg-amber-200"
-                              : column.weekend
-                                ? "bg-slate-200"
-                                : "bg-[#d7e7f8]"
-                        }`}
-                      >
-                        <span className="block text-[11px] font-semibold leading-none">
-                          {column.day}
-                        </span>
-                        <span className="text-[8px] uppercase leading-none">
-                          {column.weekday}
-                        </span>
-                      </th>
-                    ))}
+                    {visibleCalendarDays.map((column) => {
+                      const isSelected = selectedDayDates.includes(column.date);
+                      return (
+                        <th
+                          key={column.date}
+                          title={
+                            holidayMap.get(column.date)?.name ||
+                            `Clic para ${isSelected ? "quitar" : "seleccionar"} columna del día ${column.day}`
+                          }
+                          onClick={() => toggleDayColumn(column.date)}
+                          className={`min-w-[34px] cursor-pointer border-b border-r border-[#b7cce4] px-0.5 py-0.5 text-center transition ${
+                            isSelected
+                              ? "bg-[#0b5cab] text-white ring-2 ring-inset ring-[#084a8c]"
+                              : holidayMap.has(column.date)
+                                ? "bg-rose-200 hover:bg-rose-300"
+                                : isToday(column.date)
+                                  ? "bg-amber-200 hover:bg-amber-300"
+                                  : column.weekend
+                                    ? "bg-slate-200 hover:bg-slate-300"
+                                    : "bg-[#d7e7f8] hover:bg-[#c5d8eb]"
+                          }`}
+                        >
+                          <span className="block text-[11px] font-semibold leading-none">
+                            {column.day}
+                          </span>
+                          <span className="text-[8px] uppercase leading-none">
+                            {column.weekday}
+                          </span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -1245,7 +1363,7 @@ export default function PlanificacionMensualPage() {
                             }
                           >
                             <td
-                              colSpan={calendarDays.length + STICKY_COUNT}
+                              colSpan={visibleCalendarDays.length + STICKY_COUNT}
                               className="border-b border-[#b7cce4] px-2 py-1 text-[10px] font-semibold text-[#173b68]"
                             >
                               <span className="mr-2 inline-block w-4 text-center">
@@ -1318,7 +1436,7 @@ export default function PlanificacionMensualPage() {
                                     {row.observation || "—"}
                                   </span>
                                 </StickyCell>
-                                {calendarDays.map((column) => {
+                                {visibleCalendarDays.map((column) => {
                                   const day = row.byDate.get(column.date);
                                   const status = day?.effectiveStatus;
                                   const isBlocked = status?.code === "BLOQUEADO";
@@ -1981,6 +2099,112 @@ function Label({
       <span className="text-[11px] font-semibold text-[#173b68]">{text}</span>
       {children}
     </label>
+  );
+}
+
+function FilterMultiSelect({
+  options,
+  selectedValues,
+  onChange,
+  emptyLabel,
+  countLabel,
+}: {
+  options: Array<{ value: string; label: string }>;
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  emptyLabel: string;
+  countLabel: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  const buttonLabel = useMemo(() => {
+    if (selectedValues.length === 0) {
+      return emptyLabel;
+    }
+
+    if (selectedValues.length === 1) {
+      return (
+        options.find((option) => option.value === selectedValues[0])?.label ??
+        `1 ${countLabel}`
+      );
+    }
+
+    return `${selectedValues.length} ${countLabel}`;
+  }, [countLabel, emptyLabel, options, selectedValues]);
+
+  function toggleValue(value: string) {
+    if (selectedValues.includes(value)) {
+      onChange(selectedValues.filter((current) => current !== value));
+      return;
+    }
+
+    onChange([...selectedValues, value]);
+  }
+
+  return (
+    <div ref={containerRef} className="relative min-w-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className={`${controlClass} flex w-full items-center justify-between gap-2`}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{buttonLabel}</span>
+        <span className="text-[10px] text-slate-500">{isOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {isOpen ? (
+        <div className="absolute left-0 z-40 mt-1 max-h-64 w-full min-w-[200px] overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white p-2 shadow-lg shadow-slate-300/30">
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className={`flex w-full items-center rounded-xl px-2 py-2 text-left text-xs transition hover:bg-[#f8fbff] ${
+              selectedValues.length === 0
+                ? "bg-[#d7e7f8] font-semibold text-[#0b5cab]"
+                : "text-[#0f2747]"
+            }`}
+          >
+            {emptyLabel}
+          </button>
+
+          <div className="my-1 border-t border-[#d7e7f8]" />
+
+          {options.length === 0 ? (
+            <p className="px-2 py-2 text-[11px] text-slate-500">
+              Sin opciones disponibles.
+            </p>
+          ) : (
+            options.map((option) => (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-xs text-[#0f2747] transition hover:bg-[#f8fbff]"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedValues.includes(option.value)}
+                  onChange={() => toggleValue(option.value)}
+                  className="h-3.5 w-3.5 accent-[#0b5cab]"
+                />
+                <span className="truncate">{option.label}</span>
+              </label>
+            ))
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 function StickyHead({
