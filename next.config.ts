@@ -67,6 +67,9 @@ const nextConfig: NextConfig = {
         path: false,
         stream: false,
         crypto: false,
+        buffer: false,
+        util: false,
+        zlib: false,
       };
     }
 
