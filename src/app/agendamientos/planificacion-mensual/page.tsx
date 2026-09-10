@@ -976,7 +976,7 @@ export default function PlanificacionMensualPage() {
           lastUpdatedAt={lastUpdatedAt}
           refreshVariant="prominent"
         />
-        <section className="mb-1.5 shrink-0 overflow-hidden rounded-[18px] border border-[#b7cce4] bg-[#f8fbff] shadow-lg shadow-slate-300/15">
+        <section className="relative z-40 mb-1.5 shrink-0 overflow-visible rounded-[18px] border border-[#b7cce4] bg-[#f8fbff] shadow-lg shadow-slate-300/15">
           <button
             type="button"
             onClick={() => setControlsOpen((open) => !open)}
@@ -2154,7 +2154,7 @@ function FilterMultiSelect({
   }
 
   return (
-    <div ref={containerRef} className="relative min-w-0">
+    <div ref={containerRef} className="relative z-10 min-w-0">
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
@@ -2167,7 +2167,7 @@ function FilterMultiSelect({
       </button>
 
       {isOpen ? (
-        <div className="absolute left-0 z-40 mt-1 max-h-64 w-full min-w-[200px] overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white p-2 shadow-lg shadow-slate-300/30">
+        <div className="absolute left-0 top-full z-[80] mt-1 max-h-64 w-full min-w-[220px] overflow-y-auto rounded-2xl border border-[#9fb8d9] bg-white p-2 shadow-xl shadow-slate-900/15">
           <button
             type="button"
             onClick={() => onChange([])}
