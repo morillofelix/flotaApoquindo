@@ -487,49 +487,6 @@ export default function PlanificacionMensualPage() {
     ],
     [rows],
   );
-  const filteredRows = useMemo(
-    () =>
-      rows.filter((row) => {
-        if (
-          filters.vehicle &&
-          !row.vehicle.toLowerCase().includes(filters.vehicle.toLowerCase())
-        ) {
-          return false;
-        }
-        if (
-          filters.driver &&
-          !row.driverName.toLowerCase().includes(filters.driver.toLowerCase())
-        ) {
-          return false;
-        }
-        if (
-          filters.groups.length > 0 &&
-          !filters.groups.includes(row.groupId)
-        ) {
-          return false;
-        }
-        const days = [...row.byDate.values()];
-        if (
-          filters.statuses.length > 0 &&
-          !days.some(
-            (day) =>
-              day.effectiveStatus?.code &&
-              filters.statuses.includes(day.effectiveStatus.code),
-          )
-        ) {
-          return false;
-        }
-        if (
-          filters.blocked &&
-          !days.some((day) => day.effectiveStatus?.code === "BLOQUEADO")
-        ) {
-          return false;
-        }
-        return true;
-      }),
-    [filters, rows],
-  );
-
   const groupBy = useMemo(() => {
     const hasGroup = groupByModes.includes("group");
     const hasShift = groupByModes.includes("shift");
@@ -546,6 +503,77 @@ export default function PlanificacionMensualPage() {
     const selected = new Set(selectedDayDates);
     return calendarDays.filter((column) => selected.has(column.date));
   }, [calendarDays, selectedDayDates]);
+
+  const filteredRows = useMemo(() => {
+    const selectedStatusCodes = new Set(
+      filters.statuses.map((code) => code.toUpperCase()),
+    );
+    const statusScopeDates =
+      selectedDayDates.length > 0
+        ? selectedDayDates
+        : visibleCalendarDays.map((column) => column.date);
+
+    return rows.filter((row) => {
+      if (
+        filters.vehicle &&
+        !row.vehicle.toLowerCase().includes(filters.vehicle.toLowerCase())
+      ) {
+        return false;
+      }
+      if (
+        filters.driver &&
+        !row.driverName.toLowerCase().includes(filters.driver.toLowerCase())
+      ) {
+        return false;
+      }
+      if (
+        filters.groups.length > 0 &&
+        !filters.groups.includes(row.groupId)
+      ) {
+        return false;
+      }
+
+      // Estado / bloqueado se evalúan solo en los días visibles (seleccionados).
+      const daysInScope = statusScopeDates
+        .map((date) => row.byDate.get(date))
+        .filter((day): day is ScheduleDay => Boolean(day));
+
+      if (selectedStatusCodes.size > 0) {
+        if (daysInScope.length === 0) {
+          return false;
+        }
+
+        // Con columnas de día seleccionadas: el estado debe cumplirse en
+        // todos esos días. Sin selección de días: basta con que ocurra en
+        // algún día del mes (filtro de exploración).
+        const matchesStatus =
+          selectedDayDates.length > 0
+            ? daysInScope.every((day) => {
+                const code = day.effectiveStatus?.code?.toUpperCase();
+                return Boolean(code && selectedStatusCodes.has(code));
+              })
+            : daysInScope.some((day) => {
+                const code = day.effectiveStatus?.code?.toUpperCase();
+                return Boolean(code && selectedStatusCodes.has(code));
+              });
+
+        if (!matchesStatus) {
+          return false;
+        }
+      }
+
+      if (
+        filters.blocked &&
+        !daysInScope.some(
+          (day) => day.effectiveStatus?.code?.toUpperCase() === "BLOQUEADO",
+        )
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [filters, rows, selectedDayDates, visibleCalendarDays]);
 
   const groupedMatrix = useMemo(() => {
     if (groupBy === "none") {
@@ -1293,7 +1321,15 @@ export default function PlanificacionMensualPage() {
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
-              <table className="border-separate border-spacing-0 text-[10px] leading-tight">
+              <table
+                className="w-full min-w-full border-separate border-spacing-0 text-[10px] leading-tight"
+                style={{
+                  minWidth: Math.max(
+                    STICKY.obs.left + STICKY.obs.width + visibleCalendarDays.length * 34,
+                    100,
+                  ),
+                }}
+              >
                 <thead className="sticky top-0 z-30 bg-[#d7e7f8] text-[#0f2747]">
                   <tr>
                     <StickyHead left={STICKY.mobile.left} width={STICKY.mobile.width}>
@@ -1321,7 +1357,7 @@ export default function PlanificacionMensualPage() {
                             `Clic para ${isSelected ? "quitar" : "seleccionar"} columna del día ${column.day}`
                           }
                           onClick={() => toggleDayColumn(column.date)}
-                          className={`min-w-[34px] cursor-pointer border-b border-r border-[#b7cce4] px-0.5 py-0.5 text-center transition ${
+                          className={`cursor-pointer border-b border-r border-[#b7cce4] px-0.5 py-0.5 text-center transition ${
                             isSelected
                               ? "bg-[#0b5cab] text-white ring-2 ring-inset ring-[#084a8c]"
                               : holidayMap.has(column.date)
@@ -1332,6 +1368,10 @@ export default function PlanificacionMensualPage() {
                                     ? "bg-slate-200 hover:bg-slate-300"
                                     : "bg-[#d7e7f8] hover:bg-[#c5d8eb]"
                           }`}
+                          style={{
+                            minWidth: 34,
+                            width: `${100 / Math.max(visibleCalendarDays.length, 1)}%`,
+                          }}
                         >
                           <span className="block text-[11px] font-semibold leading-none">
                             {column.day}
@@ -1447,9 +1487,13 @@ export default function PlanificacionMensualPage() {
                                   return (
                                     <td
                                       key={column.date}
-                                      className={`h-7 min-w-[34px] border-b border-r border-[#d7e7f8] p-0.5 text-center ${
+                                      className={`h-7 border-b border-r border-[#d7e7f8] p-0.5 text-center ${
                                         column.weekend ? "bg-slate-50" : ""
                                       } ${isBlocked ? "bg-red-50/80" : ""}`}
+                                      style={{
+                                        minWidth: 34,
+                                        width: `${100 / Math.max(visibleCalendarDays.length, 1)}%`,
+                                      }}
                                     >
                                       {day ? (
                                         <button
@@ -1459,7 +1503,7 @@ export default function PlanificacionMensualPage() {
                                             setEdit(createEditForm(day));
                                             setEditDirty(false);
                                           }}
-                                          className={`relative mx-auto flex h-6 w-7 flex-col items-center justify-center rounded-md text-[8px] font-bold leading-none ${
+                                          className={`relative mx-auto flex h-6 min-h-6 w-full max-w-14 flex-col items-center justify-center rounded-md text-[8px] font-bold leading-none ${
                                             isBlocked
                                               ? "ring-2 ring-red-500 ring-offset-1"
                                               : ""
