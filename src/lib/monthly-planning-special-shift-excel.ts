@@ -115,18 +115,44 @@ function formatBlockTitle(date: string, dayNumber: number, shiftLabel: string) {
   return `${weekday} ${dayNumber} ${shift}`;
 }
 
+function vehicleNumber(vehicle: string) {
+  const digits = vehicle.replace(/\D/g, "");
+  const value = Number.parseInt(digits || "NaN", 10);
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+}
+
+/** Agrupa por centena: 001-099, 100-199, 200-299, … */
+function vehicleHundredsBucket(vehicle: string) {
+  const value = vehicleNumber(vehicle);
+  if (!Number.isFinite(value)) return Number.MAX_SAFE_INTEGER;
+  return Math.floor(value / 100);
+}
+
 function buildGridRows(vehicles: string[]): GridRow[] {
-  const chunks: string[][] = [];
-  for (let index = 0; index < vehicles.length; index += GRID_COLS) {
-    chunks.push(vehicles.slice(index, index + GRID_COLS));
+  const byHundreds = new Map<number, string[]>();
+
+  for (const vehicle of vehicles) {
+    const bucket = vehicleHundredsBucket(vehicle);
+    const list = byHundreds.get(bucket) ?? [];
+    list.push(vehicle);
+    byHundreds.set(bucket, list);
   }
 
+  const buckets = [...byHundreds.keys()].sort((a, b) => a - b);
   const rows: GridRow[] = [];
-  chunks.forEach((chunk, index) => {
-    rows.push({ type: "data", cells: chunk });
-    const isEvenPair = (index + 1) % 2 === 0;
-    const hasMore = index < chunks.length - 1;
-    if (isEvenPair && hasMore) {
+
+  buckets.forEach((bucket, bucketIndex) => {
+    const groupVehicles = (byHundreds.get(bucket) ?? []).sort(compareVehicle);
+
+    for (let index = 0; index < groupVehicles.length; index += GRID_COLS) {
+      rows.push({
+        type: "data",
+        cells: groupVehicles.slice(index, index + GRID_COLS),
+      });
+    }
+
+    const hasMoreBuckets = bucketIndex < buckets.length - 1;
+    if (hasMoreBuckets) {
       rows.push({
         type: "yellow",
         cells: Array.from({ length: GRID_COLS }, () => ""),
