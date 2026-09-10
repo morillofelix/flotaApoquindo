@@ -249,6 +249,7 @@ function stylesXml() {
     <Style ss:ID="GridCell">
       <Alignment ss:Vertical="Center" ss:Horizontal="Center"/>
       <Font ss:FontName="Arial" ss:Size="10"/>
+      <NumberFormat ss:Format="@"/>
       <Borders>
         <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="${COLORS.border}"/>
         <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="${COLORS.border}"/>
@@ -341,6 +342,17 @@ function buildLinearSheet(rows: SpecialShiftExportRow[]) {
   </Worksheet>`;
 }
 
+function colLetter(columnIndex: number) {
+  let value = columnIndex;
+  let result = "";
+  while (value > 0) {
+    const rem = (value - 1) % 26;
+    result = String.fromCharCode(65 + rem) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+  return result;
+}
+
 function buildGridSheet(blocks: ShiftBlock[]) {
   if (!blocks.length) {
     return `
@@ -354,8 +366,10 @@ function buildGridSheet(blocks: ShiftBlock[]) {
   const maxGridRows = Math.max(...blocks.map((block) => block.gridRows.length));
   const titleRowIndex = 1;
   const gridStartRow = 2;
-  const totalRowIndex = gridStartRow + maxGridRows + 1;
-  const legendStartRow = totalRowIndex + 3;
+  const gridEndRow = gridStartRow + maxGridRows - 1;
+  // Una fila en blanco (sin celdas numéricas) y luego el total.
+  const totalRowIndex = gridEndRow + 2;
+  const legendStartRow = totalRowIndex + 2;
   const lastBlock = blocks[blocks.length - 1]!;
   const totalCols = lastBlock.startCol + GRID_COLS - 1;
   const totalRows = legendStartRow + LEGEND_ITEMS.length;
@@ -389,7 +403,8 @@ function buildGridSheet(blocks: ShiftBlock[]) {
         return gridRow.cells
           .map((vehicle, colOffset) => {
             const col = block.startCol + colOffset;
-            return `<Cell ss:Index="${col}" ss:StyleID="GridCell"><Data ss:Type="String">${escapeXml(vehicle)}</Data></Cell>`;
+            // Forzar texto para que Excel no sume los números de móvil.
+            return `<Cell ss:Index="${col}" ss:StyleID="GridCell"><Data ss:Type="String">${escapeXml(String(vehicle))}</Data></Cell>`;
           })
           .join("");
       })
@@ -404,8 +419,11 @@ function buildGridSheet(blocks: ShiftBlock[]) {
     .map((block) => {
       const numberCol = block.startCol;
       const labelCol = block.startCol + 1;
+      const startLetter = colLetter(block.startCol);
+      const endLetter = colLetter(block.startCol + GRID_COLS - 1);
+      const formula = `=COUNTA(${startLetter}${gridStartRow}:${endLetter}${gridEndRow})`;
       return [
-        `<Cell ss:Index="${numberCol}" ss:StyleID="TotalNumber"><Data ss:Type="Number">${block.vehicles.length}</Data></Cell>`,
+        `<Cell ss:Index="${numberCol}" ss:StyleID="TotalNumber" ss:Formula="${escapeXml(formula)}"><Data ss:Type="Number">${block.vehicles.length}</Data></Cell>`,
         `<Cell ss:Index="${labelCol}" ss:MergeAcross="4" ss:StyleID="TotalLabel"><Data ss:Type="String">*Total Móviles*</Data></Cell>`,
       ].join("");
     })
