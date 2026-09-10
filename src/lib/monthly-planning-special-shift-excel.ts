@@ -206,7 +206,29 @@ function thinBorder(): Partial<ExcelJS.Borders> {
   };
 }
 
-/** Texto puro: Excel no puede sumar la columna de móviles. */
+/** Texto puro para IDs de móvil: Excel no los interpreta como número ni los suma. */
+function setVehicleIdCell(cell: ExcelJS.Cell, vehicle: string) {
+  // Prefijo invisible + formato texto: bloquea conversión numérica y AutoSum.
+  cell.value = vehicle ? `\u200B${String(vehicle)}` : "";
+  cell.numFmt = "@";
+  cell.alignment = { vertical: "middle", horizontal: "center" };
+  cell.font = { name: "Arial", size: 10 };
+  cell.border = thinBorder();
+}
+
+/** Cantidad de móviles (conteo), no suma de IDs. */
+function setMobileCountCell(cell: ExcelJS.Cell, count: number) {
+  cell.value = count;
+  cell.numFmt = "0";
+  cell.alignment = { vertical: "middle", horizontal: "center" };
+  cell.font = {
+    name: "Arial",
+    size: 12,
+    bold: true,
+    color: { argb: COLORS.red },
+  };
+}
+
 function setTextCell(
   cell: ExcelJS.Cell,
   value: string,
@@ -269,7 +291,7 @@ function buildLinearSheet(
 
   rows.forEach((row, rowIndex) => {
     const excelRow = rowIndex + 2;
-    setTextCell(sheet.getCell(excelRow, 1), row.vehicle);
+    setVehicleIdCell(sheet.getCell(excelRow, 1), row.vehicle);
     setTextCell(sheet.getCell(excelRow, 2), row.driverName, { align: "left" });
     setTextCell(sheet.getCell(excelRow, 3), row.groupName, { align: "left" });
     setTextCell(sheet.getCell(excelRow, 4), row.shift, { align: "left" });
@@ -327,7 +349,7 @@ function buildGridSheet(workbook: ExcelJS.Workbook, blocks: ShiftBlock[]) {
         const cell = sheet.getCell(excelRow, col);
 
         if (!gridRow) {
-          setTextCell(cell, "");
+          setVehicleIdCell(cell, "");
           continue;
         }
 
@@ -337,31 +359,28 @@ function buildGridSheet(workbook: ExcelJS.Workbook, blocks: ShiftBlock[]) {
         }
 
         const vehicle = gridRow.cells[colOffset] ?? "";
-        setTextCell(cell, vehicle);
+        setVehicleIdCell(cell, vehicle);
       }
     }
   }
 
-  // Fila en blanco explícita (texto vacío, sin números) antes del total.
+  // Separador en texto (no vacío numérico): evita AutoSum de Excel.
   for (const block of blocks) {
     for (let colOffset = 0; colOffset < GRID_COLS; colOffset += 1) {
       setTextCell(
         sheet.getCell(totalRow - 1, block.startCol + colOffset),
-        "",
+        "\u00A0",
         { border: false },
       );
     }
   }
 
   for (const block of blocks) {
-    const countCell = sheet.getCell(totalRow, block.startCol);
-    // Valor fijo de cantidad (NO suma de IDs, NO fórmula).
-    setTextCell(countCell, String(block.vehicles.length), {
-      bold: true,
-      size: 12,
-      color: COLORS.red,
-      border: false,
-    });
+    // CONTEO de móviles del turno (ej. 119). Nunca suma de IDs (300+500…).
+    setMobileCountCell(
+      sheet.getCell(totalRow, block.startCol),
+      block.vehicles.length,
+    );
 
     const labelStart = block.startCol + 1;
     const labelEnd = Math.min(block.startCol + 5, block.startCol + GRID_COLS - 1);
