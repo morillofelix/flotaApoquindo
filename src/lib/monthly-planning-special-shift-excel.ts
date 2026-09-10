@@ -270,6 +270,7 @@ function stylesXml() {
     <Style ss:ID="TotalNumber">
       <Alignment ss:Vertical="Center" ss:Horizontal="Center"/>
       <Font ss:FontName="Arial" ss:Size="12" ss:Bold="1" ss:Color="${COLORS.red}"/>
+      <NumberFormat ss:Format="@"/>
     </Style>
     <Style ss:ID="TotalLabel">
       <Alignment ss:Vertical="Center" ss:Horizontal="Left"/>
@@ -342,6 +343,17 @@ function buildLinearSheet(rows: SpecialShiftExportRow[]) {
   </Worksheet>`;
 }
 
+function vehicleCellXml(col: number, vehicle: string) {
+  const text = String(vehicle);
+  // Fórmula de texto fijo: Excel no convierte el móvil a número ni inserta
+  // una fila de SUM al final de la columna (p. ej. 210457).
+  return `<Cell ss:Index="${col}" ss:StyleID="GridCell" ss:Formula="=&quot;${escapeXml(text)}&quot;"><Data ss:Type="String">${escapeXml(text)}</Data></Cell>`;
+}
+
+function emptyTextCellXml(col: number, styleId = "GridCell") {
+  return `<Cell ss:Index="${col}" ss:StyleID="${styleId}"><Data ss:Type="String"></Data></Cell>`;
+}
+
 function buildGridSheet(blocks: ShiftBlock[]) {
   if (!blocks.length) {
     return `
@@ -356,8 +368,8 @@ function buildGridSheet(blocks: ShiftBlock[]) {
   const titleRowIndex = 1;
   const gridStartRow = 2;
   const gridEndRow = gridStartRow + maxGridRows - 1;
-  // Una fila en blanco (sin celdas numéricas) y luego el total.
-  const totalRowIndex = gridEndRow + 2;
+  const spacerRowIndex = gridEndRow + 1;
+  const totalRowIndex = spacerRowIndex + 1;
   const legendStartRow = totalRowIndex + 2;
   const lastBlock = blocks[blocks.length - 1]!;
   const totalCols = lastBlock.startCol + GRID_COLS - 1;
@@ -380,22 +392,27 @@ function buildGridSheet(blocks: ShiftBlock[]) {
     const cells = blocks
       .map((block) => {
         const gridRow = block.gridRows[rowOffset];
-        if (!gridRow) return "";
-
-        if (gridRow.type === "yellow") {
-          return Array.from({ length: GRID_COLS }, (_, colOffset) => {
-            const col = block.startCol + colOffset;
-            return `<Cell ss:Index="${col}" ss:StyleID="YellowBar"><Data ss:Type="String"></Data></Cell>`;
-          }).join("");
+        if (!gridRow) {
+          // Rellena el bloque más corto con texto vacío (sin números).
+          return Array.from({ length: GRID_COLS }, (_, colOffset) =>
+            emptyTextCellXml(block.startCol + colOffset),
+          ).join("");
         }
 
-        return gridRow.cells
-          .map((vehicle, colOffset) => {
-            const col = block.startCol + colOffset;
-            // Forzar texto para que Excel no sume los números de móvil.
-            return `<Cell ss:Index="${col}" ss:StyleID="GridCell"><Data ss:Type="String">${escapeXml(String(vehicle))}</Data></Cell>`;
-          })
-          .join("");
+        if (gridRow.type === "yellow") {
+          return Array.from({ length: GRID_COLS }, (_, colOffset) =>
+            emptyTextCellXml(block.startCol + colOffset, "YellowBar"),
+          ).join("");
+        }
+
+        return Array.from({ length: GRID_COLS }, (_, colOffset) => {
+          const col = block.startCol + colOffset;
+          const vehicle = gridRow.cells[colOffset];
+          if (!vehicle) {
+            return emptyTextCellXml(col);
+          }
+          return vehicleCellXml(col, vehicle);
+        }).join("");
       })
       .join("");
 
@@ -404,12 +421,21 @@ function buildGridSheet(blocks: ShiftBlock[]) {
     );
   }
 
+  // Fila separadora explícita en texto: evita que Excel invente SUM de la columna.
+  const spacerCells = blocks
+    .map((block) =>
+      Array.from({ length: GRID_COLS }, (_, colOffset) =>
+        emptyTextCellXml(block.startCol + colOffset),
+      ).join(""),
+    )
+    .join("");
+
   const totalCells = blocks
     .map((block) => {
       const numberCol = block.startCol;
       const labelCol = block.startCol + 1;
       return [
-        `<Cell ss:Index="${numberCol}" ss:StyleID="TotalNumber"><Data ss:Type="Number">${block.vehicles.length}</Data></Cell>`,
+        `<Cell ss:Index="${numberCol}" ss:StyleID="TotalNumber"><Data ss:Type="String">${block.vehicles.length}</Data></Cell>`,
         `<Cell ss:Index="${labelCol}" ss:MergeAcross="4" ss:StyleID="TotalLabel"><Data ss:Type="String">*Total Móviles*</Data></Cell>`,
       ].join("");
     })
@@ -425,10 +451,11 @@ function buildGridSheet(blocks: ShiftBlock[]) {
 
   return `
   <Worksheet ss:Name="Turno especial">
-    <Table ss:ExpandedColumnCount="${totalCols}" ss:ExpandedRowCount="${totalRows}" x:FullColumns="1" x:FullRows="1">
+    <Table ss:ExpandedColumnCount="${totalCols}" ss:ExpandedRowCount="${totalRows}">
       ${columnDefs}
       <Row ss:Index="${titleRowIndex}" ss:AutoFitHeight="0" ss:Height="24">${titleCells}</Row>
       ${gridRowsXml.join("\n")}
+      <Row ss:Index="${spacerRowIndex}" ss:AutoFitHeight="0" ss:Height="12">${spacerCells}</Row>
       <Row ss:Index="${totalRowIndex}" ss:AutoFitHeight="0" ss:Height="18">${totalCells}</Row>
       ${legendRows}
     </Table>
