@@ -78,6 +78,9 @@ export default function MotivosPage() {
   const [reasons, setReasons] = useState<AppointmentReasonConfig[]>([]);
   const [reasonForm, setReasonForm] = useState<ReasonForm>(emptyReasonForm);
   const [reasonSearch, setReasonSearch] = useState("");
+  const [activeStatusFilter, setActiveStatusFilter] = useState<
+    "todos" | "activo" | "inactivo"
+  >("activo");
   const [reasonMessage, setReasonMessage] = useState("");
   const [reasonError, setReasonError] = useState("");
   const [isSavingReason, setIsSavingReason] = useState(false);
@@ -106,18 +109,34 @@ export default function MotivosPage() {
   const filteredReasons = useMemo(() => {
     const normalizedSearch = reasonSearch.trim().toLowerCase();
 
-    if (!normalizedSearch) {
-      return reasons;
-    }
+    return reasons.filter((reason) => {
+      const matchesStatus =
+        activeStatusFilter === "todos" ||
+        (activeStatusFilter === "activo" && reason.isActive) ||
+        (activeStatusFilter === "inactivo" && !reason.isActive);
 
-    return reasons.filter(
-      (reason) =>
+      if (!matchesStatus) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return (
         reason.label.toLowerCase().includes(normalizedSearch) ||
-        reason.value.toLowerCase().includes(normalizedSearch),
-    );
-  }, [reasonSearch, reasons]);
+        reason.value.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [activeStatusFilter, reasonSearch, reasons]);
 
-  const hasListFilters = reasonSearch.trim().length > 0;
+  const hasListFilters =
+    reasonSearch.trim().length > 0 || activeStatusFilter !== "activo";
+
+  function clearListFilters() {
+    setReasonSearch("");
+    setActiveStatusFilter("activo");
+  }
 
   function downloadVisibleReasons() {
     const fileName = hasListFilters
@@ -295,8 +314,8 @@ export default function MotivosPage() {
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">
           <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
             <div className="rounded-2xl border border-[#b7cce4] bg-[#f8fbff] p-3">
-              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end lg:grid-cols-[1fr_auto_auto_auto]">
-                <label className="flex flex-col gap-1.5">
+              <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(140px,0.35fr)_auto] sm:items-end">
+                <label className="flex min-w-0 flex-col gap-1.5">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Buscar motivo
                   </span>
@@ -308,7 +327,25 @@ export default function MotivosPage() {
                     placeholder="Nombre o código"
                   />
                 </label>
-                <div className="flex flex-wrap gap-2 sm:col-span-1 lg:col-span-3 lg:justify-end">
+                <label className="flex min-w-0 flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-[#173b68]">
+                    Estado
+                  </span>
+                  <select
+                    value={activeStatusFilter}
+                    onChange={(event) =>
+                      setActiveStatusFilter(
+                        event.target.value as "todos" | "activo" | "inactivo",
+                      )
+                    }
+                    className="h-9 rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)] px-3 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
+                  >
+                    <option value="activo">Activos</option>
+                    <option value="inactivo">Inactivos</option>
+                    <option value="todos">Todos</option>
+                  </select>
+                </label>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
                   <button
                     type="button"
                     onClick={downloadVisibleReasons}
@@ -322,7 +359,7 @@ export default function MotivosPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setReasonSearch("")}
+                    onClick={clearListFilters}
                     className="inline-flex h-9 items-center justify-center rounded-2xl bg-[#0b5cab] px-4 text-xs font-semibold text-white transition hover:bg-[#084a8c] active:translate-y-px"
                   >
                     Limpiar
@@ -401,6 +438,11 @@ export default function MotivosPage() {
                       </span>
                     </button>
                   ))}
+                  {!filteredReasons.length ? (
+                    <p className="p-8 text-center text-sm text-slate-500">
+                      No hay motivos para mostrar.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>
