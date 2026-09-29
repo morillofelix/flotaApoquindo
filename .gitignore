@@ -46,3 +46,6 @@ fixtures/*.html
 
 .vercel
 .env*
+
+# Local scratch files
+.tmp/

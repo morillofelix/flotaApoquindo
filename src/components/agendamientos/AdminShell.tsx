@@ -4,7 +4,10 @@ import AccessChangePasswordScreen from "@/components/AccessChangePasswordScreen"
 import ExecutiveAccessLoginScreen, {
   type LoginAccessUser,
 } from "@/components/ExecutiveAccessLoginScreen";
-import type { AccessPermissions } from "@/lib/access-users";
+import {
+  EMPTY_ACCESS_PERMISSIONS,
+  type AccessPermissions,
+} from "@/lib/access-users";
 import {
   ADMIN_NAV_ITEMS,
   canAccessAdminNavItem,
@@ -25,14 +28,7 @@ type AdminSessionState = {
 };
 
 const emptyPermissions = (): AccessPermissions => ({
-  solicitudes: false,
-  calendario: false,
-  motivos: false,
-  ejecutivos: false,
-  conductores: false,
-  propietarios: false,
-  historial: false,
-  pagoPropietario: false,
+  ...EMPTY_ACCESS_PERMISSIONS,
 });
 
 function AdminNavigation({

@@ -197,7 +197,6 @@ function validateCreateBody(
     !reasonConfig.isActive ||
     !reasonConfig.visibleToDriver ||
     !email ||
-    !phone ||
     !observationCheck.ok ||
     !evidenceCheck.ok
   ) {

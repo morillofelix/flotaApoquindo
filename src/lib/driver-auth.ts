@@ -1,6 +1,7 @@
 import type { AccessPermissionKey, AccessPermissions } from "@/lib/access-users";
 import {
   canManageAccesos,
+  EMPTY_ACCESS_PERMISSIONS,
   FULL_ACCESS_PERMISSIONS,
   isSuperAdminEmail,
 } from "@/lib/access-users";
@@ -72,16 +73,9 @@ export function normalizeAdminSession(
     isLegacyAdmin: session.isLegacyAdmin,
     isSuperAdmin: session.isSuperAdmin,
     mustChangePassword: session.mustChangePassword,
-    permissions: session.permissions ?? {
-      solicitudes: false,
-      calendario: false,
-      motivos: false,
-      ejecutivos: false,
-      conductores: false,
-      propietarios: false,
-      historial: false,
-      pagoPropietario: false,
-    },
+    permissions: session.permissions
+      ? { ...EMPTY_ACCESS_PERMISSIONS, ...session.permissions }
+      : EMPTY_ACCESS_PERMISSIONS,
   };
 }
 

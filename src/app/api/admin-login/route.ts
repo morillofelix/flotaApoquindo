@@ -53,6 +53,9 @@ function buildAccessUserSession(
     canPropietarios: boolean;
     canHistorial: boolean;
     canPagoPropietario: boolean;
+    canLeasing: boolean;
+    canLeasingCobros: boolean;
+    canLeasingAdmin: boolean;
   },
 ): AdminSession {
   return {

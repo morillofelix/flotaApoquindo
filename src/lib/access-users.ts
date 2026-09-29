@@ -6,7 +6,10 @@ export type AccessPermissionKey =
   | "conductores"
   | "propietarios"
   | "historial"
-  | "pagoPropietario";
+  | "pagoPropietario"
+  | "leasing"
+  | "leasingCobros"
+  | "leasingAdmin";
 
 export type AccessPermissions = Record<AccessPermissionKey, boolean>;
 
@@ -19,6 +22,9 @@ export const ACCESS_PERMISSION_LABELS: Record<AccessPermissionKey, string> = {
   propietarios: "Propietarios",
   historial: "Historial",
   pagoPropietario: "Pago propietario",
+  leasing: "Leasing",
+  leasingCobros: "Leasing – cobros",
+  leasingAdmin: "Leasing – administrar",
 };
 
 export const ACCESS_PERMISSION_KEYS = Object.keys(
@@ -34,6 +40,23 @@ export const FULL_ACCESS_PERMISSIONS: AccessPermissions = {
   propietarios: true,
   historial: true,
   pagoPropietario: true,
+  leasing: true,
+  leasingCobros: true,
+  leasingAdmin: true,
+};
+
+export const EMPTY_ACCESS_PERMISSIONS: AccessPermissions = {
+  solicitudes: false,
+  calendario: false,
+  motivos: false,
+  ejecutivos: false,
+  conductores: false,
+  propietarios: false,
+  historial: false,
+  pagoPropietario: false,
+  leasing: false,
+  leasingCobros: false,
+  leasingAdmin: false,
 };
 
 export function normalizeAccessEmail(value: string) {
@@ -69,7 +92,21 @@ export type PublicAccessUser = {
   tempPasswordSentAt: string | null;
 };
 
-export type AccessUserPermissionRecord = {
+export type AccessUserPermissionColumns = {
+  canSolicitudes: boolean;
+  canCalendario: boolean;
+  canMotivos: boolean;
+  canEjecutivos: boolean;
+  canConductores: boolean;
+  canPropietarios: boolean;
+  canHistorial: boolean;
+  canPagoPropietario: boolean;
+  canLeasing: boolean;
+  canLeasingCobros: boolean;
+  canLeasingAdmin: boolean;
+};
+
+export type AccessUserPermissionRecord = AccessUserPermissionColumns & {
   id: string;
   email: string;
   fullName: string;
@@ -77,26 +114,11 @@ export type AccessUserPermissionRecord = {
   mustChangePassword: boolean;
   isActive: boolean;
   tempPasswordSentAt: Date | null;
-  canSolicitudes: boolean;
-  canCalendario: boolean;
-  canMotivos: boolean;
-  canEjecutivos: boolean;
-  canConductores: boolean;
-  canPropietarios: boolean;
-  canHistorial: boolean;
-  canPagoPropietario: boolean;
 };
 
-export function permissionsFromAccessUser(user: {
-  canSolicitudes: boolean;
-  canCalendario: boolean;
-  canMotivos: boolean;
-  canEjecutivos: boolean;
-  canConductores: boolean;
-  canPropietarios: boolean;
-  canHistorial: boolean;
-  canPagoPropietario: boolean;
-}): AccessPermissions {
+export function permissionsFromAccessUser(
+  user: AccessUserPermissionColumns,
+): AccessPermissions {
   return {
     solicitudes: user.canSolicitudes,
     calendario: user.canCalendario,
@@ -106,6 +128,9 @@ export function permissionsFromAccessUser(user: {
     propietarios: user.canPropietarios,
     historial: user.canHistorial,
     pagoPropietario: user.canPagoPropietario,
+    leasing: user.canLeasing,
+    leasingCobros: user.canLeasingCobros,
+    leasingAdmin: user.canLeasingAdmin,
   };
 }
 
@@ -126,6 +151,20 @@ export function toPublicAccessUser(
   };
 }
 
+export function parseAccessPermissionsInput(
+  value: unknown,
+): Partial<AccessPermissions> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const permissions = value as Record<string, unknown>;
+
+  return Object.fromEntries(
+    ACCESS_PERMISSION_KEYS.map((key) => [key, Boolean(permissions[key])]),
+  ) as Partial<AccessPermissions>;
+}
+
 export function permissionsToDbData(permissions: Partial<AccessPermissions>) {
   return {
     canSolicitudes: Boolean(permissions.solicitudes),
@@ -136,5 +175,8 @@ export function permissionsToDbData(permissions: Partial<AccessPermissions>) {
     canPropietarios: Boolean(permissions.propietarios),
     canHistorial: Boolean(permissions.historial),
     canPagoPropietario: Boolean(permissions.pagoPropietario),
+    canLeasing: Boolean(permissions.leasing),
+    canLeasingCobros: Boolean(permissions.leasingCobros),
+    canLeasingAdmin: Boolean(permissions.leasingAdmin),
   };
 }

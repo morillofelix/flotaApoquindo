@@ -10,6 +10,7 @@ import {
 import {
   ACCESS_PERMISSION_KEYS,
   ACCESS_PERMISSION_LABELS,
+  EMPTY_ACCESS_PERMISSIONS,
   type AccessPermissionKey,
   type AccessPermissions,
   type PublicAccessUser,
@@ -28,14 +29,7 @@ type AccessUserForm = {
 };
 
 const emptyPermissions = (): AccessPermissions => ({
-  solicitudes: false,
-  calendario: false,
-  motivos: false,
-  ejecutivos: false,
-  conductores: false,
-  propietarios: false,
-  historial: false,
-  pagoPropietario: false,
+  ...EMPTY_ACCESS_PERMISSIONS,
 });
 
 const emptyForm: AccessUserForm = {

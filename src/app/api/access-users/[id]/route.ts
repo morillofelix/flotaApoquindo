@@ -1,5 +1,6 @@
 import { getSuperAdminEmail } from "@/lib/access-users-server";
 import {
+  parseAccessPermissionsInput,
   permissionsToDbData,
   toPublicAccessUser,
   type AccessPermissions,
@@ -24,22 +25,7 @@ type AccessUserBody = {
 };
 
 function parsePermissions(value: unknown): Partial<AccessPermissions> {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-
-  const permissions = value as Record<string, unknown>;
-
-  return {
-    solicitudes: Boolean(permissions.solicitudes),
-    calendario: Boolean(permissions.calendario),
-    motivos: Boolean(permissions.motivos),
-    ejecutivos: Boolean(permissions.ejecutivos),
-    conductores: Boolean(permissions.conductores),
-    propietarios: Boolean(permissions.propietarios),
-    historial: Boolean(permissions.historial),
-    pagoPropietario: Boolean(permissions.pagoPropietario),
-  };
+  return parseAccessPermissionsInput(value);
 }
 
 type RouteContext = {
@@ -110,6 +96,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     canPropietarios?: boolean;
     canHistorial?: boolean;
     canPagoPropietario?: boolean;
+    canLeasing?: boolean;
+    canLeasingCobros?: boolean;
+    canLeasingAdmin?: boolean;
   } = {
     email: nextEmail,
   };

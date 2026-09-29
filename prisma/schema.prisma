@@ -265,6 +265,7 @@ model Propietario {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   historyEntries        PropietarioHistory[]
+  leasings              Leasing[]
 
   @@index([isActive])
   @@index([fullName])
@@ -322,6 +323,9 @@ model AccessUser {
   canPropietarios    Boolean   @default(false)
   canHistorial       Boolean   @default(false)
   canPagoPropietario Boolean   @default(false)
+  canLeasing         Boolean   @default(false)
+  canLeasingCobros   Boolean   @default(false)
+  canLeasingAdmin    Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   propietarioHistoryEntries PropietarioHistory[]
@@ -656,4 +660,205 @@ model PropietarioHistory {
   @@index([movementType, createdAt])
   @@index([newStatus, createdAt])
   @@index([changedFields], type: Gin)
+}
+
+enum LeasingEstado {
+  BORRADOR
+  ACTIVO
+  PAGADO
+  SUSPENDIDO
+  ANULADO
+}
+
+enum LeasingPeriodicidad {
+  MENSUAL
+}
+
+enum LeasingCuotaEstado {
+  PENDIENTE
+  PAGADA_PARCIAL
+  PAGADA
+  ANULADA
+}
+
+enum LeasingPagoEstado {
+  ACTIVO
+  ANULADO
+}
+
+enum LeasingMedioPago {
+  TRANSFERENCIA
+  DEPOSITO
+  CHEQUE
+  EFECTIVO
+  OTRO
+}
+
+enum LeasingNotificacionTipo {
+  CONFIRMACION_PAGO
+  REENVIO_MANUAL
+}
+
+enum LeasingNotificacionEstado {
+  PENDIENTE
+  ENVIANDO
+  ENVIADO
+  FALLIDO
+}
+
+/// Contrato de leasing. Solo referencia a Propietario; nunca lo modifica.
+model Leasing {
+  id                    String                @id @default(uuid())
+  numero                Int                   @unique @default(autoincrement())
+  propietarioId         String?
+  propietario           Propietario?          @relation(fields: [propietarioId], references: [id], onDelete: SetNull)
+  propietarioImportKey  String
+  razonSocialSnapshot   String
+  rutSnapshot           String
+  movilSnapshot         String
+  montoTotal            Decimal               @db.Decimal(14, 2)
+  fechaInicio           DateTime              @db.Date
+  cantidadCuotas        Int
+  periodicidad          LeasingPeriodicidad   @default(MENSUAL)
+  diaCorte              Int
+  estado                LeasingEstado         @default(BORRADOR)
+  observaciones         String                @default("") @db.Text
+  motivoEstado          String                @default("")
+  createdByEmail        String
+  createdByAccessUserId String?
+  updatedByEmail        String                @default("")
+  updatedByAccessUserId String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  cuotas                LeasingCuota[]
+  pagos                 LeasingPago[]
+  auditoria             LeasingAuditoria[]
+  notificaciones        LeasingNotificacion[]
+
+  @@index([estado])
+  @@index([propietarioId])
+  @@index([propietarioImportKey])
+  @@index([movilSnapshot])
+  @@index([rutSnapshot])
+  @@index([fechaInicio])
+}
+
+model LeasingCuota {
+  id               String             @id @default(uuid())
+  leasingId        String
+  leasing          Leasing            @relation(fields: [leasingId], references: [id], onDelete: Restrict)
+  numeroCuota      Int
+  fechaVencimiento DateTime           @db.Date
+  montoOriginal    Decimal            @db.Decimal(14, 2)
+  montoPagado      Decimal            @default(0) @db.Decimal(14, 2)
+  estado           LeasingCuotaEstado @default(PENDIENTE)
+  fechaUltimoPago  DateTime?          @db.Date
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  pagos            LeasingPago[]
+
+  @@unique([leasingId, numeroCuota])
+  @@index([fechaVencimiento])
+  @@index([estado, fechaVencimiento])
+}
+
+model LeasingPago {
+  id                    String                @id @default(uuid())
+  leasingId             String
+  leasing               Leasing               @relation(fields: [leasingId], references: [id], onDelete: Restrict)
+  cuotaId               String
+  cuota                 LeasingCuota          @relation(fields: [cuotaId], references: [id], onDelete: Restrict)
+  fechaPago             DateTime              @db.Date
+  monto                 Decimal               @db.Decimal(14, 2)
+  medioPago             LeasingMedioPago
+  numeroOperacion       String                @default("")
+  banco                 String                @default("")
+  observaciones         String                @default("") @db.Text
+  estado                LeasingPagoEstado     @default(ACTIVO)
+  idempotencyKey        String                @unique
+  createdByEmail        String
+  createdByAccessUserId String?
+  createdAt             DateTime              @default(now())
+  anuladoByEmail        String                @default("")
+  anuladoAt             DateTime?
+  motivoAnulacion       String                @default("")
+  comprobante           LeasingComprobante?
+  notificaciones        LeasingNotificacion[]
+
+  @@index([cuotaId, estado])
+  @@index([leasingId, estado])
+  @@index([fechaPago])
+}
+
+model LeasingComprobante {
+  id             String         @id @default(uuid())
+  pagoId         String         @unique
+  pago           LeasingPago    @relation(fields: [pagoId], references: [id], onDelete: Restrict)
+  archivoId      String
+  archivo        LeasingArchivo @relation(fields: [archivoId], references: [id], onDelete: Restrict)
+  nombreOriginal String
+  mimeType       String
+  tamano         Int
+  hashArchivo    String
+  storageKey     String
+  origen         String
+  createdByEmail String
+  createdAt      DateTime       @default(now())
+
+  @@index([hashArchivo])
+}
+
+/// Contenido binario de comprobantes (deduplicado por hash SHA-256).
+model LeasingArchivo {
+  id           String               @id @default(uuid())
+  hash         String               @unique
+  contenido    Bytes
+  tamano       Int
+  mimeType     String
+  createdAt    DateTime             @default(now())
+  comprobantes LeasingComprobante[]
+}
+
+model LeasingAuditoria {
+  id                  String   @id @default(uuid())
+  leasingId           String?
+  leasing             Leasing? @relation(fields: [leasingId], references: [id], onDelete: Restrict)
+  cuotaId             String?
+  pagoId              String?
+  accion              String
+  valoresAnteriores   Json?
+  valoresNuevos       Json?
+  descripcion         String   @default("") @db.Text
+  usuarioEmail        String
+  usuarioAccessUserId String?
+  createdAt           DateTime @default(now())
+
+  @@index([leasingId, createdAt])
+  @@index([pagoId])
+  @@index([accion, createdAt])
+}
+
+model LeasingNotificacion {
+  id                 String                    @id @default(uuid())
+  leasingId          String
+  leasing            Leasing                   @relation(fields: [leasingId], references: [id], onDelete: Restrict)
+  pagoId             String
+  pago               LeasingPago               @relation(fields: [pagoId], references: [id], onDelete: Restrict)
+  confirmacionPagoId String?                   @unique
+  propietarioId      String?
+  destinatario       String
+  tipo               LeasingNotificacionTipo
+  asunto             String
+  estado             LeasingNotificacionEstado @default(PENDIENTE)
+  cantidadIntentos   Int                       @default(0)
+  messageId          String                    @default("")
+  ultimoError        String                    @default("")
+  enviadoAt          DateTime?
+  createdByEmail     String
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  @@index([pagoId])
+  @@index([leasingId, createdAt])
+  @@index([estado])
 }

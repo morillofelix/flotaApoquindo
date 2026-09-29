@@ -123,6 +123,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     isActive: (pathname) =>
       pathname.startsWith("/agendamientos/pago-propietario"),
   },
+  {
+    kind: "link",
+    label: "Leasing",
+    href: "/agendamientos/leasing",
+    permission: "leasing",
+    hideWhenDenied: true,
+    isActive: (pathname) => pathname.startsWith("/agendamientos/leasing"),
+  },
 ];
 
 export function canAccessAdminNavItem(

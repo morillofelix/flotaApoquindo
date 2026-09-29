@@ -944,9 +944,10 @@ function AppointmentRequestForm({
       email: linkedVehicleNumber
         ? validateField("email", values.email, today, reasons)
         : "",
-      phone: linkedVehicleNumber
-        ? validateField("phone", values.phone, today, reasons)
-        : "",
+      phone:
+        linkedVehicleNumber && values.phone.trim()
+          ? validateField("phone", values.phone, today, reasons)
+          : "",
     };
   }, [today, usesDateRange, usesPermitDetails, usesDaySwap, requiresObservation, allowsAttachment, requiresAttachment, allowsExecutiveAssignment, values, reasons, linkedVehicleNumber]);
 
@@ -1125,6 +1126,19 @@ function AppointmentRequestForm({
         setIsSubmitting(false);
       }
       return;
+    }
+
+    const profileFieldErrors = [
+      errors.driverName && "nombre",
+      errors.vehicleNumber && "móvil",
+      errors.email && "correo",
+      errors.phone && "teléfono",
+    ].filter(Boolean);
+
+    if (profileFieldErrors.length > 0) {
+      setSubmitError(
+        `Tu ficha tiene datos incompletos o inválidos (${profileFieldErrors.join(", ")}). Comunícate con el Departamento de Flota para actualizarlos.`,
+      );
     }
 
     setShowSuccess(canSubmit);
