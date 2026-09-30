@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  formatLeasingBanco,
   formatLeasingFecha,
   formatLeasingMonto,
   getCuotaEstadoBadgeClass,
@@ -328,7 +329,7 @@ export default function LeasingDetalleModal({
                                       <p>
                                         <strong>{formatLeasingMonto(pago.monto)}</strong> · {formatLeasingFecha(pago.fechaPago)} · {LEASING_MEDIO_PAGO_LABELS[pago.medioPago]}
                                         {pago.numeroOperacion ? ` · Op. ${pago.numeroOperacion}` : ""}
-                                        {pago.banco ? ` · ${pago.banco}` : ""}
+                                        {pago.banco ? ` · ${formatLeasingBanco(pago.banco)}` : ""}
                                         {pago.estado === "ANULADO" ? " · ANULADO" : ""}
                                       </p>
                                       <div className="flex flex-wrap gap-1.5">

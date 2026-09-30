@@ -9,7 +9,9 @@ import {
   getCuotaEstadoVisible,
   getLeasingEstadoVisible,
   isCuotaVencida,
+  isLeasingBancoValido,
   isValidLeasingDate,
+  LEASING_MEDIOS_CON_BANCO,
   LEASING_MEDIOS_PAGO,
   LEASING_PAGE_SIZE,
   normalizeLeasingMovil,
@@ -976,6 +978,7 @@ export function parseRegistrarPagoForm(form: FormData): RegistrarPagoInput {
     return typeof value === "string" ? value : "";
   };
   const medio = read("medioPago") as LeasingMedioPago;
+  const banco = read("banco").trim();
 
   return {
     cuotaId: read("cuotaId").trim(),
@@ -983,7 +986,7 @@ export function parseRegistrarPagoForm(form: FormData): RegistrarPagoInput {
     monto: Number(read("monto").replace(/\D/g, "")),
     medioPago: LEASING_MEDIOS_PAGO.includes(medio) ? medio : ("" as LeasingMedioPago),
     numeroOperacion: sanitizeLeasingText(read("numeroOperacion"), 80),
-    banco: sanitizeLeasingText(read("banco"), 80),
+    banco: isLeasingBancoValido(banco) ? banco : "",
     observaciones: sanitizeLeasingText(read("observaciones"), 1000),
     idempotencyKey: read("idempotencyKey").trim().slice(0, 80),
   };
@@ -1008,6 +1011,10 @@ export function validateRegistrarPagoInput(input: RegistrarPagoInput, today: str
 
   if (!input.medioPago) {
     return "Selecciona el medio de pago.";
+  }
+
+  if (LEASING_MEDIOS_CON_BANCO.includes(input.medioPago) && !input.banco) {
+    return "Selecciona el banco: Banco De Chile, BCI o Scotiabank.";
   }
 
   if (input.idempotencyKey.length < 8) {

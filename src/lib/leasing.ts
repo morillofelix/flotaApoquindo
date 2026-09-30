@@ -69,6 +69,28 @@ export const LEASING_MEDIOS_PAGO = Object.keys(
   LEASING_MEDIO_PAGO_LABELS,
 ) as LeasingMedioPago[];
 
+/** Mismos nombres y códigos que el catálogo de bancos de Propietarios. */
+export const LEASING_BANCOS = [
+  { nombre: "Banco De Chile", codigo: "1" },
+  { nombre: "Banco De Crédito E Inversiones (Bci)", codigo: "16" },
+  { nombre: "Scotiabank", codigo: "14" },
+] as const;
+
+export const LEASING_MEDIOS_CON_BANCO: LeasingMedioPago[] = [
+  "TRANSFERENCIA",
+  "DEPOSITO",
+  "CHEQUE",
+];
+
+export function formatLeasingBanco(nombre: string) {
+  const banco = LEASING_BANCOS.find((item) => item.nombre === nombre);
+  return banco ? `${banco.nombre} (${banco.codigo})` : nombre;
+}
+
+export function isLeasingBancoValido(nombre: string) {
+  return LEASING_BANCOS.some((item) => item.nombre === nombre);
+}
+
 export const LEASING_NOTIFICACION_LABELS: Record<LeasingNotificacionEstado, string> = {
   PENDIENTE: "Pendiente",
   ENVIANDO: "Enviando",

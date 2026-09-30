@@ -1,5 +1,6 @@
 import { getSuperAdminEmail } from "@/lib/access-users";
 import {
+  formatLeasingBanco,
   formatLeasingCodigo,
   formatLeasingFecha,
   formatLeasingMonto,
@@ -67,6 +68,7 @@ type CorreoPagoData = {
   monto: number;
   medioPago: string;
   numeroOperacion: string;
+  banco: string;
   saldoCuota: number;
   montoTotal: number;
   totalPagado: number;
@@ -109,6 +111,7 @@ function buildCorreoPago(data: CorreoPagoData, destinatarioReal: string, testMod
     ["Fecha de pago", formatLeasingFecha(data.fechaPago)],
     ["Monto pagado", formatLeasingMonto(data.monto)],
     ["Medio de pago", data.medioPago],
+    ...(data.banco ? ([["Banco", data.banco]] as Array<[string, string]>) : []),
     ...(data.numeroOperacion
       ? ([["N° de operación", data.numeroOperacion]] as Array<[string, string]>)
       : []),
@@ -226,6 +229,7 @@ async function loadCorreoData(pagoId: string): Promise<CorreoPagoData | null> {
     monto: toPesos(pago.monto),
     medioPago: LEASING_MEDIO_PAGO_LABELS[pago.medioPago as LeasingMedioPago] ?? pago.medioPago,
     numeroOperacion: pago.numeroOperacion,
+    banco: pago.banco ? formatLeasingBanco(pago.banco) : "",
     saldoCuota: Math.max(0, toPesos(pago.cuota.montoOriginal) - toPesos(pago.cuota.montoPagado)),
     montoTotal,
     totalPagado,

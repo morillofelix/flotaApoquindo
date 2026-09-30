@@ -4,7 +4,9 @@ import {
   formatLeasingBytes,
   formatLeasingFecha,
   formatLeasingMonto,
+  LEASING_BANCOS,
   LEASING_MEDIO_PAGO_LABELS,
+  LEASING_MEDIOS_CON_BANCO,
   LEASING_MEDIOS_PAGO,
   parseLeasingMontoInput,
   type LeasingCuotaDto,
@@ -60,6 +62,7 @@ export default function LeasingCobroModal({
   const [error, setError] = useState("");
 
   const montoNumero = parseLeasingMontoInput(monto);
+  const requiereBanco = LEASING_MEDIOS_CON_BANCO.includes(medioPago);
   const saldoRestante = cuota.saldo - montoNumero;
 
   async function onFileChange(file: File | undefined) {
@@ -93,6 +96,10 @@ export default function LeasingCobroModal({
 
     if (montoNumero > cuota.saldo) {
       return `El monto no puede superar el saldo de la cuota (${formatLeasingMonto(cuota.saldo)}).`;
+    }
+
+    if (requiereBanco && !banco) {
+      return "Selecciona el banco.";
     }
 
     if (!archivo) {
@@ -212,13 +219,21 @@ export default function LeasingCobroModal({
               />
             </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
-              <span className={leasingLabelClass}>Banco</span>
-              <input
+              <span className={leasingLabelClass}>
+                Banco{requiereBanco ? "" : " (opcional)"}
+              </span>
+              <select
                 value={banco}
-                maxLength={80}
                 onChange={(event) => setBanco(event.target.value)}
                 className={leasingInputClass}
-              />
+              >
+                <option value="">Selecciona un banco...</option>
+                {LEASING_BANCOS.map((item) => (
+                  <option key={item.nombre} value={item.nombre}>
+                    {item.nombre} ({item.codigo})
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <span className={leasingLabelClass}>Observaciones</span>
