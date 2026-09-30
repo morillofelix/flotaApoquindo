@@ -28,6 +28,8 @@ import {
   type ShiftType,
 } from "@/lib/driver-owners";
 import {
+  DRIVER_TEMP_PASSWORD_BULK_DELAY_MS,
+  DRIVER_TEMP_PASSWORD_BULK_MAX,
   isDriverTemporaryPasswordEligible,
   sendDriverTemporaryPasswordsBatched,
 } from "@/lib/driver-temporary-password-bulk";
@@ -373,16 +375,20 @@ export default function ConductoresPage() {
     [filteredDriverOwners],
   );
 
+  const selectedBulkTempPasswordCount = bulkTempPasswordEligibleOwners.filter(
+    (owner) => owner.id && selectedDriverOwnerIds.includes(owner.id),
+  ).length;
+
   const allBulkTempPasswordSelected =
     bulkTempPasswordEligibleOwners.length > 0 &&
-    bulkTempPasswordEligibleOwners.every(
-      (owner) => owner.id && selectedDriverOwnerIds.includes(owner.id),
-    );
+    selectedBulkTempPasswordCount >=
+      Math.min(
+        bulkTempPasswordEligibleOwners.length,
+        DRIVER_TEMP_PASSWORD_BULK_MAX,
+      );
 
   const someBulkTempPasswordSelected =
-    bulkTempPasswordEligibleOwners.some(
-      (owner) => owner.id && selectedDriverOwnerIds.includes(owner.id),
-    ) && !allBulkTempPasswordSelected;
+    selectedBulkTempPasswordCount > 0 && !allBulkTempPasswordSelected;
 
   const hasListFilters =
     driverOwnerSearch.trim().length > 0 ||
@@ -1011,7 +1017,7 @@ export default function ConductoresPage() {
       .map((owner) => owner.id)
       .filter((id): id is string => Boolean(id));
 
-    if (allBulkTempPasswordSelected) {
+    if (selectedBulkTempPasswordCount > 0) {
       setSelectedDriverOwnerIds((current) =>
         current.filter((id) => !eligibleIds.includes(id)),
       );
@@ -1019,7 +1025,10 @@ export default function ConductoresPage() {
     }
 
     setSelectedDriverOwnerIds((current) => [
-      ...new Set([...current, ...eligibleIds]),
+      ...new Set([
+        ...current,
+        ...eligibleIds.slice(0, DRIVER_TEMP_PASSWORD_BULK_MAX),
+      ]),
     ]);
   }
 
@@ -1035,11 +1044,25 @@ export default function ConductoresPage() {
       return;
     }
 
+    if (idsToSend.length > DRIVER_TEMP_PASSWORD_BULK_MAX) {
+      setDriverOwnerError(
+        `Puedes enviar como máximo ${DRIVER_TEMP_PASSWORD_BULK_MAX} claves por tanda (tienes ${idsToSend.length} seleccionados). El servidor de correo bloquea la cuenta si detecta envío masivo.`,
+      );
+      revealDriverOwnerFeedback();
+      return;
+    }
+
+    const minutosEstimados = Math.max(
+      1,
+      Math.ceil(
+        ((idsToSend.length - 1) * DRIVER_TEMP_PASSWORD_BULK_DELAY_MS) / 60_000,
+      ),
+    );
+
     const confirmed = await confirm({
       title: "Enviar claves de acceso",
       message: `¿Enviar clave de acceso a ${idsToSend.length} conductor(es)?`,
-      detail:
-        "Los correos se enviarán uno a uno con pausa entre cada envío. Los conductores que recibieron clave hace menos de 5 minutos serán omitidos.",
+      detail: `Se enviará 1 correo por minuto para no bloquear la cuenta de correo (aprox. ${minutosEstimados} min). Mantén esta página abierta hasta que termine. Los conductores que recibieron clave hace menos de 5 minutos serán omitidos.`,
       confirmLabel: "Enviar correos",
     });
 
@@ -1503,12 +1526,16 @@ export default function ConductoresPage() {
                         }
                         className="h-4 w-4 accent-[#0b5cab] disabled:cursor-not-allowed disabled:opacity-50"
                       />
-                      Todos
+                      {bulkTempPasswordEligibleOwners.length >
+                      DRIVER_TEMP_PASSWORD_BULK_MAX
+                        ? `Primeros ${DRIVER_TEMP_PASSWORD_BULK_MAX}`
+                        : "Todos"}
                     </label>
                     <span className="text-[11px] text-slate-500">
                       {selectedDriverOwnerIds.length} seleccionado(s) ·{" "}
                       {bulkTempPasswordEligibleOwners.length} conductor(es) con
-                      correo y RUT válido
+                      correo y RUT válido · máx. {DRIVER_TEMP_PASSWORD_BULK_MAX}{" "}
+                      por tanda
                     </span>
                   </div>
                   <button

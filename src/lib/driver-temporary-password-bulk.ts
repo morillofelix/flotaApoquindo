@@ -3,8 +3,12 @@ import {
   type DriverOwnerConfig,
 } from "@/lib/driver-owners";
 
-/** Pausa entre envíos masivos para no activar filtros antispam del servidor SMTP. */
-export const DRIVER_TEMP_PASSWORD_BULK_DELAY_MS = 5000;
+/**
+ * El hosting suspende la casilla cita@ si detecta envío masivo (ocurrió con
+ * 160 correos a 1 cada 5 s). Mantener tandas chicas y pausas largas.
+ */
+export const DRIVER_TEMP_PASSWORD_BULK_DELAY_MS = 60_000;
+export const DRIVER_TEMP_PASSWORD_BULK_MAX = 20;
 
 /** Usa el mismo endpoint y correo PWA que el envío individual en Datos generales. */
 
