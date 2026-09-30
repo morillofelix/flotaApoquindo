@@ -45,11 +45,27 @@ export function isLeasingEmailTestMode() {
   return (process.env.LEASING_EMAIL_MODE ?? "").trim().toLowerCase() !== "produccion";
 }
 
-/** Copia oculta de cada correo de pago (por defecto, la casilla de Facturación Móviles). */
-function getCopyRecipient(smtpUser: string, to: string) {
+/**
+ * Copias ocultas de cada correo de pago: la casilla de Facturación Móviles
+ * (o LEASING_EMAIL_COPY_TO) y el usuario que registró el pago.
+ */
+function getCopyRecipients(smtpUser: string, to: string, procesadoPor: string) {
   const configured = (process.env.LEASING_EMAIL_COPY_TO ?? "").trim();
-  const copia = emailPattern.test(configured) ? configured : smtpUser;
-  return emailPattern.test(copia) && copia.toLowerCase() !== to.toLowerCase() ? copia : "";
+  const candidatos = [emailPattern.test(configured) ? configured : smtpUser, procesadoPor];
+  const vistos = new Set([to.trim().toLowerCase()]);
+
+  return candidatos
+    .map((email) => email.trim())
+    .filter((email) => {
+      const key = email.toLowerCase();
+
+      if (!emailPattern.test(email) || vistos.has(key)) {
+        return false;
+      }
+
+      vistos.add(key);
+      return true;
+    });
 }
 
 function getTestRecipient() {
@@ -69,6 +85,7 @@ type CorreoPagoData = {
   medioPago: string;
   numeroOperacion: string;
   banco: string;
+  procesadoPor: string;
   saldoCuota: number;
   montoTotal: number;
   totalPagado: number;
@@ -230,6 +247,7 @@ async function loadCorreoData(pagoId: string): Promise<CorreoPagoData | null> {
     medioPago: LEASING_MEDIO_PAGO_LABELS[pago.medioPago as LeasingMedioPago] ?? pago.medioPago,
     numeroOperacion: pago.numeroOperacion,
     banco: pago.banco ? formatLeasingBanco(pago.banco) : "",
+    procesadoPor: pago.createdByEmail,
     saldoCuota: Math.max(0, toPesos(pago.cuota.montoOriginal) - toPesos(pago.cuota.montoPagado)),
     montoTotal,
     totalPagado,
@@ -291,14 +309,14 @@ export async function enviarNotificacionLeasing(notificacionId: string, actor: L
   const testMode = isLeasingEmailTestMode();
   const to = testMode ? getTestRecipient() : notificacion.destinatario;
   const { subject, html, text } = buildCorreoPago(data, notificacion.destinatario, testMode);
-  const copia = getCopyRecipient(smtp.auth.user, to);
+  const copia = getCopyRecipients(smtp.auth.user, to, data.procesadoPor);
 
   try {
     const info = await Promise.race([
       transporter.sendMail({
         from: smtp.from,
         to,
-        ...(copia ? { bcc: copia } : {}),
+        ...(copia.length ? { bcc: copia } : {}),
         subject,
         html,
         text,
