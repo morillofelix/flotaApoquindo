@@ -74,6 +74,7 @@ export default function LeasingPage() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosVacios);
   const [page, setPage] = useState(1);
   const [listado, setListado] = useState<LeasingListadoDto | null>(null);
+  const [isCargando, setIsCargando] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -114,9 +115,12 @@ export default function LeasingPage() {
   });
 
   useEffect(() => {
-    cargar().catch((loadError: unknown) =>
-      setError(loadError instanceof Error ? loadError.message : "No se pudo cargar el listado."),
-    );
+    setIsCargando(true);
+    cargar()
+      .catch((loadError: unknown) =>
+        setError(loadError instanceof Error ? loadError.message : "No se pudo cargar el listado."),
+      )
+      .finally(() => setIsCargando(false));
   }, [cargar]);
 
   useEffect(() => {
@@ -147,7 +151,7 @@ export default function LeasingPage() {
           title="Leasing"
           subtitle="Administración"
           onRefresh={() => void refresh()}
-          isRefreshing={isRefreshing}
+          isRefreshing={isCargando || isRefreshing}
           lastUpdatedAt={lastUpdatedAt}
           refreshVariant="prominent"
           actions={

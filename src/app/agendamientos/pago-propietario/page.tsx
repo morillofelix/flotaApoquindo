@@ -633,8 +633,9 @@ export default function PagoPropietarioPage() {
           title="Pago propietario"
           subtitle="Pagos y comprobantes"
           onRefresh={() => void refreshPagoPropietarios()}
-          isRefreshing={isRefreshing}
+          isRefreshing={isLoading || isRefreshing}
           lastUpdatedAt={lastUpdatedAt}
+          refreshVariant="prominent"
         />
 
         <div className="overflow-hidden rounded-[22px] border border-[#b7cce4] bg-white shadow-lg shadow-slate-300/25 sm:rounded-[24px]">

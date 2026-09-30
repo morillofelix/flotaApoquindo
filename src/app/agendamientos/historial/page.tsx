@@ -320,8 +320,9 @@ export default function HistorialPage() {
           title="Historial"
           subtitle="Registro de modificaciones realizadas en las fichas de propietarios"
           onRefresh={() => void refresh()}
-          isRefreshing={isRefreshing}
+          isRefreshing={isLoading || isRefreshing}
           lastUpdatedAt={lastUpdatedAt}
+          refreshVariant="prominent"
         />
 
         <form

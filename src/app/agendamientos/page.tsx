@@ -93,7 +93,7 @@ function AppointmentsPageContent() {
     startDate: "",
     endDate: "",
   });
-  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
   const [appointmentsError, setAppointmentsError] = useState("");
   const [emailNotice, setEmailNotice] = useState<EmailNotice>(null);
   const [firstAssignmentPrompt, setFirstAssignmentPrompt] = useState<{
@@ -919,7 +919,7 @@ function AppointmentsPageContent() {
             reasons={reasons}
             isLoading={isLoadingAppointments}
             onRefresh={() => void refreshAppointmentsData()}
-            isRefreshing={isRefreshingAppointments}
+            isRefreshing={isLoadingAppointments || isRefreshingAppointments}
             lastUpdatedAt={appointmentsLastUpdatedAt}
           />
         </section>
@@ -943,7 +943,7 @@ function AppointmentsPageContent() {
           <div className="absolute right-4 top-4 z-10">
             <DataRefreshButton
               onRefresh={() => void refreshAppointmentsData()}
-              isRefreshing={isRefreshingAppointments}
+              isRefreshing={isLoadingAppointments || isRefreshingAppointments}
               lastUpdatedAt={appointmentsLastUpdatedAt}
               variant="prominent"
             />
