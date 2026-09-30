@@ -87,6 +87,7 @@ export default function LeasingDetalleModal({
   const [motivoAccion, setMotivoAccion] = useState<MotivoAccion | null>(null);
   const [motivo, setMotivo] = useState("");
   const [isWorking, setIsWorking] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -165,6 +166,33 @@ export default function LeasingDetalleModal({
     }
   }
 
+  async function imprimir() {
+    if (!detalle) {
+      return;
+    }
+
+    const ventana = window.open("", "_blank");
+
+    if (ventana) {
+      ventana.document.title = `Estado de cuenta ${detalle.codigo}`;
+      ventana.document.body.style.fontFamily = "Arial, sans-serif";
+      ventana.document.body.textContent = "Generando estado de cuenta...";
+    }
+
+    setIsPrinting(true);
+    setActionError("");
+
+    try {
+      const { generarEstadoCuentaLeasingPdf } = await import("@/lib/leasing-estado-cuenta-pdf");
+      await generarEstadoCuentaLeasingPdf(detalle, ventana);
+    } catch {
+      ventana?.close();
+      setActionError("No se pudo generar el estado de cuenta.");
+    } finally {
+      setIsPrinting(false);
+    }
+  }
+
   function reenviarCorreo(pagoId: string) {
     return ejecutar(async () => {
       const data = await leasingFetch<{ message: string }>(
@@ -224,6 +252,16 @@ export default function LeasingDetalleModal({
                 className={leasingDangerButton}
               >
                 Anular
+              </button>
+            ) : null}
+            {detalle ? (
+              <button
+                type="button"
+                disabled={isPrinting}
+                onClick={() => void imprimir()}
+                className={leasingSecondaryButton}
+              >
+                {isPrinting ? "Generando PDF..." : "Imprimir"}
               </button>
             ) : null}
             <button type="button" onClick={onClose} className={leasingSecondaryButton}>
