@@ -100,8 +100,16 @@ export default function LeasingPage() {
     setError("");
   }, [queryString]);
 
+  const recargar = useCallback(async () => {
+    try {
+      await cargar();
+    } catch (loadError: unknown) {
+      setError(loadError instanceof Error ? loadError.message : "No se pudo cargar el listado.");
+    }
+  }, [cargar]);
+
   const { refresh, isRefreshing, lastUpdatedAt } = useAutoRefresh({
-    onRefresh: cargar,
+    onRefresh: recargar,
     pause: isNuevoOpen || Boolean(detalleId),
   });
 
@@ -141,6 +149,7 @@ export default function LeasingPage() {
           onRefresh={() => void refresh()}
           isRefreshing={isRefreshing}
           lastUpdatedAt={lastUpdatedAt}
+          refreshVariant="prominent"
           actions={
             canCobrar ? (
               <button type="button" onClick={() => setIsNuevoOpen(true)} className={leasingPrimaryButton}>

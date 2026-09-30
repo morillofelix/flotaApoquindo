@@ -131,6 +131,18 @@ function AppointmentsPageContent() {
     setAppointmentsError("");
   }, []);
 
+  const refreshAppointmentsSafely = useCallback(async () => {
+    try {
+      await reloadAppointmentsData();
+    } catch (error) {
+      setAppointmentsError(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron actualizar las solicitudes.",
+      );
+    }
+  }, [reloadAppointmentsData]);
+
   const shouldPauseAutoRefresh =
     isLoadingAppointments ||
     isCreateModalOpen ||
@@ -144,7 +156,7 @@ function AppointmentsPageContent() {
     isRefreshing: isRefreshingAppointments,
     lastUpdatedAt: appointmentsLastUpdatedAt,
   } = useAutoRefresh({
-    onRefresh: reloadAppointmentsData,
+    onRefresh: refreshAppointmentsSafely,
     pause: shouldPauseAutoRefresh,
   });
 
@@ -933,7 +945,7 @@ function AppointmentsPageContent() {
               onRefresh={() => void refreshAppointmentsData()}
               isRefreshing={isRefreshingAppointments}
               lastUpdatedAt={appointmentsLastUpdatedAt}
-              variant="toolbar"
+              variant="prominent"
             />
           </div>
           <div className="grid gap-4 pr-10 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-center">

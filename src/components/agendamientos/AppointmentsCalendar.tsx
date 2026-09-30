@@ -439,8 +439,7 @@ export default function AppointmentsCalendar({
                   onRefresh={onRefresh}
                   isRefreshing={isRefreshing}
                   lastUpdatedAt={lastUpdatedAt}
-                  variant="toolbar"
-                  className="rounded-xl"
+                  variant="prominent"
                 />
               ) : null}
               {(["month", "day"] as const).map((mode) => (
