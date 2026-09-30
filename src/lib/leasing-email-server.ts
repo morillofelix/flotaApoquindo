@@ -44,6 +44,13 @@ export function isLeasingEmailTestMode() {
   return (process.env.LEASING_EMAIL_MODE ?? "").trim().toLowerCase() !== "produccion";
 }
 
+/** Copia oculta de cada correo de pago (por defecto, la casilla de Facturación Móviles). */
+function getCopyRecipient(smtpUser: string, to: string) {
+  const configured = (process.env.LEASING_EMAIL_COPY_TO ?? "").trim();
+  const copia = emailPattern.test(configured) ? configured : smtpUser;
+  return emailPattern.test(copia) && copia.toLowerCase() !== to.toLowerCase() ? copia : "";
+}
+
 function getTestRecipient() {
   const configured = (process.env.LEASING_EMAIL_TEST_TO ?? "").trim();
   return emailPattern.test(configured) ? configured : getSuperAdminEmail();
@@ -61,16 +68,43 @@ type CorreoPagoData = {
   medioPago: string;
   numeroOperacion: string;
   saldoCuota: number;
+  montoTotal: number;
+  totalPagado: number;
   saldoLeasing: number;
+  cuotasPagadas: number;
 };
+
+function getEstadoCuotaTexto(data: CorreoPagoData) {
+  return data.saldoCuota > 0
+    ? `Abono parcial – faltan ${formatLeasingMonto(data.saldoCuota)} para completar esta cuota`
+    : "Pagada completa";
+}
+
+function renderRows(rows: Array<[string, string]>) {
+  return rows
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:8px 10px;border:1px solid #dbe6f3;background:#f5f8fc;color:#173b68;width:42%;">${escapeHtml(label)}</td><td style="padding:8px 10px;border:1px solid #dbe6f3;font-weight:bold;">${escapeHtml(value)}</td></tr>`,
+    )
+    .join("");
+}
+
+function renderResumenBox(label: string, value: string, color: string, background: string) {
+  return `<td width="33%" style="padding:12px 8px;border:1px solid #dbe6f3;background:${background};text-align:center;vertical-align:top;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#5b6f8a;">${escapeHtml(label)}</div>
+    <div style="margin-top:4px;font-size:17px;font-weight:bold;color:${color};">${escapeHtml(value)}</div>
+  </td>`;
+}
 
 function buildCorreoPago(data: CorreoPagoData, destinatarioReal: string, testMode: boolean) {
   const subject = `${testMode ? "[PRUEBA] " : ""}Confirmación de pago leasing ${data.codigo} – cuota ${data.numeroCuota} de ${data.cantidadCuotas}`;
-  const rows: Array<[string, string]> = [
+  const identificacion: Array<[string, string]> = [
     ["Razón social", data.razonSocial],
     ["RUT", data.rut],
     ["Móvil", data.movil],
     ["Leasing", data.codigo],
+  ];
+  const pagoRows: Array<[string, string]> = [
     ["Cuota", `${data.numeroCuota} de ${data.cantidadCuotas}`],
     ["Fecha de pago", formatLeasingFecha(data.fechaPago)],
     ["Monto pagado", formatLeasingMonto(data.monto)],
@@ -78,9 +112,16 @@ function buildCorreoPago(data: CorreoPagoData, destinatarioReal: string, testMod
     ...(data.numeroOperacion
       ? ([["N° de operación", data.numeroOperacion]] as Array<[string, string]>)
       : []),
-    ["Saldo de la cuota", formatLeasingMonto(data.saldoCuota)],
-    ["Saldo total del leasing", formatLeasingMonto(data.saldoLeasing)],
+    ["Estado de la cuota", getEstadoCuotaTexto(data)],
   ];
+  const resumenRows: Array<[string, string]> = [
+    ["Monto total del leasing", formatLeasingMonto(data.montoTotal)],
+    ["Total pagado a la fecha", formatLeasingMonto(data.totalPagado)],
+    ["Saldo pendiente del leasing", formatLeasingMonto(data.saldoLeasing)],
+    ["Cuotas pagadas", `${data.cuotasPagadas} de ${data.cantidadCuotas}`],
+  ];
+  const sectionTitle = (title: string) =>
+    `<p style="margin:20px 0 8px;font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:0.6px;color:#0b5cab;">${escapeHtml(title)}</p>`;
 
   const testBanner = testMode
     ? `<p style="margin:0 0 16px;padding:10px 12px;border:1px solid #f5c26b;background:#fff8e6;color:#8a5a00;font-size:13px;">Correo de prueba. En producción se enviaría a: <strong>${escapeHtml(destinatarioReal || "(sin correo)")}</strong></p>`
@@ -94,16 +135,24 @@ function buildCorreoPago(data: CorreoPagoData, destinatarioReal: string, testMod
     <tr><td style="padding:24px;">
       ${testBanner}
       <p style="margin:0 0 12px;font-size:15px;">Estimado(a) ${escapeHtml(data.razonSocial)}:</p>
-      <p style="margin:0 0 18px;font-size:14px;line-height:1.5;">Le confirmamos que hemos registrado el siguiente pago asociado a su leasing:</p>
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:14px;">
-        ${rows
-          .map(
-            ([label, value]) =>
-              `<tr><td style="padding:8px 10px;border:1px solid #dbe6f3;background:#f5f8fc;color:#173b68;width:45%;">${escapeHtml(label)}</td><td style="padding:8px 10px;border:1px solid #dbe6f3;font-weight:bold;">${escapeHtml(value)}</td></tr>`,
-          )
-          .join("")}
+      <p style="margin:0 0 4px;font-size:14px;line-height:1.5;">Le confirmamos que hemos registrado el siguiente pago asociado a su leasing.</p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px;border-collapse:collapse;font-size:14px;">
+        ${renderRows(identificacion)}
       </table>
-      <p style="margin:18px 0 0;font-size:13px;line-height:1.5;color:#173b68;">Si tiene consultas sobre este pago, comuníquese con el Departamento de Flota.</p>
+      ${sectionTitle("Detalle del pago")}
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:14px;">
+        ${renderRows(pagoRows)}
+      </table>
+      ${sectionTitle("Resumen del leasing")}
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+        <tr>
+          ${renderResumenBox("Monto del leasing", formatLeasingMonto(data.montoTotal), "#0f2747", "#f5f8fc")}
+          ${renderResumenBox("Pagado a la fecha", formatLeasingMonto(data.totalPagado), "#15803d", "#f0fdf4")}
+          ${renderResumenBox("Saldo pendiente", formatLeasingMonto(data.saldoLeasing), "#0b5cab", "#eef3f9")}
+        </tr>
+      </table>
+      <p style="margin:8px 0 0;font-size:13px;color:#173b68;">Cuotas pagadas: <strong>${data.cuotasPagadas} de ${data.cantidadCuotas}</strong></p>
+      <p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#173b68;">Si tiene consultas sobre este pago, comuníquese con el Departamento de Flota.</p>
       <p style="margin:12px 0 0;font-size:12px;color:#5b6f8a;">Este es un correo automático, por favor no responder.</p>
     </td></tr>
   </table>
@@ -114,9 +163,15 @@ function buildCorreoPago(data: CorreoPagoData, destinatarioReal: string, testMod
     testMode ? `CORREO DE PRUEBA. En producción se enviaría a: ${destinatarioReal || "(sin correo)"}` : "",
     `Estimado(a) ${data.razonSocial}:`,
     "",
-    "Le confirmamos que hemos registrado el siguiente pago asociado a su leasing:",
+    "Le confirmamos que hemos registrado el siguiente pago asociado a su leasing.",
     "",
-    ...rows.map(([label, value]) => `${label}: ${value}`),
+    ...identificacion.map(([label, value]) => `${label}: ${value}`),
+    "",
+    "DETALLE DEL PAGO",
+    ...pagoRows.map(([label, value]) => `${label}: ${value}`),
+    "",
+    "RESUMEN DEL LEASING",
+    ...resumenRows.map(([label, value]) => `${label}: ${value}`),
     "",
     "Si tiene consultas sobre este pago, comuníquese con el Departamento de Flota.",
     "Este es un correo automático, por favor no responder.",
@@ -150,10 +205,15 @@ async function loadCorreoData(pagoId: string): Promise<CorreoPagoData | null> {
     return null;
   }
 
-  const pagado = await prisma.leasingCuota.aggregate({
-    where: { leasingId: pago.leasingId, estado: { not: "ANULADA" } },
-    _sum: { montoPagado: true },
-  });
+  const [pagado, cuotasPagadas] = await Promise.all([
+    prisma.leasingCuota.aggregate({
+      where: { leasingId: pago.leasingId, estado: { not: "ANULADA" } },
+      _sum: { montoPagado: true },
+    }),
+    prisma.leasingCuota.count({ where: { leasingId: pago.leasingId, estado: "PAGADA" } }),
+  ]);
+  const montoTotal = toPesos(pago.leasing.montoTotal);
+  const totalPagado = toPesos(pagado._sum.montoPagado);
 
   return {
     razonSocial: pago.leasing.propietario?.fullName ?? pago.leasing.razonSocialSnapshot,
@@ -167,7 +227,10 @@ async function loadCorreoData(pagoId: string): Promise<CorreoPagoData | null> {
     medioPago: LEASING_MEDIO_PAGO_LABELS[pago.medioPago as LeasingMedioPago] ?? pago.medioPago,
     numeroOperacion: pago.numeroOperacion,
     saldoCuota: Math.max(0, toPesos(pago.cuota.montoOriginal) - toPesos(pago.cuota.montoPagado)),
-    saldoLeasing: Math.max(0, toPesos(pago.leasing.montoTotal) - toPesos(pagado._sum.montoPagado)),
+    montoTotal,
+    totalPagado,
+    saldoLeasing: Math.max(0, montoTotal - totalPagado),
+    cuotasPagadas,
   };
 }
 
@@ -224,10 +287,18 @@ export async function enviarNotificacionLeasing(notificacionId: string, actor: L
   const testMode = isLeasingEmailTestMode();
   const to = testMode ? getTestRecipient() : notificacion.destinatario;
   const { subject, html, text } = buildCorreoPago(data, notificacion.destinatario, testMode);
+  const copia = getCopyRecipient(smtp.auth.user, to);
 
   try {
     const info = await Promise.race([
-      transporter.sendMail({ from: smtp.from, to, subject, html, text }),
+      transporter.sendMail({
+        from: smtp.from,
+        to,
+        ...(copia ? { bcc: copia } : {}),
+        subject,
+        html,
+        text,
+      }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Tiempo de espera agotado al enviar el correo.")), SEND_TIMEOUT_MS),
       ),
@@ -248,7 +319,7 @@ export async function enviarNotificacionLeasing(notificacionId: string, actor: L
       accion: "CORREO_ENVIADO",
       leasingId: notificacion.leasingId,
       pagoId: notificacion.pagoId,
-      valoresNuevos: { notificacionId, destinatario: to, modoPrueba: testMode },
+      valoresNuevos: { notificacionId, destinatario: to, copia, modoPrueba: testMode },
     }).catch(() => undefined);
 
     return { ok: true, message: testMode ? `Correo de prueba enviado a ${to}.` : "Correo enviado." };

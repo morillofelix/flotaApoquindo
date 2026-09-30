@@ -1023,17 +1023,50 @@ export async function registrarPagoLeasing(
   comprobante: ValidatedLeasingComprobante,
   actor: LeasingActor,
 ) {
-  const existente = await prisma.leasingPago.findUnique({
-    where: { idempotencyKey: input.idempotencyKey },
-    select: { id: true, leasingId: true },
-  });
+  const [existente, repetido, leasingInfo] = await Promise.all([
+    prisma.leasingPago.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      select: { id: true, notificaciones: { where: { tipo: "CONFIRMACION_PAGO" }, select: { id: true } } },
+    }),
+    prisma.leasingComprobante.findFirst({
+      where: { hashArchivo: comprobante.hash, pago: { estado: "ACTIVO" } },
+      select: {
+        pago: {
+          select: {
+            fechaPago: true,
+            cuota: { select: { numeroCuota: true } },
+            leasing: { select: { numero: true } },
+          },
+        },
+      },
+    }),
+    prisma.leasing.findUnique({
+      where: { id: leasingId },
+      select: { propietarioId: true, propietario: { select: { email: true } } },
+    }),
+  ]);
 
   if (existente) {
-    const notificacion = await prisma.leasingNotificacion.findUnique({
-      where: { confirmacionPagoId: existente.id },
-      select: { id: true },
-    });
-    return { pagoId: existente.id, notificacionId: notificacion?.id ?? null, duplicado: true };
+    return {
+      pagoId: existente.id,
+      notificacionId: existente.notificaciones[0]?.id ?? null,
+      duplicado: true,
+    };
+  }
+
+  if (repetido) {
+    throw new LeasingOperationError(
+      `Este comprobante ya está registrado en el pago del ${
+        toDateOnly(repetido.pago.fechaPago)?.split("-").reverse().join("-") ?? ""
+      } (cuota ${repetido.pago.cuota.numeroCuota}, ${formatLeasingCodigo(
+        repetido.pago.leasing.numero,
+      )}).`,
+      409,
+    );
+  }
+
+  if (!leasingInfo) {
+    throw new LeasingOperationError("Leasing no encontrado.", 404);
   }
 
   const storage = getLeasingStorageProvider();
@@ -1041,40 +1074,44 @@ export async function registrarPagoLeasing(
   try {
     return await prisma.$transaction(
       async (tx) => {
-        await tx.$queryRaw`SELECT "id" FROM "Leasing" WHERE "id" = ${leasingId} FOR UPDATE`;
-        await tx.$queryRaw`SELECT "id" FROM "LeasingCuota" WHERE "id" = ${input.cuotaId} FOR UPDATE`;
+        const [bloqueo] = await tx.$queryRaw<
+          Array<{
+            leasingEstado: string;
+            cuotaEstado: string;
+            montoOriginal: string;
+            montoPagado: string;
+            fechaUltimoPago: string | null;
+            otrasPendientes: number;
+          }>
+        >`
+          SELECT l."estado"::text AS "leasingEstado",
+                 c."estado"::text AS "cuotaEstado",
+                 c."montoOriginal"::text AS "montoOriginal",
+                 c."montoPagado"::text AS "montoPagado",
+                 to_char(c."fechaUltimoPago", 'YYYY-MM-DD') AS "fechaUltimoPago",
+                 (SELECT count(*)::int FROM "LeasingCuota" o
+                   WHERE o."leasingId" = l."id" AND o."id" <> c."id"
+                     AND o."estado"::text NOT IN ('PAGADA', 'ANULADA')) AS "otrasPendientes"
+          FROM "Leasing" l
+          JOIN "LeasingCuota" c ON c."leasingId" = l."id"
+          WHERE l."id" = ${leasingId} AND c."id" = ${input.cuotaId}
+          FOR UPDATE OF l`;
 
-        const cuota = await tx.leasingCuota.findUnique({
-          where: { id: input.cuotaId },
-          include: {
-            leasing: {
-              select: {
-                id: true,
-                estado: true,
-                propietarioId: true,
-                propietario: { select: { email: true } },
-              },
-            },
-          },
-        });
-
-        if (!cuota || cuota.leasingId !== leasingId) {
+        if (!bloqueo) {
           throw new LeasingOperationError("La cuota no pertenece a este leasing.", 404);
         }
 
-        if (cuota.leasing.estado !== "ACTIVO") {
+        if (bloqueo.leasingEstado !== "ACTIVO") {
           throw new LeasingOperationError("Solo se pueden registrar cobros en leasing activos.");
         }
 
-        if (cuota.estado === "ANULADA") {
+        if (bloqueo.cuotaEstado === "ANULADA") {
           throw new LeasingOperationError("La cuota está anulada.");
         }
 
-        const pagado = await tx.leasingPago.aggregate({
-          where: { cuotaId: cuota.id, estado: "ACTIVO" },
-          _sum: { monto: true },
-        });
-        const saldo = toPesos(cuota.montoOriginal) - toPesos(pagado._sum.monto);
+        const montoOriginal = Number(bloqueo.montoOriginal);
+        const montoPagadoAnterior = Number(bloqueo.montoPagado);
+        const saldo = montoOriginal - montoPagadoAnterior;
 
         if (saldo <= 0) {
           throw new LeasingOperationError("Esta cuota ya está pagada.");
@@ -1090,30 +1127,6 @@ export async function registrarPagoLeasing(
           );
         }
 
-        const repetido = await tx.leasingComprobante.findFirst({
-          where: { hashArchivo: comprobante.hash, pago: { estado: "ACTIVO" } },
-          select: {
-            pago: {
-              select: {
-                fechaPago: true,
-                cuota: { select: { numeroCuota: true } },
-                leasing: { select: { numero: true } },
-              },
-            },
-          },
-        });
-
-        if (repetido) {
-          throw new LeasingOperationError(
-            `Este comprobante ya está registrado en el pago del ${
-              toDateOnly(repetido.pago.fechaPago)?.split("-").reverse().join("-") ?? ""
-            } (cuota ${repetido.pago.cuota.numeroCuota}, ${formatLeasingCodigo(
-              repetido.pago.leasing.numero,
-            )}).`,
-            409,
-          );
-        }
-
         const stored = await storage.upload(
           { buffer: comprobante.buffer, mimeType: comprobante.mimeType, hash: comprobante.hash },
           tx,
@@ -1122,7 +1135,7 @@ export async function registrarPagoLeasing(
         const pago = await tx.leasingPago.create({
           data: {
             leasingId,
-            cuotaId: cuota.id,
+            cuotaId: input.cuotaId,
             fechaPago: dateFromOnly(input.fechaPago),
             monto: new Prisma.Decimal(input.monto),
             medioPago: input.medioPago,
@@ -1148,34 +1161,60 @@ export async function registrarPagoLeasing(
           select: { id: true },
         });
 
-        const recalculo = await recalcularCuotaYLeasing(tx, cuota.id, leasingId);
+        const montoPagado = montoPagadoAnterior + input.monto;
+        const estadoCuota = calcularEstadoCuota(montoOriginal, montoPagado);
+        const fechaUltimoPago =
+          bloqueo.fechaUltimoPago && bloqueo.fechaUltimoPago > input.fechaPago
+            ? bloqueo.fechaUltimoPago
+            : input.fechaPago;
+
+        await tx.leasingCuota.update({
+          where: { id: input.cuotaId },
+          data: {
+            montoPagado: new Prisma.Decimal(montoPagado),
+            estado: estadoCuota,
+            fechaUltimoPago: dateFromOnly(fechaUltimoPago),
+          },
+          select: { id: true },
+        });
+
+        const estadoLeasing: LeasingEstado =
+          estadoCuota === "PAGADA" && bloqueo.otrasPendientes === 0 ? "PAGADO" : "ACTIVO";
+
+        if (estadoLeasing === "PAGADO") {
+          await tx.leasing.update({
+            where: { id: leasingId },
+            data: { estado: "PAGADO" },
+            select: { id: true },
+          });
+        }
 
         await writeLeasingAudit(tx, {
           actor,
           accion: "PAGO_REGISTRADO",
           leasingId,
-          cuotaId: cuota.id,
+          cuotaId: input.cuotaId,
           pagoId: pago.id,
-          valoresAnteriores: { saldoCuota: saldo, estadoCuota: cuota.estado },
+          valoresAnteriores: { saldoCuota: saldo, estadoCuota: bloqueo.cuotaEstado },
           valoresNuevos: {
             monto: input.monto,
             fechaPago: input.fechaPago,
             medioPago: input.medioPago,
             numeroOperacion: input.numeroOperacion,
-            estadoCuota: recalculo.estadoCuota,
-            estadoLeasing: recalculo.estadoLeasing,
+            estadoCuota,
+            estadoLeasing,
             comprobanteHash: comprobante.hash,
           },
         });
 
-        const destinatario = cuota.leasing.propietario?.email.trim() ?? "";
+        const destinatario = leasingInfo.propietario?.email.trim() ?? "";
         const correoValido = emailPattern.test(destinatario);
         const notificacion = await tx.leasingNotificacion.create({
           data: {
             leasingId,
             pagoId: pago.id,
             confirmacionPagoId: pago.id,
-            propietarioId: cuota.leasing.propietarioId,
+            propietarioId: leasingInfo.propietarioId,
             destinatario,
             tipo: "CONFIRMACION_PAGO",
             asunto: "",

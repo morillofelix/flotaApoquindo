@@ -415,6 +415,7 @@ export default function LeasingDetalleModal({
             setExpandida(cobroCuota.id);
             setMessage(savedMessage);
             void cargar();
+            window.setTimeout(() => void cargar(), 8000);
             onChanged();
           }}
         />

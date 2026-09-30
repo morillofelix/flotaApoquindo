@@ -8,7 +8,7 @@ import {
   registrarPagoLeasing,
   validateRegistrarPagoInput,
 } from "@/lib/leasing-server";
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -53,21 +53,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const result = await registrarPagoLeasing(id, input, comprobante.value, actor);
+    const notificacionId = result.duplicado ? null : result.notificacionId;
 
-    let correo = { ok: false, message: "" };
-
-    if (result.notificacionId && !result.duplicado) {
-      correo = await enviarNotificacionLeasing(result.notificacionId, actor).catch(() => ({
-        ok: false,
-        message: "No se pudo enviar el correo. Puedes reenviarlo desde el detalle del pago.",
-      }));
+    if (notificacionId) {
+      after(() =>
+        enviarNotificacionLeasing(notificacionId, actor).catch((error: unknown) => {
+          console.error("[leasing] correo de pago", error);
+        }),
+      );
     }
 
     return NextResponse.json(
       {
         pagoId: result.pagoId,
         duplicado: result.duplicado,
-        correo,
+        correo: {
+          ok: Boolean(notificacionId),
+          message: notificacionId
+            ? "El correo de confirmación se está enviando."
+            : "",
+        },
       },
       { status: result.duplicado ? 200 : 201 },
     );
