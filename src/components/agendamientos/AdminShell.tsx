@@ -10,12 +10,14 @@ import {
 } from "@/lib/access-users";
 import {
   ADMIN_NAV_ITEMS,
+  canAccessAdminNavChild,
+  canAccessAdminNavGroup,
   canAccessAdminNavItem,
   clearAdminSessionClient,
   fetchAdminSessionClient,
   findActiveAdminNavItem,
   getFirstPermittedAdminRoute,
-  isFlotaPath,
+  isAdminNavGroupActive,
 } from "@/lib/admin-auth-client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -45,29 +47,28 @@ function AdminNavigation({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const vista = searchParams.get("vista");
-  const flotaActive = isFlotaPath(pathname);
-  const [flotaOpen, setFlotaOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   useEffect(() => {
-    setFlotaOpen(false);
+    setOpenGroup(null);
   }, [pathname, vista]);
 
   useEffect(() => {
-    if (!flotaOpen) {
+    if (!openGroup) {
       return;
     }
 
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-flota-menu]")) {
+      if (target?.closest("[data-nav-group-menu]")) {
         return;
       }
-      setFlotaOpen(false);
+      setOpenGroup(null);
     }
 
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [flotaOpen]);
+  }, [openGroup]);
 
   return (
     <nav className="border-b border-[#b7cce4] bg-[#d7e7f8] shadow-sm shadow-slate-200/40">
@@ -75,13 +76,13 @@ function AdminNavigation({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-1">
             {ADMIN_NAV_ITEMS.map((item) => {
-              const allowed = canAccessAdminNavItem(
-                permissions,
-                item.permission,
-                isSuperAdmin,
-              );
-
               if (item.kind === "link") {
+                const allowed = canAccessAdminNavItem(
+                  permissions,
+                  item.permission,
+                  isSuperAdmin,
+                );
+
                 if (item.hideWhenDenied && !allowed) {
                   return null;
                 }
@@ -113,22 +114,34 @@ function AdminNavigation({
                 );
               }
 
+              const allowed = canAccessAdminNavGroup(permissions, item, isSuperAdmin);
+              const groupActive = isAdminNavGroupActive(item, pathname, vista);
+              const isOpen = openGroup === item.label;
+              const submenuId = `nav-submenu-${item.icon}`;
+              const visibleChildren = item.children.filter(
+                (child) =>
+                  child.href !== "/agendamientos/patrones" &&
+                  canAccessAdminNavChild(permissions, item, child, isSuperAdmin),
+              );
+
               return (
-                <div key={item.label} className="relative" data-flota-menu>
+                <div key={item.label} className="relative" data-nav-group-menu>
                   <button
                     type="button"
-                    aria-expanded={flotaOpen}
-                    aria-controls="flota-submenu"
+                    aria-expanded={isOpen}
+                    aria-controls={submenuId}
                     disabled={!allowed}
                     title={
                       allowed
                         ? item.label
                         : `${item.label} (sin permiso de acceso)`
                     }
-                    onClick={() => setFlotaOpen((current) => !current)}
+                    onClick={() =>
+                      setOpenGroup((current) => (current === item.label ? null : item.label))
+                    }
                     className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-semibold transition ${
                       allowed
-                        ? flotaActive
+                        ? groupActive
                           ? "bg-[#0b5cab] text-white shadow-md shadow-blue-900/15"
                           : "text-[#173b68] hover:bg-white/75"
                         : "cursor-not-allowed text-slate-400/90"
@@ -142,18 +155,26 @@ function AdminNavigation({
                       stroke="currentColor"
                       strokeWidth="1.8"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 13h13l3-4H9m-6 4v5h2.5M16 18.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm-9 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
-                      />
+                      {item.icon === "flota" ? (
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 13h13l3-4H9m-6 4v5h2.5M16 18.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm-9 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
+                        />
+                      ) : (
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 7V5.5A1.5 1.5 0 0110.5 4h3A1.5 1.5 0 0115 5.5V7m-11 0h16v11.5A1.5 1.5 0 0118.5 20h-13A1.5 1.5 0 014 18.5V7zm0 5h16"
+                        />
+                      )}
                     </svg>
                     {item.label}
                     <svg
                       aria-hidden
                       viewBox="0 0 20 20"
                       fill="currentColor"
-                      className={`size-3.5 transition ${flotaOpen ? "rotate-180" : ""}`}
+                      className={`size-3.5 transition ${isOpen ? "rotate-180" : ""}`}
                     >
                       <path
                         fillRule="evenodd"
@@ -163,18 +184,13 @@ function AdminNavigation({
                     </svg>
                   </button>
 
-                  {flotaOpen && allowed ? (
+                  {isOpen && allowed ? (
                     <div
-                      id="flota-submenu"
+                      id={submenuId}
                       role="menu"
                       className="absolute left-0 top-[calc(100%+0.35rem)] z-30 min-w-[11rem] overflow-hidden rounded-2xl border border-[#b7cce4] bg-white p-1 shadow-xl shadow-slate-900/10"
                     >
-                      {item.children
-                        .filter(
-                          (child) =>
-                            child.href !== "/agendamientos/patrones",
-                        )
-                        .map((child) => {
+                      {visibleChildren.map((child) => {
                         const childActive = child.isActive(pathname, vista);
 
                         return (
@@ -182,7 +198,7 @@ function AdminNavigation({
                             key={child.href}
                             href={child.href}
                             role="menuitem"
-                            onClick={() => setFlotaOpen(false)}
+                            onClick={() => setOpenGroup(null)}
                             className={`block rounded-xl px-3 py-2 text-sm font-semibold transition ${
                               childActive
                                 ? "bg-[#0b5cab] text-white"

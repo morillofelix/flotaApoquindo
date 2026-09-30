@@ -9,15 +9,21 @@ export type AdminNavLeaf = {
   isActive: (pathname: string, vista: string | null) => boolean;
 };
 
+export type AdminNavGroupChild = {
+  label: string;
+  href: string;
+  /** Si se omite, usa el permiso del grupo. */
+  permission?: AccessPermissionKey;
+  isActive: (pathname: string, vista: string | null) => boolean;
+};
+
 export type AdminNavGroup = {
   kind: "group";
   label: string;
-  permission: AccessPermissionKey;
-  children: Array<{
-    label: string;
-    href: string;
-    isActive: (pathname: string, vista: string | null) => boolean;
-  }>;
+  icon: "flota" | "administracion";
+  /** Si se omite, el grupo se habilita cuando al menos un submenú está permitido. */
+  permission?: AccessPermissionKey;
+  children: AdminNavGroupChild[];
 };
 
 export type AdminNavItem = AdminNavLeaf | AdminNavGroup;
@@ -63,6 +69,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
     kind: "group",
     label: "Flota",
+    icon: "flota",
     permission: "conductores",
     children: [
       {
@@ -108,28 +115,30 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     isActive: (pathname) => pathname.startsWith("/agendamientos/propietarios"),
   },
   {
-    kind: "link",
-    label: "Historial",
-    href: "/agendamientos/historial",
-    permission: "historial",
-    hideWhenDenied: true,
-    isActive: (pathname) => pathname.startsWith("/agendamientos/historial"),
-  },
-  {
-    kind: "link",
-    label: "Pago propietario",
-    href: "/agendamientos/pago-propietario",
-    permission: "pagoPropietario",
-    isActive: (pathname) =>
-      pathname.startsWith("/agendamientos/pago-propietario"),
-  },
-  {
-    kind: "link",
-    label: "Leasing",
-    href: "/agendamientos/leasing",
-    permission: "leasing",
-    hideWhenDenied: true,
-    isActive: (pathname) => pathname.startsWith("/agendamientos/leasing"),
+    kind: "group",
+    label: "Administración",
+    icon: "administracion",
+    children: [
+      {
+        label: "Pago propietario",
+        href: "/agendamientos/pago-propietario",
+        permission: "pagoPropietario",
+        isActive: (pathname) =>
+          pathname.startsWith("/agendamientos/pago-propietario"),
+      },
+      {
+        label: "Historial",
+        href: "/agendamientos/historial",
+        permission: "historial",
+        isActive: (pathname) => pathname.startsWith("/agendamientos/historial"),
+      },
+      {
+        label: "Leasing",
+        href: "/agendamientos/leasing",
+        permission: "leasing",
+        isActive: (pathname) => pathname.startsWith("/agendamientos/leasing"),
+      },
+    ],
   },
 ];
 
@@ -141,6 +150,28 @@ export function canAccessAdminNavItem(
   return isSuperAdmin || permissions[permission];
 }
 
+export function canAccessAdminNavChild(
+  permissions: AccessPermissions,
+  group: AdminNavGroup,
+  child: AdminNavGroupChild,
+  isSuperAdmin: boolean,
+) {
+  const permission = child.permission ?? group.permission;
+  return permission ? canAccessAdminNavItem(permissions, permission, isSuperAdmin) : isSuperAdmin;
+}
+
+export function canAccessAdminNavGroup(
+  permissions: AccessPermissions,
+  group: AdminNavGroup,
+  isSuperAdmin: boolean,
+) {
+  return group.permission
+    ? canAccessAdminNavItem(permissions, group.permission, isSuperAdmin)
+    : group.children.some((child) =>
+        canAccessAdminNavChild(permissions, group, child, isSuperAdmin),
+      );
+}
+
 export function getFirstPermittedAdminRoute(
   permissions: AccessPermissions,
   isSuperAdmin: boolean,
@@ -150,15 +181,21 @@ export function getFirstPermittedAdminRoute(
   }
 
   for (const item of ADMIN_NAV_ITEMS) {
-    if (!canAccessAdminNavItem(permissions, item.permission, false)) {
+    if (item.kind === "link") {
+      if (canAccessAdminNavItem(permissions, item.permission, false)) {
+        return item.href;
+      }
+
       continue;
     }
 
-    if (item.kind === "link") {
-      return item.href;
-    }
+    const child = item.children.find((entry) =>
+      canAccessAdminNavChild(permissions, item, entry, false),
+    );
 
-    return item.children[0]?.href ?? "/agendamientos";
+    if (child) {
+      return child.href;
+    }
   }
 
   return "/agendamientos";
@@ -173,15 +210,28 @@ export function findActiveAdminNavItem(
       return { permission: item.permission };
     }
 
-    if (
-      item.kind === "group" &&
-      item.children.some((child) => child.isActive(pathname, vista))
-    ) {
-      return { permission: item.permission };
+    if (item.kind === "group") {
+      const child = item.children.find((entry) => entry.isActive(pathname, vista));
+      const permission = child?.permission ?? item.permission;
+
+      if (child && permission) {
+        return { permission };
+      }
     }
   }
 
   return undefined;
+}
+
+export function isAdminNavGroupActive(
+  group: AdminNavGroup,
+  pathname: string,
+  vista: string | null,
+) {
+  return (
+    group.children.some((child) => child.isActive(pathname, vista)) ||
+    (group.icon === "flota" && isFlotaPath(pathname))
+  );
 }
 
 export function isFlotaPath(pathname: string) {
