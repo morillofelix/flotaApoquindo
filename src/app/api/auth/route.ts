@@ -5,6 +5,7 @@ import {
   toPublicDriverOwner,
 } from "@/lib/driver-auth";
 import {
+  getTemporaryPasswordFromRut,
   hashPassword,
   normalizeEmail,
   validatePermanentPassword,
@@ -55,7 +56,18 @@ async function handleLogin(body: AuthBody) {
     );
   }
 
-  const driverOwner = await findActiveDriverByEmail(normalizeEmail(email));
+  let driverOwner = await findActiveDriverByEmail(normalizeEmail(email));
+
+  if (driverOwner && !driverOwner.passwordHash) {
+    const rutPassword = getTemporaryPasswordFromRut(driverOwner.rut);
+
+    if (rutPassword && password === rutPassword) {
+      driverOwner = await prisma.driverOwner.update({
+        where: { id: driverOwner.id },
+        data: { passwordHash: hashPassword(rutPassword), mustChangePassword: false },
+      });
+    }
+  }
 
   if (
     !driverOwner ||
