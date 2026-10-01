@@ -76,6 +76,81 @@ function eventTimes(appointment: Appointment, date: Date) {
   };
 }
 
+function dateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+/**
+ * Quita la solicitud de los días de planificación que ya no le corresponden
+ * (todos si `keepDateKeys` no se entrega). Si el día sigue teniendo otra
+ * solicitud, se conserva su estado.
+ */
+export async function releaseAppointmentFromDailySchedules(
+  appointmentId: string,
+  keepDateKeys?: Set<string>,
+) {
+  const linkedDays = await prisma.dailySchedule.findMany({
+    where: {
+      OR: [{ appointmentId }, { events: { some: { appointmentId } } }],
+    },
+    select: {
+      id: true,
+      date: true,
+      appointmentId: true,
+      changeOrigin: true,
+      isManualOverride: true,
+      baseStatusId: true,
+      events: { select: { appointmentId: true } },
+    },
+  });
+
+  const toRelease = keepDateKeys
+    ? linkedDays.filter((day) => !keepDateKeys.has(dateKey(day.date)))
+    : linkedDays;
+
+  if (!toRelease.length) return 0;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.dailyScheduleEvent.deleteMany({
+      where: {
+        appointmentId,
+        dailyScheduleId: { in: toRelease.map((day) => day.id) },
+      },
+    });
+
+    for (const day of toRelease) {
+      const otherAppointmentId =
+        day.events.find(
+          (event) => event.appointmentId && event.appointmentId !== appointmentId,
+        )?.appointmentId ?? null;
+      const shouldRestoreBase =
+        !otherAppointmentId &&
+        day.changeOrigin === "appointment" &&
+        !day.isManualOverride &&
+        Boolean(day.baseStatusId);
+
+      await tx.dailySchedule.update({
+        where: { id: day.id },
+        data: {
+          appointmentId:
+            day.appointmentId === appointmentId
+              ? otherAppointmentId
+              : day.appointmentId,
+          ...(shouldRestoreBase
+            ? {
+                effectiveStatusId: day.baseStatusId,
+                changeOrigin: "generated",
+                version: { increment: 1 },
+              }
+            : {}),
+        },
+      });
+    }
+  });
+
+  return toRelease.length;
+}
+
 export async function syncAppointmentToDailySchedules(appointmentId: string) {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
@@ -88,42 +163,8 @@ export async function syncAppointmentToDailySchedules(appointmentId: string) {
   if (!driver) return { appointmentId, syncedDays: 0, removedEvents: 0 };
 
   if (appointment.status !== "aprobado") {
-    const affected = await prisma.dailySchedule.findMany({
-      where: { events: { some: { appointmentId } } },
-      select: {
-        id: true,
-        appointmentId: true,
-        changeOrigin: true,
-        isManualOverride: true,
-        baseStatusId: true,
-      },
-    });
-    await prisma.$transaction(async (tx) => {
-      await tx.dailyScheduleEvent.deleteMany({ where: { appointmentId } });
-      for (const day of affected) {
-        await tx.dailySchedule.update({
-          where: { id: day.id },
-          data: {
-            appointmentId:
-              day.appointmentId === appointmentId ? null : day.appointmentId,
-            ...(day.changeOrigin === "appointment" &&
-            !day.isManualOverride &&
-            day.baseStatusId
-              ? {
-                  effectiveStatusId: day.baseStatusId,
-                  changeOrigin: "generated",
-                  version: { increment: 1 },
-                }
-              : {}),
-          },
-        });
-      }
-    });
-    return {
-      appointmentId,
-      syncedDays: 0,
-      removedEvents: affected.length,
-    };
+    const removedEvents = await releaseAppointmentFromDailySchedules(appointmentId);
+    return { appointmentId, syncedDays: 0, removedEvents };
   }
 
   await ensureDefaultOperationalStatuses();
@@ -138,6 +179,10 @@ export async function syncAppointmentToDailySchedules(appointmentId: string) {
 
   const { start, end } = appointmentDateRange(appointment);
   const dates = enumerateDateRange(start, end);
+  const removedEvents = await releaseAppointmentFromDailySchedules(
+    appointmentId,
+    new Set(dates.map(dateKey)),
+  );
   for (const date of dates) {
     const year = date.getUTCFullYear();
     const month = date.getUTCMonth() + 1;
@@ -201,5 +246,5 @@ export async function syncAppointmentToDailySchedules(appointmentId: string) {
       });
     });
   }
-  return { appointmentId, syncedDays: dates.length, removedEvents: 0 };
+  return { appointmentId, syncedDays: dates.length, removedEvents };
 }
