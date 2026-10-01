@@ -33,11 +33,15 @@ function ConfirmActionDialog({
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (state.open) {
+      confirmButtonRef.current?.focus();
+    }
+  }, [state.open]);
+
+  useEffect(() => {
     if (!state.open) {
       return;
     }
-
-    confirmButtonRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -210,22 +214,35 @@ export function useConfirmAction() {
     });
   }, []);
 
+  const handleConfirm = useCallback(() => close(true), [close]);
+  const handleCancel = useCallback(() => close(false), [close]);
+  const handlePromptConfirm = useCallback(
+    (note: string) => closePrompt({ submitted: true, note }),
+    [closePrompt],
+  );
+  const handlePromptCancel = useCallback(() => closePrompt(null), [closePrompt]);
+
   const dialog = (
     <>
       <ConfirmActionDialog
         state={state}
-        onConfirm={() => close(true)}
-        onCancel={() => close(false)}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
       />
       <PromptNoteDialog
         state={promptState}
-        onConfirm={(note) => closePrompt({ submitted: true, note })}
-        onCancel={() => closePrompt(null)}
+        onConfirm={handlePromptConfirm}
+        onCancel={handlePromptCancel}
       />
     </>
   );
 
-  return { confirm, promptNote, dialog };
+  return {
+    confirm,
+    promptNote,
+    dialog,
+    isDialogOpen: state.open || promptState.open,
+  };
 }
 
 function PromptNoteDialog({
@@ -252,6 +269,14 @@ function PromptNoteDialog({
       textareaRef.current?.focus();
     });
 
+    return () => window.cancelAnimationFrame(frame);
+  }, [state.open]);
+
+  useEffect(() => {
+    if (!state.open) {
+      return;
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onCancel();
@@ -259,10 +284,7 @@ function PromptNoteDialog({
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [state.open, onCancel]);
 
   if (!state.open) {

@@ -64,7 +64,7 @@ import {
 } from "@/lib/appointment-origin";
 
 function AppointmentsPageContent() {
-  const { confirm, promptNote, dialog } = useConfirmAction();
+  const { confirm, promptNote, dialog, isDialogOpen } = useConfirmAction();
   const searchParams = useSearchParams();
   const isCalendarView = searchParams.get("vista") === "calendario";
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -145,6 +145,7 @@ function AppointmentsPageContent() {
 
   const shouldPauseAutoRefresh =
     isLoadingAppointments ||
+    isDialogOpen ||
     isCreateModalOpen ||
     editingAppointment !== null ||
     firstAssignmentPrompt !== null ||
