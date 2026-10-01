@@ -12,11 +12,7 @@ import {
   serializeWeekdayBusinessAdvance,
   checkReasonDateRules,
 } from "@/lib/appointment-reason-weekdays";
-import {
-  checkHolidayRestrictedDates,
-  getActiveHolidayDateSet,
-  toHolidayConfig,
-} from "@/lib/holidays";
+import { getActiveHolidayDateSet, toHolidayConfig } from "@/lib/holidays";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
 import { DRIVER_RESTRICTION_MESSAGE } from "@/lib/driver-restriction-message";
 import {
@@ -456,15 +452,6 @@ export async function POST(request: NextRequest) {
       swapToDate: appointment.swapToDate,
     };
 
-    const holidayCheck = checkHolidayRestrictedDates(holidays, dateInput, ingressDate);
-
-    if (holidayCheck.blocked) {
-      return NextResponse.json(
-        { message: DRIVER_RESTRICTION_MESSAGE },
-        { status: 403 },
-      );
-    }
-
     const reasonDateCheck = checkReasonDateRules(
       reason.restrictedWeekdays,
       reason.weekdayBusinessAdvance,
@@ -475,7 +462,7 @@ export async function POST(request: NextRequest) {
 
     if (reasonDateCheck.blocked) {
       return NextResponse.json(
-        { message: DRIVER_RESTRICTION_MESSAGE },
+        { message: reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE },
         { status: 403 },
       );
     }

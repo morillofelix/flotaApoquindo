@@ -20,7 +20,6 @@ import {
 } from "@/lib/appointments";
 import {
   type HolidayConfig,
-  checkHolidayRestrictedDates,
   getActiveHolidayDateSet,
 } from "@/lib/holidays";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -525,25 +524,14 @@ function AppointmentRequestForm({
       swapToDate: values.swapToDate,
     };
 
-    const ingressDate = getTodayValue();
-    const holidayCheck = checkHolidayRestrictedDates(
-      holidays,
-      dateInput,
-      ingressDate,
-    );
-
-    if (holidayCheck.blocked) {
-      return holidayCheck;
-    }
-
     return checkReasonDateRules(
       selectedReasonConfig.restrictedWeekdays,
       selectedReasonConfig.weekdayBusinessAdvance,
       dateInput,
-      ingressDate,
+      getTodayValue(),
       holidayDateSet,
     );
-  }, [selectedReasonConfig, values, holidays, holidayDateSet]);
+  }, [selectedReasonConfig, values, holidayDateSet]);
 
   useEffect(() => {
     if (!linkedVehicleNumber) {
@@ -1067,7 +1055,7 @@ function AppointmentRequestForm({
     const submittedTooFast = Date.now() - formStartedAt < 2000;
 
     if (reasonDateCheck.blocked) {
-      setSubmitError(DRIVER_RESTRICTION_MESSAGE);
+      setSubmitError(reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE);
       setShowSuccess(false);
       return;
     }
@@ -1288,7 +1276,7 @@ function AppointmentRequestForm({
 
                 {reasonDateCheck.blocked ? (
                   <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4">
-                    {DRIVER_RESTRICTION_MESSAGE}
+                    {reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>
@@ -1344,7 +1332,7 @@ function AppointmentRequestForm({
 
                 {reasonDateCheck.blocked ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4 sm:col-span-2">
-                    {DRIVER_RESTRICTION_MESSAGE}
+                    {reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>
@@ -1400,7 +1388,7 @@ function AppointmentRequestForm({
 
                 {reasonDateCheck.blocked ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4 sm:col-span-2">
-                    {DRIVER_RESTRICTION_MESSAGE}
+                    {reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>
@@ -1569,7 +1557,7 @@ function AppointmentRequestForm({
 
                 {reasonDateCheck.blocked ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium leading-6 text-amber-950 sm:px-4">
-                    {DRIVER_RESTRICTION_MESSAGE}
+                    {reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE}
                   </div>
                 ) : null}
               </div>
