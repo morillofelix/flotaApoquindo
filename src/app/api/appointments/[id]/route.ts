@@ -25,6 +25,11 @@ import {
   findClassificationByVehicleNumber,
 } from "@/lib/driver-groups";
 import { syncAppointmentToDailySchedules } from "@/lib/appointment-schedule-sync";
+import {
+  loadLatestAppointmentStatusAudits,
+  recordAppointmentStatusAudit,
+  resolveAppointmentAuditActor,
+} from "@/lib/appointment-audit-server";
 import { normalizeEmail } from "@/lib/password-utils";
 import { prisma } from "@/lib/prisma";
 import { seedExecutivesIfEmpty } from "@/lib/executive-seed-server";
@@ -67,6 +72,8 @@ const validStatuses: AppointmentStatus[] = [
   "rechazado",
   "cancelado",
 ];
+
+const ANNUL_REASON_MIN_LENGTH = 5;
 
 function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -674,6 +681,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       reason ?? undefined,
     );
 
+    if (previousAppointment.status === "anulado") {
+      return NextResponse.json(
+        { message: "La solicitud está anulada y no se puede modificar." },
+        { status: 400 },
+      );
+    }
+
     let requiresCalendarCancel = false;
 
     if (datePatch) {
@@ -948,6 +962,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
+    if (savedAppointment.status !== previousAppointment.status) {
+      const actor = await resolveAppointmentAuditActor(request);
+      const statusAudit = await recordAppointmentStatusAudit({
+        appointmentId: id,
+        action: "cambio-estado",
+        previousStatus: previousAppointment.status,
+        nextStatus: savedAppointment.status,
+        actor,
+        reason: savedAppointment.rejectionMessage,
+      });
+
+      savedAppointment = { ...savedAppointment, statusAudit };
+    } else {
+      const audits = await loadLatestAppointmentStatusAudits([id]);
+      savedAppointment = {
+        ...savedAppointment,
+        statusAudit: audits.get(id) ?? null,
+      };
+    }
+
     const scheduleRelevantStatuses = new Set([
       "aprobado",
       "cancelado",
@@ -1000,15 +1034,91 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
+  let annulReason = "";
+
   try {
-    await prisma.appointment.delete({
+    const body = (await request.json()) as { reason?: unknown };
+    annulReason = typeof body.reason === "string" ? body.reason.trim() : "";
+  } catch {
+    annulReason = "";
+  }
+
+  if (annulReason.length < ANNUL_REASON_MIN_LENGTH) {
+    return NextResponse.json(
+      { message: "Debes indicar el motivo de la anulación." },
+      { status: 400 },
+    );
+  }
+
+  if (annulReason.length > 400) {
+    return NextResponse.json(
+      { message: "El motivo de la anulación no puede superar 400 caracteres." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const currentAppointment = await prisma.appointment.findUnique({
       where: { id },
+      omit: { evidenceImageData: true },
     });
 
-    return NextResponse.json({ ok: true });
+    if (!currentAppointment) {
+      return NextResponse.json(
+        { message: "Solicitud no encontrada." },
+        { status: 404 },
+      );
+    }
+
+    if (currentAppointment.status === "anulado") {
+      return NextResponse.json(
+        { message: "La solicitud ya está anulada." },
+        { status: 400 },
+      );
+    }
+
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id },
+      data: { status: "anulado" },
+      omit: { evidenceImageData: true },
+    });
+
+    const actor = await resolveAppointmentAuditActor(request);
+    const statusAudit = await recordAppointmentStatusAudit({
+      appointmentId: id,
+      action: "anular",
+      previousStatus: currentAppointment.status,
+      nextStatus: "anulado",
+      actor,
+      reason: annulReason,
+    });
+
+    try {
+      await syncAppointmentToDailySchedules(id);
+    } catch (scheduleError) {
+      console.error(
+        "[appointments DELETE] syncAppointmentToDailySchedules failed:",
+        scheduleError,
+      );
+    }
+
+    const reasonRecord = await prisma.appointmentReason.findUnique({
+      where: { value: updatedAppointment.appointmentReason },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      appointment: {
+        ...toAppointment(
+          updatedAppointment,
+          toReasonConfig(reasonRecord) ?? undefined,
+        ),
+        statusAudit,
+      },
+    });
   } catch {
     return NextResponse.json(
-      { message: "No se pudo eliminar la solicitud." },
+      { message: "No se pudo anular la solicitud." },
       { status: 500 },
     );
   }

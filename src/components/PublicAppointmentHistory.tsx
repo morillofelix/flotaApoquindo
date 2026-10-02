@@ -40,6 +40,8 @@ const publicStatusBadgeStyles: Record<AppointmentStatus, string> = {
     "border-red-400 bg-red-100 text-red-950 ring-2 ring-red-200/80",
   cancelado:
     "border-slate-400 bg-slate-200 text-slate-800 ring-2 ring-slate-200/80",
+  anulado:
+    "border-red-600 bg-red-600 text-white ring-2 ring-red-200/80",
 };
 
 const publicStatusCardAccent: Record<AppointmentStatus, string> = {
@@ -48,6 +50,7 @@ const publicStatusCardAccent: Record<AppointmentStatus, string> = {
   aprobado: "border-l-4 border-l-blue-500",
   rechazado: "border-l-4 border-l-red-500",
   cancelado: "border-l-4 border-l-slate-400",
+  anulado: "border-l-4 border-l-red-600",
 };
 
 const publicStatusDotStyles: Record<AppointmentStatus, string> = {
@@ -56,6 +59,7 @@ const publicStatusDotStyles: Record<AppointmentStatus, string> = {
   aprobado: "bg-blue-500",
   rechazado: "bg-red-500",
   cancelado: "bg-slate-500",
+  anulado: "bg-red-600",
 };
 
 type PublicAppointmentHistoryContentProps = {

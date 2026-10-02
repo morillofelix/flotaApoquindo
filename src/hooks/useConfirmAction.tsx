@@ -152,6 +152,9 @@ export type PromptNoteOptions = {
   cancelLabel?: string;
   minLength?: number;
   maxLength?: number;
+  eyebrow?: string;
+  fieldLabel?: string;
+  required?: boolean;
 };
 
 type PromptNoteState = PromptNoteOptions & {
@@ -195,6 +198,9 @@ export function useConfirmAction() {
         cancelLabel: options.cancelLabel,
         minLength: options.minLength,
         maxLength: options.maxLength,
+        eyebrow: options.eyebrow,
+        fieldLabel: options.fieldLabel,
+        required: options.required,
         resolve,
       });
     });
@@ -258,6 +264,8 @@ function PromptNoteDialog({
   const [note, setNote] = useState("");
   const maxLength = state.maxLength ?? 400;
   const trimmed = note.trim();
+  const requiredMinLength = state.required ? Math.max(1, state.minLength ?? 1) : 0;
+  const canSubmit = trimmed.length >= requiredMinLength;
 
   useEffect(() => {
     if (!state.open) {
@@ -305,7 +313,7 @@ function PromptNoteDialog({
       >
         <div className="border-b border-red-100 bg-red-50 px-4 py-3.5 sm:px-5 sm:py-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700 sm:text-xs">
-            Motivo del rechazo
+            {state.eyebrow ?? "Motivo del rechazo"}
           </p>
           <h2
             id="prompt-note-title"
@@ -328,7 +336,7 @@ function PromptNoteDialog({
 
           <label className="mt-4 flex flex-col gap-1.5">
             <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-900 sm:text-[11px]">
-              Mensaje para el conductor (opcional)
+              {state.fieldLabel ?? "Mensaje para el conductor (opcional)"}
             </span>
             <textarea
               ref={textareaRef}
@@ -344,8 +352,14 @@ function PromptNoteDialog({
               }
               className="min-h-[6.5rem] w-full resize-none rounded-2xl border border-red-200 bg-white px-3 py-2.5 text-sm leading-6 text-[#0f2747] outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-200"
             />
-            <span className="text-[10px] text-slate-500">
-              Opcional · {trimmed.length}/{maxLength}
+            <span
+              className={`text-[10px] ${
+                canSubmit ? "text-slate-500" : "font-semibold text-red-700"
+              }`}
+            >
+              {state.required
+                ? `Obligatorio · mínimo ${requiredMinLength} caracteres · ${trimmed.length}/${maxLength}`
+                : `Opcional · ${trimmed.length}/${maxLength}`}
             </span>
           </label>
 
@@ -359,8 +373,13 @@ function PromptNoteDialog({
             </button>
             <button
               type="button"
-              onClick={() => onConfirm(trimmed)}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-600 px-5 text-sm font-semibold text-white shadow-md shadow-red-900/20 transition hover:bg-red-700 active:translate-y-px disabled:opacity-60"
+              disabled={!canSubmit}
+              onClick={() => {
+                if (canSubmit) {
+                  onConfirm(trimmed);
+                }
+              }}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-600 px-5 text-sm font-semibold text-white shadow-md shadow-red-900/20 transition hover:bg-red-700 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
             >
               {state.confirmLabel ?? "Rechazar solicitud"}
             </button>

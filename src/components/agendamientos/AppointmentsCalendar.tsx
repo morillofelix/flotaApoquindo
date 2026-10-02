@@ -278,7 +278,11 @@ export default function AppointmentsCalendar({
   );
 
   const allEvents = useMemo(
-    () => collectCalendarEvents(appointments, executivesByName),
+    () =>
+      collectCalendarEvents(
+        appointments.filter((appointment) => appointment.status !== "anulado"),
+        executivesByName,
+      ),
     [appointments, executivesByName],
   );
 

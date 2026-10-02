@@ -81,6 +81,7 @@ export async function validateExecutiveAssignmentForDate(
   const assignmentFilter = {
     assignedExecutive: assignedExecutiveName,
     appointmentDate: appointmentDateValue,
+    status: { not: "anulado" },
     ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
   };
 

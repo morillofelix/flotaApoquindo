@@ -195,6 +195,7 @@ export function getExistingSlotsForExecutiveDay(
         appointment.scheduledEndTime &&
         appointment.status !== "cancelado" &&
         appointment.status !== "rechazado" &&
+        appointment.status !== "anulado" &&
         (!excludeAppointmentId || appointment.id !== excludeAppointmentId),
     )
     .map((appointment) => ({

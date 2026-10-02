@@ -14,6 +14,7 @@ const validStatuses: AppointmentStatus[] = [
   "aprobado",
   "rechazado",
   "cancelado",
+  "anulado",
 ];
 
 function isValidPermitType(value: string): value is PermitType {

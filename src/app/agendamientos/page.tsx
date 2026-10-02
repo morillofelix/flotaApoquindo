@@ -785,40 +785,57 @@ function AppointmentsPageContent() {
     }
   }
 
-  async function removeAppointment(id: string) {
-    const previousAppointments = appointments;
-    const updatedAppointments = appointments.filter(
-      (appointment) => appointment.id !== id,
-    );
-
-    setAppointments(updatedAppointments);
+  async function annulAppointment(id: string, reason: string) {
+    setAppointmentsError("");
 
     try {
       const response = await fetch(`/api/appointments/${id}`, {
         ...adminFetchInit,
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
       });
+      const result = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        appointment?: Appointment;
+      };
 
-      if (!response.ok) {
-        throw new Error("No se pudo eliminar la solicitud.");
+      if (!response.ok || !result.appointment) {
+        throw new Error(result.message || "No se pudo anular la solicitud.");
       }
-    } catch {
-      setAppointments(previousAppointments);
-      setAppointmentsError("No se pudo eliminar la solicitud.");
+
+      const annulled = result.appointment;
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === id ? { ...appointment, ...annulled } : appointment,
+        ),
+      );
+    } catch (error) {
+      setAppointmentsError(
+        error instanceof Error && error.message
+          ? error.message
+          : "No se pudo anular la solicitud.",
+      );
     }
   }
 
   async function confirmRemoveAppointment(appointment: Appointment) {
-    const confirmed = await confirm({
-      title: "Eliminar solicitud",
-      message: "¿Estás seguro de que deseas eliminar esta solicitud?",
-      detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}. Esta acción no se puede deshacer.`,
-      confirmLabel: "Sí, eliminar",
-      tone: "danger",
+    const result = await promptNote({
+      eyebrow: "Anular solicitud",
+      title: "¿Por qué motivo se anula?",
+      message:
+        "La solicitud quedará marcada como Anulada (no se borra) y se registrará quién la anuló y el motivo.",
+      detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}.`,
+      fieldLabel: "Motivo de la anulación",
+      placeholder: "Ej: Solicitud duplicada / ingresada por error.",
+      confirmLabel: "Anular solicitud",
+      required: true,
+      minLength: 5,
+      maxLength: 400,
     });
 
-    if (confirmed) {
-      await removeAppointment(appointment.id);
+    if (result) {
+      await annulAppointment(appointment.id, result.note);
     }
   }
 
@@ -1103,6 +1120,7 @@ function AppointmentsPageContent() {
                 <option value="rechazado">Rech. ejecutivo</option>
                 <option value="rechazado_conductor">Rech. conductor</option>
                 <option value="cancelado">Cancelados</option>
+                <option value="anulado">Anulados</option>
               </select>
             </label>
 
@@ -1323,7 +1341,11 @@ function AppointmentsPageContent() {
                     {filteredAppointments.map((appointment) => (
                       <tr
                         key={appointment.id}
-                        className="align-top transition hover:bg-[#f8fbff]"
+                        className={
+                          appointment.status === "anulado"
+                            ? "align-top bg-red-50 shadow-[inset_4px_0_0_#dc2626] transition hover:bg-red-100 [&>td:not([data-keep-color])]:text-red-800! [&>td:not([data-keep-color])_*]:text-red-800!"
+                            : "align-top transition hover:bg-[#f8fbff]"
+                        }
                       >
                         <td className="px-2.5 py-2">
                           {(() => {
@@ -1417,9 +1439,10 @@ function AppointmentsPageContent() {
                         </td>
                         <td className="px-2.5 py-2 align-top">
                           {appointmentAllowsExecutive(appointment) ? (
-                            appointment.assignedExecutive ? (
+                            appointment.assignedExecutive ||
+                            appointment.status === "anulado" ? (
                               <span className="inline-flex h-8 min-w-32 items-center rounded-2xl border border-[#b7cce4] bg-[#f8fbff] px-2.5 text-xs font-semibold text-[#173b68]">
-                                {appointment.assignedExecutive}
+                                {appointment.assignedExecutive || "—"}
                               </span>
                             ) : (
                               <select
@@ -1454,7 +1477,7 @@ function AppointmentsPageContent() {
                             </span>
                           )}
                         </td>
-                        <td className="px-2.5 py-2 align-top">
+                        <td data-keep-color className="px-2.5 py-2 align-top">
                           <AppointmentStatusControl
                             appointment={appointment}
                             onRequestStatusChange={(currentAppointment, nextStatus) =>
@@ -1465,7 +1488,7 @@ function AppointmentsPageContent() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-top">
+                        <td data-keep-color className="px-1 py-2 align-top">
                           <div className="flex justify-center">
                             <AppointmentRowActions
                             appointment={appointment}

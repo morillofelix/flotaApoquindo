@@ -175,6 +175,17 @@ export default function AppointmentRowActions({
     };
   }, [open]);
 
+  if (appointment.status === "anulado") {
+    return (
+      <span
+        title="Solicitud anulada: sin acciones disponibles"
+        className="inline-flex size-8 items-center justify-center text-xs font-semibold text-red-400"
+      >
+        —
+      </span>
+    );
+  }
+
   return (
     <div ref={containerRef} className="relative inline-flex flex-col items-center">
       <button
@@ -243,7 +254,7 @@ export default function AppointmentRowActions({
             className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-red-700 transition hover:bg-red-50"
           >
             <TrashIcon />
-            <span>Eliminar</span>
+            <span>Anular</span>
           </button>
         </div>
       ) : null}

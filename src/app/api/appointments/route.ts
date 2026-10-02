@@ -30,6 +30,7 @@ import {
 } from "@/lib/driver-groups";
 import { validatePermitHoursRange } from "@/lib/permit-time-rules";
 import { prisma } from "@/lib/prisma";
+import { loadLatestAppointmentStatusAudits } from "@/lib/appointment-audit-server";
 import { readDriverSession } from "@/lib/driver-auth";
 import { normalizeEmail } from "@/lib/password-utils";
 import { sendAppointmentTicketEmail } from "@/lib/appointment-ticket-email-server";
@@ -337,6 +338,8 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    const statusAudits = await loadLatestAppointmentStatusAudits();
+
     return NextResponse.json({
       appointments: appointments.map((appointment) => {
         const key = normalizeVehicleNumber(appointment.vehicleNumber);
@@ -350,12 +353,15 @@ export async function GET(request: NextRequest) {
           ? classification?.shortLabel || "—"
           : "—";
 
-        return toAppointment(
-          appointment,
-          toReasonConfig(reasonByValue.get(appointment.appointmentReason) ?? null) ??
-            undefined,
-          { label, shortLabel },
-        );
+        return {
+          ...toAppointment(
+            appointment,
+            toReasonConfig(reasonByValue.get(appointment.appointmentReason) ?? null) ??
+              undefined,
+            { label, shortLabel },
+          ),
+          statusAudit: statusAudits.get(appointment.id) ?? null,
+        };
       }),
       vehicleShiftByNumber,
       vehicleShiftsByNumber,

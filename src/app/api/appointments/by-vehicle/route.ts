@@ -205,6 +205,7 @@ export async function GET(request: NextRequest) {
       prisma.appointment.findMany({
         where: {
           vehicleNumber: { in: vehicleCandidates },
+          status: { not: "anulado" },
           OR: [
             { driverApprovalPending: true },
             { dateChangePending: true },
@@ -218,6 +219,7 @@ export async function GET(request: NextRequest) {
       prisma.appointment.findMany({
         where: {
           vehicleNumber: { in: vehicleCandidates },
+          status: { not: "anulado" },
         },
         orderBy: { createdAt: "desc" },
         take: 5,

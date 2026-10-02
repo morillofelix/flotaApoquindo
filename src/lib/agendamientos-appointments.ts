@@ -11,6 +11,7 @@ export const statusLabels: Record<AppointmentStatus, string> = {
   aprobado: "Aprobado",
   rechazado: "Rechazado",
   cancelado: "Cancelado",
+  anulado: "Anulado",
 };
 
 export const statusStyles: Record<AppointmentStatus, string> = {
@@ -19,6 +20,7 @@ export const statusStyles: Record<AppointmentStatus, string> = {
   aprobado: "border-blue-200 bg-blue-50 text-blue-800",
   rechazado: "border-red-200 bg-red-50 text-red-800",
   cancelado: "border-slate-300 bg-slate-100 text-slate-700",
+  anulado: "border-red-600 bg-red-600 text-white",
 };
 
 export type DateFilter =

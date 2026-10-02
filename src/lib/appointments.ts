@@ -240,7 +240,18 @@ export type AppointmentStatus =
   | "revisado"
   | "aprobado"
   | "rechazado"
-  | "cancelado";
+  | "cancelado"
+  | "anulado";
+
+export type AppointmentStatusAudit = {
+  action: "cambio-estado" | "anular";
+  status: AppointmentStatus;
+  previousStatus: string;
+  userEmail: string;
+  userName: string;
+  reason: string;
+  at: string;
+};
 
 export type AppointmentCreatedByType = "conductor" | "ejecutivo";
 
@@ -293,6 +304,7 @@ export type Appointment = {
   operationalClassificationShort?: string;
   createdAt: string;
   status: AppointmentStatus;
+  statusAudit?: AppointmentStatusAudit | null;
 };
 
 export type AppointmentEmailPayload = Pick<

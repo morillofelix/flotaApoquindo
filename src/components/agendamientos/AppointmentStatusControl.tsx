@@ -1,15 +1,142 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   type Appointment,
   type AppointmentStatus,
 } from "@/lib/appointments";
 import {
   appointmentAllowsExecutive,
+  statusLabels,
   statusStyles,
 } from "@/lib/agendamientos-appointments";
 import NotePeekButton from "@/components/agendamientos/NotePeekButton";
+
+const auditActionLabels: Partial<Record<AppointmentStatus, string>> = {
+  pendiente: "Vuelto a pendiente",
+  revisado: "Agendado",
+  aprobado: "Aprobado",
+  rechazado: "Rechazado",
+  cancelado: "Cancelado",
+  anulado: "Anulado",
+};
+
+function formatAuditDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleString("es-CL", {
+    timeZone: "America/Santiago",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function StatusAuditHover({
+  appointment,
+  children,
+}: {
+  appointment: Appointment;
+  children: ReactNode;
+}) {
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    above: boolean;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const audit =
+    appointment.statusAudit &&
+    appointment.statusAudit.status === appointment.status
+      ? appointment.statusAudit
+      : null;
+
+  if (!audit && appointment.status === "pendiente") {
+    return <>{children}</>;
+  }
+
+  function show() {
+    const rect = containerRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return;
+    }
+
+    const width = 260;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const above = rect.top > 150;
+    const top = above ? rect.top - 8 : rect.bottom + 8;
+    setPosition({ top, left, above });
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="inline-flex"
+      onMouseEnter={show}
+      onMouseLeave={() => setPosition(null)}
+    >
+      {children}
+      {position ? (
+        <div
+          role="tooltip"
+          style={{
+            position: "fixed",
+            top: position.top,
+            left: position.left,
+            width: 260,
+            transform: position.above ? "translateY(-100%)" : undefined,
+            zIndex: 90,
+          }}
+          className={`pointer-events-none rounded-xl border bg-white px-3 py-2.5 text-left text-xs shadow-lg shadow-slate-400/30 ${
+            appointment.status === "anulado"
+              ? "border-red-300"
+              : "border-[#b7cce4]"
+          }`}
+        >
+          {audit ? (
+            <>
+              <p
+                className={`font-semibold ${
+                  appointment.status === "anulado"
+                    ? "text-red-800"
+                    : "text-[#0f2747]"
+                }`}
+              >
+                {auditActionLabels[audit.status] ?? statusLabels[audit.status]}{" "}
+                por {audit.userName || "usuario sin nombre"}
+              </p>
+              {audit.userEmail && audit.userEmail !== audit.userName ? (
+                <p className="mt-0.5 break-all text-[11px] text-slate-500">
+                  {audit.userEmail}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[11px] text-slate-600">
+                {formatAuditDate(audit.at)}
+              </p>
+              {audit.reason && audit.action === "anular" ? (
+                <p className="mt-1.5 rounded-lg bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-900">
+                  <span className="font-semibold">Motivo:</span> {audit.reason}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              Sin registro de usuario: este cambio se hizo antes de activar la
+              auditoría.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 type AppointmentStatusControlProps = {
   appointment: Appointment;
@@ -147,6 +274,14 @@ export default function AppointmentStatusControl({
         }
       />
     );
+  } else if (appointment.status === "anulado") {
+    control = (
+      <span
+        className={`inline-flex h-8 min-w-28 items-center justify-center rounded-full border px-2.5 text-xs font-semibold ${statusStyles.anulado}`}
+      >
+        Anulado
+      </span>
+    );
   } else if (appointment.status === "cancelado") {
     control = (
       <StatusBadgeButton
@@ -162,7 +297,7 @@ export default function AppointmentStatusControl({
 
   return (
     <div className="inline-flex items-center gap-1.5">
-      {control}
+      <StatusAuditHover appointment={appointment}>{control}</StatusAuditHover>
       {showRejectionNote ? (
         <NotePeekButton
           tone="navy"
