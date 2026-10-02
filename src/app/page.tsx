@@ -20,6 +20,7 @@ import {
 } from "@/lib/appointments";
 import {
   type HolidayConfig,
+  checkDriverHolidayAdvance,
   getActiveHolidayDateSet,
 } from "@/lib/holidays";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -524,14 +525,25 @@ function AppointmentRequestForm({
       swapToDate: values.swapToDate,
     };
 
+    const ingressDate = getTodayValue();
+    const holidayCheck = checkDriverHolidayAdvance(
+      holidays,
+      dateInput,
+      ingressDate,
+    );
+
+    if (holidayCheck.blocked) {
+      return holidayCheck;
+    }
+
     return checkReasonDateRules(
       selectedReasonConfig.restrictedWeekdays,
       selectedReasonConfig.weekdayBusinessAdvance,
       dateInput,
-      getTodayValue(),
+      ingressDate,
       holidayDateSet,
     );
-  }, [selectedReasonConfig, values, holidayDateSet]);
+  }, [selectedReasonConfig, values, holidays, holidayDateSet]);
 
   useEffect(() => {
     if (!linkedVehicleNumber) {

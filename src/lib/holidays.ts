@@ -1,8 +1,10 @@
 import {
+  formatBusinessDaysLabel,
   formatCompactAdvanceDate,
   getBusinessDayAdvanceMessage,
   getEarliestRequiredDate,
   getReasonDatesToCheck,
+  meetsBusinessDayAdvance,
   type ReasonStartDateInput,
 } from "@/lib/appointment-reason-weekdays";
 
@@ -104,6 +106,47 @@ export function toHolidayConfig(value: {
     isActive: value.isActive,
     source: value.source,
   };
+}
+
+export function getDriverHolidayAdvanceMessage(requiredDays: number) {
+  return `Esta fecha está restringida por ser feriado. La solicitud debe realizarse con al menos ${formatBusinessDaysLabel(requiredDays)} de anticipación. Para más información, contacte al Departamento de Flota.`;
+}
+
+export function checkDriverHolidayAdvance(
+  holidays: HolidayConfig[],
+  input: ReasonStartDateInput & {
+    vacationEndDate?: string;
+    permitEndDate?: string;
+  },
+  ingressDate: string,
+) {
+  const holidayMap = getActiveHolidayMap(holidays);
+  const holidayDateSet = getActiveHolidayDateSet(holidays);
+  const dates = getReasonDatesToCheck(input);
+
+  if (dates.length === 0 || holidayMap.size === 0) {
+    return { blocked: false, message: "" };
+  }
+
+  for (const date of dates) {
+    const holiday = holidayMap.get(date);
+
+    if (!holiday) {
+      continue;
+    }
+
+    const requiredDays =
+      holiday.businessDaysAdvance >= 1 ? holiday.businessDaysAdvance : 1;
+
+    if (!meetsBusinessDayAdvance(ingressDate, date, requiredDays, holidayDateSet)) {
+      return {
+        blocked: true,
+        message: getDriverHolidayAdvanceMessage(requiredDays),
+      };
+    }
+  }
+
+  return { blocked: false, message: "" };
 }
 
 export function checkHolidayRestrictedDates(
