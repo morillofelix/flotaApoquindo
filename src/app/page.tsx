@@ -587,12 +587,25 @@ function AppointmentRequestForm({
 
     void loadRecentAppointments();
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
       void loadRecentAppointments();
-    }, 30000);
+    }, 60000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void loadRecentAppointments();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [linkedVehicleNumber]);
 

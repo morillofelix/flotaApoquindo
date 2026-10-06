@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export const DEFAULT_AUTO_REFRESH_MS = 60_000;
+export const AUTO_REFRESH_IDLE_MS = 15 * 60_000;
+
+const ACTIVITY_EVENTS = [
+  "pointerdown",
+  "pointermove",
+  "keydown",
+  "wheel",
+  "touchstart",
+] as const;
 
 type UseAutoRefreshOptions = {
   onRefresh: () => Promise<void> | void;
@@ -21,6 +30,7 @@ export function useAutoRefresh({
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const onRefreshRef = useRef(onRefresh);
   const refreshInFlightRef = useRef(false);
+  const lastActivityAtRef = useRef(0);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
@@ -55,32 +65,50 @@ export function useAutoRefresh({
       return;
     }
 
+    if (lastActivityAtRef.current === 0) {
+      lastActivityAtRef.current = Date.now();
+    }
+
+    const isIdle = () =>
+      Date.now() - lastActivityAtRef.current >= AUTO_REFRESH_IDLE_MS;
+
     const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== "visible") {
+      if (document.visibilityState !== "visible" || isIdle()) {
         return;
       }
 
       void refresh({ showSpinner: false });
     }, intervalMs);
 
-    return () => window.clearInterval(intervalId);
-  }, [enabled, intervalMs, pause, refresh]);
+    function handleActivity() {
+      const wasIdle = isIdle();
+      lastActivityAtRef.current = Date.now();
 
-  useEffect(() => {
-    if (!enabled || pause) {
-      return;
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
+      if (wasIdle && document.visibilityState === "visible") {
         void refresh({ showSpinner: false });
       }
     }
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        lastActivityAtRef.current = Date.now();
+        void refresh({ showSpinner: false });
+      }
+    }
+
+    for (const eventName of ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, handleActivity, { passive: true });
+    }
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
+
+    return () => {
+      window.clearInterval(intervalId);
+      for (const eventName of ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, handleActivity);
+      }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [enabled, pause, refresh]);
+    };
+  }, [enabled, intervalMs, pause, refresh]);
 
   return {
     refresh,
