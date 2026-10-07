@@ -286,19 +286,31 @@ function AppointmentsPageContent() {
     [vehicleShiftByNumber],
   );
 
-  const pendingCount = appointments.filter(
+  const dateFilteredAppointments = useMemo(
+    () =>
+      appointments.filter((appointment) =>
+        isWithinDateFilter(
+          appointment.createdAt,
+          dateFilter,
+          customDateRange.startDate,
+          customDateRange.endDate,
+        ),
+      ),
+    [appointments, customDateRange, dateFilter],
+  );
+  const pendingCount = dateFilteredAppointments.filter(
     (appointment) => appointment.status === "pendiente",
   ).length;
-  const scheduledCount = appointments.filter(
+  const scheduledCount = dateFilteredAppointments.filter(
     (appointment) => appointment.status === "revisado",
   ).length;
-  const approvedCount = appointments.filter(
+  const approvedCount = dateFilteredAppointments.filter(
     (appointment) => appointment.status === "aprobado",
   ).length;
-  const rejectedCount = appointments.filter(
+  const rejectedCount = dateFilteredAppointments.filter(
     (appointment) => appointment.status === "rechazado",
   ).length;
-  const driverRejectedCount = appointments.filter(
+  const driverRejectedCount = dateFilteredAppointments.filter(
     (appointment) => appointment.driverApprovalRejected,
   ).length;
 
@@ -988,7 +1000,7 @@ function AppointmentsPageContent() {
               >
                 <p className="text-[11px] font-semibold text-slate-500">Total</p>
                 <p className="font-heading text-xl font-semibold text-[#0f2747]">
-                  {appointments.length}
+                  {dateFilteredAppointments.length}
                 </p>
               </button>
               <button
