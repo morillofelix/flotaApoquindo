@@ -761,6 +761,7 @@ export default function PlanificacionMensualPage() {
     const totals = {
       daysDeleted: 0,
       driversTargeted: 0,
+      approvedRestored: 0,
       monthlyCleared: false,
     };
 
@@ -798,6 +799,7 @@ export default function PlanificacionMensualPage() {
           summary?: {
             daysDeleted?: number;
             driversTargeted?: number;
+            approvedRestored?: number;
             monthlyCleared?: boolean;
           };
         };
@@ -809,6 +811,7 @@ export default function PlanificacionMensualPage() {
         }
 
         totals.daysDeleted += body.summary?.daysDeleted ?? 0;
+        totals.approvedRestored += body.summary?.approvedRestored ?? 0;
         totals.driversTargeted += body.summary?.driversTargeted ?? chunk.length;
         if (body.summary?.monthlyCleared) totals.monthlyCleared = true;
 
@@ -840,8 +843,10 @@ export default function PlanificacionMensualPage() {
       await reload({ silent: true });
       setMessage(
         `Eliminado: ${totals.daysDeleted} días de ${totals.driversTargeted} conductores${
-          totals.monthlyCleared ? " · el mes quedó sin planificación" : ""
-        }.`,
+          totals.approvedRestored
+            ? ` · se mantuvieron ${totals.approvedRestored} solicitudes aprobadas`
+            : ""
+        }${totals.monthlyCleared ? " · el mes quedó sin planificación" : ""}.`,
       );
     } catch (caught) {
       const text =
@@ -905,6 +910,7 @@ export default function PlanificacionMensualPage() {
           created?: number;
           updated?: number;
           days?: number;
+          approvedRestored?: number;
         };
       };
       if (!response.ok) {
@@ -912,7 +918,11 @@ export default function PlanificacionMensualPage() {
       }
       await reload({ silent: true });
       setMessage(
-        `Mes copiado desde ${sourceLabel}: ${body.summary?.driversTargeted ?? 0} móviles · ${body.summary?.days ?? 0} días · creados ${body.summary?.created ?? 0} · actualizados ${body.summary?.updated ?? 0}.`,
+        `Mes copiado desde ${sourceLabel}: ${body.summary?.driversTargeted ?? 0} móviles · ${body.summary?.days ?? 0} días · creados ${body.summary?.created ?? 0} · actualizados ${body.summary?.updated ?? 0}${
+          body.summary?.approvedRestored
+            ? ` · ${body.summary.approvedRestored} solicitudes aprobadas aplicadas`
+            : ""
+        }.`,
       );
     } catch (caught) {
       setError(

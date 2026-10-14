@@ -1,4 +1,7 @@
-import { operationalStatusCodeForAppointmentReason } from "@/lib/fleet-schedule";
+import {
+  APPOINTMENT_REASON_TO_STATUS_CODE,
+  operationalStatusCodeForAppointmentReason,
+} from "@/lib/fleet-schedule";
 import { ensureDefaultOperationalStatuses } from "@/lib/operational-status";
 import { prisma } from "@/lib/prisma";
 import type { Appointment } from "@prisma/client";
@@ -61,6 +64,91 @@ export function enumerateDateRange(start: Date, end: Date) {
   return dates;
 }
 
+const APPOINTMENT_STATUS_CODES = new Set([
+  ...Object.values(APPOINTMENT_REASON_TO_STATUS_CODE),
+  "PERMISO",
+]);
+
+export type AppointmentDriverCandidate = {
+  id: string;
+  vehicleNumber: string;
+  fullName: string;
+};
+
+const nameTokenCache = new Map<string, string[]>();
+
+function nameTokens(value: string) {
+  const cached = nameTokenCache.get(value);
+  if (cached) return cached;
+  const tokens = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (nameTokenCache.size > 5000) nameTokenCache.clear();
+  nameTokenCache.set(value, tokens);
+  return tokens;
+}
+
+/** "exact" mismo nombre normalizado; "similar" mismo nombre con diferencias menores. */
+export function driverNamesMatch(left: string, right: string) {
+  const a = nameTokens(left);
+  const b = nameTokens(right);
+  if (!a.length || !b.length) return null;
+  if (a.join(" ") === b.join(" ")) return "exact" as const;
+  const rightSet = new Set(b);
+  const shared = a.filter((token) => rightSet.has(token)).length;
+  const shorter = Math.min(a.length, b.length);
+  if ((shorter >= 2 && shared === shorter) || shared >= 3) {
+    return "similar" as const;
+  }
+  return null;
+}
+
+/**
+ * La solicitud pertenece a la persona que la pidió, no al móvil: si el móvil
+ * cambió de conductor, no se aplica al nuevo; si el conductor se movió a otro
+ * móvil, lo sigue.
+ */
+export function resolveAppointmentDriver<T extends AppointmentDriverCandidate>(
+  appointment: Pick<Appointment, "driverName" | "vehicleNumber">,
+  drivers: T[],
+): T | null {
+  const vehicleOwner =
+    drivers.find((driver) => driver.vehicleNumber === appointment.vehicleNumber) ??
+    null;
+  if (!appointment.driverName.trim()) return vehicleOwner;
+  const matchWith = (driver: T) =>
+    driverNamesMatch(appointment.driverName, driver.fullName);
+  if (vehicleOwner && matchWith(vehicleOwner) === "exact") return vehicleOwner;
+  const exact = drivers.find((driver) => matchWith(driver) === "exact");
+  if (exact) return exact;
+  if (vehicleOwner && matchWith(vehicleOwner) === "similar") return vehicleOwner;
+  return drivers.find((driver) => matchWith(driver) === "similar") ?? null;
+}
+
+async function findAppointmentDriver(
+  appointment: Pick<Appointment, "driverName" | "vehicleNumber">,
+) {
+  const vehicleOwner = await prisma.driverOwner.findUnique({
+    where: { vehicleNumber: appointment.vehicleNumber },
+    select: { id: true, vehicleNumber: true, fullName: true },
+  });
+  if (
+    vehicleOwner &&
+    (!appointment.driverName.trim() ||
+      driverNamesMatch(appointment.driverName, vehicleOwner.fullName) === "exact")
+  ) {
+    return vehicleOwner;
+  }
+  const drivers = await prisma.driverOwner.findMany({
+    select: { id: true, vehicleNumber: true, fullName: true },
+  });
+  return resolveAppointmentDriver(appointment, drivers);
+}
+
 function eventTimes(appointment: Appointment, date: Date) {
   if (appointment.permitType !== "horas") return { startAt: null, endAt: null };
   const parse = (time: string) => {
@@ -88,6 +176,7 @@ function dateKey(value: Date) {
 export async function releaseAppointmentFromDailySchedules(
   appointmentId: string,
   keepDateKeys?: Set<string>,
+  keepDriverOwnerId?: string,
 ) {
   const linkedDays = await prisma.dailySchedule.findMany({
     where: {
@@ -96,16 +185,23 @@ export async function releaseAppointmentFromDailySchedules(
     select: {
       id: true,
       date: true,
+      driverOwnerId: true,
       appointmentId: true,
       changeOrigin: true,
       isManualOverride: true,
       baseStatusId: true,
+      effectiveStatus: { select: { code: true } },
       events: { select: { appointmentId: true } },
     },
   });
 
   const toRelease = keepDateKeys
-    ? linkedDays.filter((day) => !keepDateKeys.has(dateKey(day.date)))
+    ? linkedDays.filter(
+        (day) =>
+          !keepDateKeys.has(dateKey(day.date)) ||
+          (keepDriverOwnerId !== undefined &&
+            day.driverOwnerId !== keepDriverOwnerId),
+      )
     : linkedDays;
 
   if (!toRelease.length) return 0;
@@ -123,9 +219,13 @@ export async function releaseAppointmentFromDailySchedules(
         day.events.find(
           (event) => event.appointmentId && event.appointmentId !== appointmentId,
         )?.appointmentId ?? null;
+      const statusFromAppointment =
+        day.changeOrigin === "appointment" ||
+        (day.changeOrigin === "regenerated" &&
+          APPOINTMENT_STATUS_CODES.has(day.effectiveStatus?.code ?? ""));
       const shouldRestoreBase =
         !otherAppointmentId &&
-        day.changeOrigin === "appointment" &&
+        statusFromAppointment &&
         !day.isManualOverride &&
         Boolean(day.baseStatusId);
 
@@ -151,18 +251,22 @@ export async function releaseAppointmentFromDailySchedules(
   return toRelease.length;
 }
 
-export async function syncAppointmentToDailySchedules(appointmentId: string) {
+export async function syncAppointmentToDailySchedules(
+  appointmentId: string,
+  options?: { onlyFrom?: Date; onlyTo?: Date },
+) {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
   });
   if (!appointment) return { appointmentId, syncedDays: 0, removedEvents: 0 };
 
-  const driver = await prisma.driverOwner.findUnique({
-    where: { vehicleNumber: appointment.vehicleNumber },
-  });
-  if (!driver) return { appointmentId, syncedDays: 0, removedEvents: 0 };
-
   if (appointment.status !== "aprobado") {
+    const removedEvents = await releaseAppointmentFromDailySchedules(appointmentId);
+    return { appointmentId, syncedDays: 0, removedEvents };
+  }
+
+  const driver = await findAppointmentDriver(appointment);
+  if (!driver) {
     const removedEvents = await releaseAppointmentFromDailySchedules(appointmentId);
     return { appointmentId, syncedDays: 0, removedEvents };
   }
@@ -182,8 +286,14 @@ export async function syncAppointmentToDailySchedules(appointmentId: string) {
   const removedEvents = await releaseAppointmentFromDailySchedules(
     appointmentId,
     new Set(dates.map(dateKey)),
+    driver.id,
   );
-  for (const date of dates) {
+  const datesToSync = dates.filter(
+    (date) =>
+      (!options?.onlyFrom || date >= options.onlyFrom) &&
+      (!options?.onlyTo || date <= options.onlyTo),
+  );
+  for (const date of datesToSync) {
     const year = date.getUTCFullYear();
     const month = date.getUTCMonth() + 1;
     await prisma.$transaction(async (tx) => {
@@ -246,5 +356,5 @@ export async function syncAppointmentToDailySchedules(appointmentId: string) {
       });
     });
   }
-  return { appointmentId, syncedDays: dates.length, removedEvents };
+  return { appointmentId, syncedDays: datesToSync.length, removedEvents };
 }

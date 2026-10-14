@@ -1,6 +1,8 @@
 import {
   appointmentDateRange,
   enumerateDateRange,
+  resolveAppointmentDriver,
+  syncAppointmentToDailySchedules,
 } from "@/lib/appointment-schedule-sync";
 import {
   daysInMonth,
@@ -554,6 +556,64 @@ export async function previewMonthlyScheduleDeletion(options: {
   };
 }
 
+function approvedAppointmentsInRangeWhere(
+  firstDate: Date,
+  lastDate: Date,
+): Prisma.AppointmentWhereInput {
+  return {
+    status: "aprobado",
+    OR: [
+      { appointmentDate: { gte: firstDate, lte: lastDate } },
+      {
+        vacationStartDate: { lte: lastDate },
+        OR: [
+          { vacationEndDate: null },
+          { vacationEndDate: { gte: firstDate } },
+        ],
+      },
+      {
+        permitStartDate: { lte: lastDate },
+        OR: [{ permitEndDate: null }, { permitEndDate: { gte: firstDate } }],
+      },
+      { permitDate: { gte: firstDate, lte: lastDate } },
+    ],
+  };
+}
+
+/**
+ * Vuelve a poner en la planificación las solicitudes aprobadas de esos
+ * conductores en el periodo (tras eliminar o copiar un mes).
+ */
+async function restoreApprovedAppointments(options: {
+  driverIds: string[];
+  firstDate: Date;
+  lastDate: Date;
+}) {
+  if (!options.driverIds.length) return 0;
+  const wanted = new Set(options.driverIds);
+  const [appointments, candidates] = await Promise.all([
+    prisma.appointment.findMany({
+      where: approvedAppointmentsInRangeWhere(options.firstDate, options.lastDate),
+    }),
+    prisma.driverOwner.findMany({
+      select: { id: true, vehicleNumber: true, fullName: true },
+    }),
+  ]);
+  let restored = 0;
+  for (const appointment of appointments) {
+    const owner = resolveAppointmentDriver(appointment, candidates);
+    if (!owner || !wanted.has(owner.id)) continue;
+    const range = appointmentDateRange(appointment);
+    if (range.end < options.firstDate || range.start > options.lastDate) continue;
+    await syncAppointmentToDailySchedules(appointment.id, {
+      onlyFrom: options.firstDate,
+      onlyTo: options.lastDate,
+    });
+    restored += 1;
+  }
+  return restored;
+}
+
 export async function deleteMonthlyScheduleScope(options: {
   year: number;
   month: number;
@@ -620,6 +680,11 @@ export async function deleteMonthlyScheduleScope(options: {
   };
 
   const deleted = await prisma.dailySchedule.deleteMany({ where });
+  const approvedRestored = await restoreApprovedAppointments({
+    driverIds,
+    firstDate,
+    lastDate,
+  });
 
   const monthly = await prisma.monthlySchedule.findUnique({
     where: { year_month: { year: options.year, month: options.month } },
@@ -638,6 +703,7 @@ export async function deleteMonthlyScheduleScope(options: {
     mode: preview.mode,
     driversTargeted: preview.driversCount,
     daysDeleted: deleted.count,
+    approvedRestored,
     includeManualOverrides: includeManual,
     monthlyCleared,
   };
@@ -871,32 +937,10 @@ export async function generateMonthlySchedule(
     assignmentsFromClassification += 1;
   }
 
-  const vehicleNumbers = drivers.map((driver) => driver.vehicleNumber);
   const driverIds = drivers.map((driver) => driver.id);
-  const [appointments, blocks] = await Promise.all([
+  const [appointments, blocks, allDriverCandidates] = await Promise.all([
     prisma.appointment.findMany({
-      where: {
-        status: "aprobado",
-        vehicleNumber: { in: vehicleNumbers },
-        OR: [
-          { appointmentDate: { gte: firstDate, lte: lastDate } },
-          {
-            vacationStartDate: { lte: lastDate },
-            OR: [
-              { vacationEndDate: null },
-              { vacationEndDate: { gte: firstDate } },
-            ],
-          },
-          {
-            permitStartDate: { lte: lastDate },
-            OR: [
-              { permitEndDate: null },
-              { permitEndDate: { gte: firstDate } },
-            ],
-          },
-          { permitDate: { gte: firstDate, lte: lastDate } },
-        ],
-      },
+      where: approvedAppointmentsInRangeWhere(firstDate, lastDate),
     }),
     prisma.driverBlock.findMany({
       where: {
@@ -918,16 +962,21 @@ export async function generateMonthlySchedule(
         ],
       },
     }),
+    prisma.driverOwner.findMany({
+      select: { id: true, vehicleNumber: true, fullName: true },
+    }),
   ]);
 
-  const appointmentsByVehicleAndDate = new Map<string, typeof appointments>();
+  const appointmentsByDriverAndDate = new Map<string, typeof appointments>();
   for (const appointment of appointments) {
+    const owner = resolveAppointmentDriver(appointment, allDriverCandidates);
+    if (!owner) continue;
     const range = appointmentDateRange(appointment);
     for (const date of enumerateDateRange(range.start, range.end)) {
       if (date < firstDate || date > lastDate) continue;
-      const key = `${appointment.vehicleNumber}:${date.toISOString().slice(0, 10)}`;
-      appointmentsByVehicleAndDate.set(key, [
-        ...(appointmentsByVehicleAndDate.get(key) ?? []),
+      const key = `${owner.id}:${date.toISOString().slice(0, 10)}`;
+      appointmentsByDriverAndDate.set(key, [
+        ...(appointmentsByDriverAndDate.get(key) ?? []),
         appointment,
       ]);
     }
@@ -1063,9 +1112,7 @@ export async function generateMonthlySchedule(
             }
 
             const dayAppointments =
-              appointmentsByVehicleAndDate.get(
-                `${driver.vehicleNumber}:${dateKey}`,
-              ) ?? [];
+              appointmentsByDriverAndDate.get(`${driver.id}:${dateKey}`) ?? [];
             for (const appointment of dayAppointments) {
               const appointmentStatus = statusByCode.get(
                 operationalStatusCodeForAppointmentReason(
@@ -1194,8 +1241,8 @@ export async function generateMonthlySchedule(
           for (const row of createdRows) {
             const dateKey = row.date.toISOString().slice(0, 10);
             const dayAppointments =
-              appointmentsByVehicleAndDate.get(
-                `${row.vehicleNumber}:${dateKey}`,
+              appointmentsByDriverAndDate.get(
+                `${row.driverOwnerId}:${dateKey}`,
               ) ?? [];
             for (const appointment of dayAppointments) {
               eventCreates.push({
@@ -1320,8 +1367,16 @@ export async function copyMonthlyScheduleFromPrevious(options: {
       startTime: true,
       endTime: true,
       cyclePosition: true,
+      appointmentId: true,
+      changeOrigin: true,
     },
   });
+  const copiedEffectiveStatusId = (source: (typeof sourceDays)[number]) =>
+    !source.isManualOverride &&
+    (source.appointmentId || source.changeOrigin === "appointment") &&
+    source.baseStatusId
+      ? source.baseStatusId
+      : source.effectiveStatusId;
 
   if (!sourceDays.length) {
     throw new Error(
@@ -1410,7 +1465,7 @@ export async function copyMonthlyScheduleFromPrevious(options: {
           vehicleNumber: driver.vehicleNumber,
           shiftAssignmentId: source.shiftAssignmentId,
           baseStatusId: source.baseStatusId,
-          effectiveStatusId: source.effectiveStatusId,
+          effectiveStatusId: copiedEffectiveStatusId(source),
           observation: source.observation,
           changeOrigin: "copied",
           isManualOverride: source.isManualOverride,
@@ -1427,7 +1482,8 @@ export async function copyMonthlyScheduleFromPrevious(options: {
             vehicleNumber: driver.vehicleNumber,
             shiftAssignmentId: source.shiftAssignmentId,
             baseStatusId: source.baseStatusId,
-            effectiveStatusId: source.effectiveStatusId,
+            effectiveStatusId: copiedEffectiveStatusId(source),
+            appointmentId: null,
             observation: source.observation,
             changeOrigin: "copied",
             isManualOverride: source.isManualOverride,
@@ -1448,7 +1504,13 @@ export async function copyMonthlyScheduleFromPrevious(options: {
     await prisma.dailySchedule.createMany({ data: creates });
   }
 
-  return summary;
+  const approvedRestored = await restoreApprovedAppointments({
+    driverIds: targetDrivers.map((driver) => driver.id),
+    firstDate: targetFirst,
+    lastDate: targetLast,
+  });
+
+  return { ...summary, approvedRestored };
 }
 
 export { normalizeVehicleKey };
