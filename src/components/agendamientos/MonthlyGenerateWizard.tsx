@@ -1,5 +1,9 @@
 "use client";
 
+import MonthPlanCalendar, {
+  type MonthPlanDay,
+  type MonthPlanEntry,
+} from "@/components/agendamientos/MonthPlanCalendar";
 import ShiftWeekdayGrid, {
   cloneDayRules,
 } from "@/components/agendamientos/ShiftWeekdayGrid";
@@ -24,14 +28,6 @@ export type WizardDriver = {
   shiftId: string;
   shiftCode: string;
   shiftName: string;
-};
-
-type DayOverride = {
-  date: string;
-  statusCode: string;
-  startTime?: string;
-  endTime?: string;
-  observation?: string;
 };
 
 type Props = {
@@ -102,8 +98,9 @@ export default function MonthlyGenerateWizard({
     "assign",
   );
   const [preserveManual, setPreserveManual] = useState(true);
-  const [overrides, setOverrides] = useState<DayOverride[]>([]);
-  const [previewDay, setPreviewDay] = useState<string | null>(null);
+  const [monthPlan, setMonthPlan] = useState<Record<string, MonthPlanEntry>>(
+    {},
+  );
   const [progress, setProgress] = useState<{
     percent: number;
     message: string;
@@ -115,7 +112,7 @@ export default function MonthlyGenerateWizard({
     setStep(0);
     setShiftId("");
     setSelectedVehicles([]);
-    setOverrides([]);
+    setMonthPlan({});
     setShowShiftDays(false);
     setEditedDayRules([]);
     setShiftRulesDirty(false);
@@ -133,6 +130,10 @@ export default function MonthlyGenerateWizard({
     () => activeShifts.find((shift) => shift.id === shiftId) ?? null,
     [activeShifts, shiftId],
   );
+
+  useEffect(() => {
+    setMonthPlan({});
+  }, [shiftId]);
 
   useEffect(() => {
     if (!selectedShift) {
@@ -211,20 +212,19 @@ export default function MonthlyGenerateWizard({
           : selectedShift.dayRules,
       },
       { patternBaseDate: base },
-    ).map((day) => {
-      const override = overrides.find((item) => item.date === day.date);
+    ).map((day): MonthPlanDay => {
       const isHoliday = holidaySet.has(day.date);
-      let statusCode = override?.statusCode ?? day.statusCode;
-      if (isHoliday && selectedShift.holidayRule !== "work" && !override) {
-        statusCode = "FERIADO";
-      }
+      const holidayApplies = isHoliday && selectedShift.holidayRule !== "work";
       return {
-        ...day,
-        statusCode,
-        startTime: override?.startTime ?? day.startTime,
-        endTime: override?.endTime ?? day.endTime,
-        overridden: Boolean(override),
+        date: day.date,
+        day: day.day,
+        weekday: day.weekday,
+        statusCode: holidayApplies ? "FERIADO" : day.statusCode,
+        works: holidayApplies ? false : day.works,
+        startTime: holidayApplies ? "" : day.startTime,
+        endTime: holidayApplies ? "" : day.endTime,
         isHoliday,
+        edited: false,
       };
     });
   }, [
@@ -234,9 +234,70 @@ export default function MonthlyGenerateWizard({
     month,
     patternMode,
     patternBaseDate,
-    overrides,
     holidaySet,
   ]);
+
+  const planDays = useMemo(
+    () =>
+      patternPreview.map((day): MonthPlanDay => {
+        const planned = monthPlan[day.date];
+        if (!planned) return day;
+        return {
+          ...day,
+          statusCode: planned.works ? "TRABAJA" : "LIBRE",
+          works: planned.works,
+          startTime: planned.works ? planned.startTime : "",
+          endTime: planned.works ? planned.endTime : "",
+          edited: true,
+        };
+      }),
+    [patternPreview, monthPlan],
+  );
+
+  function setPlanDays(entries: Array<{ date: string } & MonthPlanEntry>) {
+    const baseByDate = new Map(patternPreview.map((day) => [day.date, day]));
+    setMonthPlan((current) => {
+      const next = { ...current };
+      for (const entry of entries) {
+        const base = baseByDate.get(entry.date);
+        const sameAsBase =
+          base &&
+          base.works === entry.works &&
+          (!entry.works ||
+            (base.startTime === entry.startTime &&
+              base.endTime === entry.endTime));
+        if (sameAsBase) {
+          delete next[entry.date];
+        } else {
+          next[entry.date] = {
+            works: entry.works,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+          };
+        }
+      }
+      return next;
+    });
+  }
+
+  function resetPlanDays(dates: string[]) {
+    setMonthPlan((current) => {
+      const next = { ...current };
+      for (const date of dates) delete next[date];
+      return next;
+    });
+  }
+
+  const monthPlanEntries = useMemo(
+    () =>
+      Object.entries(monthPlan).map(([date, entry]) => ({
+        date,
+        works: entry.works,
+        startTime: entry.works ? entry.startTime : "",
+        endTime: entry.works ? entry.endTime : "",
+      })),
+    [monthPlan],
+  );
 
   const conflictSummary = useMemo(() => {
     const withoutShift = selectedDriverRows.filter((d) => !d.shiftId);
@@ -301,30 +362,6 @@ export default function MonthlyGenerateWizard({
       }
       return [...next];
     });
-  }
-
-  function toggleDayOverride(date: string) {
-    const current = overrides.find((item) => item.date === date);
-    const preview = patternPreview.find((item) => item.date === date);
-    if (current) {
-      setOverrides((list) => list.filter((item) => item.date !== date));
-      return;
-    }
-    const nextCode =
-      preview?.statusCode === "TRABAJA" || preview?.statusCode === "FERIADO"
-        ? "LIBRE"
-        : "TRABAJA";
-    setOverrides((list) => [
-      ...list,
-      {
-        date,
-        statusCode: nextCode,
-        startTime:
-          nextCode === "TRABAJA" ? selectedShift?.startTime || "" : "",
-        endTime: nextCode === "TRABAJA" ? selectedShift?.endTime || "" : "",
-      },
-    ]);
-    setPreviewDay(date);
   }
 
   function canNext() {
@@ -408,7 +445,7 @@ export default function MonthlyGenerateWizard({
             patternBaseDate: baseDate,
             assignMode,
             preserveManualOverrides: preserveManual,
-            dayOverrides: overrides,
+            monthPlan: monthPlanEntries,
             ...(shiftRulesDirty
               ? {
                   forceShiftDayRules: editedDayRules.map((rule) => ({
@@ -553,7 +590,6 @@ export default function MonthlyGenerateWizard({
                     type="button"
                     onClick={() => {
                       setShiftId(shift.id);
-                      setShowShiftDays(true);
                     }}
                     className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs ${
                       shiftId === shift.id
@@ -582,7 +618,9 @@ export default function MonthlyGenerateWizard({
                       className={ghostClass}
                       onClick={() => setShowShiftDays((current) => !current)}
                     >
-                      {showShiftDays ? "Ocultar días" : "Ver / editar días del turno"}
+                      {showShiftDays
+                        ? "Ocultar semana base"
+                        : "Ver / editar semana base del turno"}
                     </button>
                     {shiftRulesDirty ? (
                       <button
@@ -617,6 +655,20 @@ export default function MonthlyGenerateWizard({
                       no los guardes en el turno maestro.
                     </p>
                   ) : null}
+                </div>
+              ) : null}
+              {selectedShift ? (
+                <div className="grid gap-2">
+                  <h3 className="text-sm font-semibold text-[#0f2747]">
+                    Calendario del mes · {selectedShift.code}
+                  </h3>
+                  <MonthPlanCalendar
+                    days={planDays}
+                    defaultStartTime={selectedShift.startTime || "08:00"}
+                    defaultEndTime={selectedShift.endTime || "17:00"}
+                    onSetDays={setPlanDays}
+                    onResetDays={resetPlanDays}
+                  />
                 </div>
               ) : null}
             </div>
@@ -745,52 +797,20 @@ export default function MonthlyGenerateWizard({
 
           {step === 3 ? (
             <div className="grid gap-3">
-              <p className="text-xs text-slate-600">
-                Clic en un día para alternar Trabaja/Libre solo en esta
-                generación (no modifica el turno maestro).
+              <MonthPlanCalendar
+                days={planDays}
+                defaultStartTime={selectedShift?.startTime || "08:00"}
+                defaultEndTime={selectedShift?.endTime || "17:00"}
+                onSetDays={setPlanDays}
+                onResetDays={resetPlanDays}
+              />
+              <p className="text-[11px] text-slate-500">
+                Sobre este calendario se siguen aplicando, por cada conductor,
+                sus solicitudes aprobadas y bloqueos.
+                {preserveManual
+                  ? " Los ajustes manuales ya hechos a un conductor se conservan."
+                  : ""}
               </p>
-              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-slate-500">
-                {["L", "M", "M", "J", "V", "S", "D"].map((d) => (
-                  <span key={d}>{d}</span>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({
-                  length: (patternPreview[0]?.weekday ?? 1) - 1,
-                }).map((_, i) => (
-                  <span key={`pad-${i}`} />
-                ))}
-                {patternPreview.map((day) => (
-                  <button
-                    key={day.date}
-                    type="button"
-                    onClick={() => toggleDayOverride(day.date)}
-                    className={`min-h-14 rounded-xl border p-1 text-[10px] ${
-                      day.overridden
-                        ? "border-amber-400 bg-amber-50"
-                        : day.isHoliday
-                          ? "border-rose-300 bg-rose-50"
-                          : "border-[#c5d8eb] bg-white"
-                    }`}
-                  >
-                    <strong className="block text-xs">{day.day}</strong>
-                    <span>
-                      {day.statusCode === "TRABAJA"
-                        ? "T"
-                        : day.statusCode === "LIBRE"
-                          ? "L"
-                          : day.statusCode === "FERIADO"
-                            ? "F"
-                            : day.statusCode.slice(0, 1)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {previewDay ? (
-                <p className="text-xs text-slate-500">
-                  Último día ajustado: {previewDay}
-                </p>
-              ) : null}
               <div className="grid gap-2 md:grid-cols-2">
                 <label className="grid gap-1 text-xs">
                   <span className="font-semibold">Si el móvil no tiene turno</span>
@@ -836,8 +856,8 @@ export default function MonthlyGenerateWizard({
                   <strong>Días del mes:</strong> {patternPreview.length}
                 </p>
                 <p>
-                  <strong>Excepciones en vista previa:</strong>{" "}
-                  {overrides.length}
+                  <strong>Días ajustados en el calendario:</strong>{" "}
+                  {monthPlanEntries.length}
                 </p>
                 <p>
                   <strong>Fecha base ciclo:</strong>{" "}

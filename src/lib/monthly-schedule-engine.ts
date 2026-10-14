@@ -33,6 +33,13 @@ export type DayOverrideInput = {
   observation?: string;
 };
 
+export type MonthPlanDayInput = {
+  date: string;
+  works: boolean;
+  startTime?: string;
+  endTime?: string;
+};
+
 export type GenerateProgress = {
   phase: "preparing" | "batch" | "done";
   processed: number;
@@ -57,6 +64,11 @@ export type GenerateMonthlyScheduleOptions = {
   patternBaseDate?: string;
   /** Excepciones de la vista previa (solo esta generación). */
   dayOverrides?: DayOverrideInput[];
+  /**
+   * Mes diseñado en el calendario del asistente para el turno forzado.
+   * Reemplaza la base del turno en esas fechas sin marcarlas como ajuste manual.
+   */
+  monthPlan?: MonthPlanDayInput[];
   /**
    * assign: crear asignación si no tienen turno.
    * keep: no cambiar asignación; generar solo si ya coincide o sin forzar.
@@ -755,6 +767,9 @@ export async function generateMonthlySchedule(
   const overrideByDate = new Map(
     (options.dayOverrides ?? []).map((item) => [item.date, item]),
   );
+  const monthPlanByDate = new Map(
+    (options.monthPlan ?? []).map((item) => [item.date, item]),
+  );
 
   if (!drivers.length) {
     throw new Error("No hay conductores activos que coincidan con el alcance.");
@@ -1000,9 +1015,26 @@ export async function generateMonthlySchedule(
               options.patternBaseDate,
             );
             const override = overrideByDate.get(dateKey);
-            const baseCode = override?.statusCode || dayResolved.statusCode;
-            const dayStartTime = override?.startTime ?? dayResolved.startTime;
-            const dayEndTime = override?.endTime ?? dayResolved.endTime;
+            const planned =
+              forcedShiftForDays &&
+              shiftForDay &&
+              shiftForDay.id === forcedShiftForDays.id
+                ? monthPlanByDate.get(dateKey)
+                : undefined;
+            const plannedBase = planned
+              ? {
+                  statusCode: planned.works ? "TRABAJA" : "LIBRE",
+                  startTime: planned.works
+                    ? planned.startTime || shiftForDay?.startTime || ""
+                    : "",
+                  endTime: planned.works
+                    ? planned.endTime || shiftForDay?.endTime || ""
+                    : "",
+                }
+              : dayResolved;
+            const baseCode = override?.statusCode || plannedBase.statusCode;
+            const dayStartTime = override?.startTime ?? plannedBase.startTime;
+            const dayEndTime = override?.endTime ?? plannedBase.endTime;
             const baseStatus =
               statusByCode.get(baseCode) ?? statusByCode.get("TRABAJA")!;
             const candidates = [baseStatus];
@@ -1010,7 +1042,8 @@ export async function generateMonthlySchedule(
             if (
               isHoliday &&
               shiftForDay?.holidayRule !== "work" &&
-              !override
+              !override &&
+              !planned
             ) {
               candidates.push(statusByCode.get("FERIADO")!);
               summary.holidayDays += 1;

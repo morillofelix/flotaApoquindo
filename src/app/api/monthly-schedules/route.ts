@@ -368,6 +368,27 @@ export async function POST(request: NextRequest) {
           .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date))
       : undefined;
 
+    const monthPlan = Array.isArray(body.monthPlan)
+      ? body.monthPlan
+          .filter(
+            (item): item is Record<string, unknown> =>
+              Boolean(item) && typeof item === "object",
+          )
+          .map((item) => ({
+            date: asString(item.date),
+            works: item.works === true,
+            startTime: asString(item.startTime) || undefined,
+            endTime: asString(item.endTime) || undefined,
+          }))
+          .filter(
+            (item) =>
+              /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+              (!item.startTime || /^\d{2}:\d{2}$/.test(item.startTime)) &&
+              (!item.endTime || /^\d{2}:\d{2}$/.test(item.endTime)),
+          )
+          .slice(0, 31)
+      : undefined;
+
     const assignModeRaw = asString(body.assignMode);
     const assignMode: "assign" | "keep" | "exception" =
       assignModeRaw === "keep" || assignModeRaw === "exception"
@@ -408,6 +429,7 @@ export async function POST(request: NextRequest) {
         undefined,
       patternBaseDate: asString(body.patternBaseDate) || undefined,
       dayOverrides,
+      monthPlan,
       assignMode,
       forceShiftDayRules,
     };
