@@ -308,6 +308,8 @@ export default function PlanificacionMensualPage() {
               assignments: [] as Array<{
                 driverOwnerId?: string;
                 shiftDefinitionId?: string | null;
+                effectiveFrom?: string;
+                effectiveTo?: string | null;
                 shiftDefinition?: {
                   id: string;
                   code: string;
@@ -320,6 +322,8 @@ export default function PlanificacionMensualPage() {
             assignments?: Array<{
               driverOwnerId?: string;
               shiftDefinitionId?: string | null;
+              effectiveFrom?: string;
+              effectiveTo?: string | null;
               shiftDefinition?: {
                 id: string;
                 code: string;
@@ -329,12 +333,23 @@ export default function PlanificacionMensualPage() {
           };
         }),
       ]);
-      const assignByDriver = new Map(
-        (assignRes.assignments ?? []).map((item) => [
-          item.driverOwnerId ?? "",
-          item,
-        ]),
-      );
+      const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+      const monthStart = `${monthKey}-01`;
+      const monthEnd = `${monthKey}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+      // La API ordena por effectiveFrom desc: se toma la más reciente que cubre el mes.
+      const assignByDriver = new Map<
+        string,
+        NonNullable<typeof assignRes.assignments>[number]
+      >();
+      for (const item of assignRes.assignments ?? []) {
+        const driverId = item.driverOwnerId ?? "";
+        if (!driverId || assignByDriver.has(driverId)) continue;
+        const from = item.effectiveFrom ?? "";
+        const to = item.effectiveTo ?? "";
+        if (from && from > monthEnd) continue;
+        if (to && to < monthStart) continue;
+        assignByDriver.set(driverId, item);
+      }
       setWizardDrivers(
         owners.map((owner) => {
           const assign = assignByDriver.get(owner.id ?? "");
@@ -360,7 +375,7 @@ export default function PlanificacionMensualPage() {
     } finally {
       setWizardDriversLoading(false);
     }
-  }, []);
+  }, [month, year]);
 
   const reload = useCallback(
     async (options?: { silent?: boolean; full?: boolean }) => {
