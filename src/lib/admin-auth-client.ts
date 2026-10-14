@@ -105,6 +105,12 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
         isActive: (pathname) =>
           pathname.startsWith("/agendamientos/planificacion-mensual"),
       },
+      {
+        label: "Restricciones",
+        href: "/agendamientos/restricciones",
+        isActive: (pathname) =>
+          pathname.startsWith("/agendamientos/restricciones"),
+      },
     ],
   },
   {
@@ -242,7 +248,8 @@ export function isFlotaPath(pathname: string) {
     pathname.startsWith("/agendamientos/turnos") ||
     pathname.startsWith("/agendamientos/estados-operativos") ||
     pathname.startsWith("/agendamientos/motivos-bloqueo") ||
-    pathname.startsWith("/agendamientos/planificacion-mensual")
+    pathname.startsWith("/agendamientos/planificacion-mensual") ||
+    pathname.startsWith("/agendamientos/restricciones")
   );
 }
 

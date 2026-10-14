@@ -459,6 +459,7 @@ function AppointmentRequestForm({
     PublicAppointmentSummary[]
   >([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(false);
+  const [appAccess, setAppAccess] = useState({ allowed: true, message: "" });
   const activeReasons = useMemo(
     () =>
       reasons.filter(
@@ -585,18 +586,43 @@ function AppointmentRequestForm({
       }
     }
 
+    async function loadAppAccess() {
+      try {
+        const response = await fetch("/api/app-access", {
+          ...sessionFetchInit,
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          allowed?: boolean;
+          message?: string;
+        };
+        if (!cancelled) {
+          setAppAccess({
+            allowed: data.allowed !== false,
+            message: data.message ?? "",
+          });
+        }
+      } catch {
+        // Sin conexión: el servidor vuelve a validar al enviar.
+      }
+    }
+
     void loadRecentAppointments();
+    void loadAppAccess();
     const intervalId = window.setInterval(() => {
       if (document.visibilityState !== "visible") {
         return;
       }
 
       void loadRecentAppointments();
+      void loadAppAccess();
     }, 60000);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
         void loadRecentAppointments();
+        void loadAppAccess();
       }
     }
 
@@ -1079,6 +1105,12 @@ function AppointmentRequestForm({
     });
     const submittedTooFast = Date.now() - formStartedAt < 2000;
 
+    if (!appAccess.allowed) {
+      setSubmitError(appAccess.message);
+      setShowSuccess(false);
+      return;
+    }
+
     if (reasonDateCheck.blocked) {
       setSubmitError(reasonDateCheck.message || DRIVER_RESTRICTION_MESSAGE);
       setShowSuccess(false);
@@ -1184,6 +1216,14 @@ function AppointmentRequestForm({
           onSubmit={handleSubmit}
           className={`mx-auto w-full min-w-0 max-w-2xl overflow-x-hidden rounded-[18px] ${formPanelBorderClass} bg-white p-4 shadow-sm shadow-slate-300/25 sm:rounded-[20px] sm:p-5 md:max-w-3xl`}
         >
+          {!appAccess.allowed && appAccess.message ? (
+            <div
+              role="alert"
+              className="mb-4 min-w-0 break-words rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+            >
+              {appAccess.message}
+            </div>
+          ) : null}
           <div className="space-y-3">
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
@@ -1690,7 +1730,9 @@ function AppointmentRequestForm({
             </p>
             <button
               type="submit"
-              disabled={isSubmitting || reasonDateCheck.blocked}
+              disabled={
+                isSubmitting || reasonDateCheck.blocked || !appAccess.allowed
+              }
               className="flex h-12 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-2xl bg-[#0b5cab] px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084a8c] active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto sm:min-w-44"
             >
               {isSubmitting ? "Registrando..." : "Validar cita"}

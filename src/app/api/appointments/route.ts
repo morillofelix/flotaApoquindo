@@ -6,6 +6,7 @@ import {
   validateAppointmentObservation,
 } from "@/lib/appointments";
 import { validateAppointmentEvidence } from "@/lib/appointment-evidence";
+import { checkDriverAppAccess } from "@/lib/app-access-windows";
 import {
   getSantiagoToday,
   serializeRestrictedWeekdays,
@@ -388,6 +389,14 @@ export async function POST(request: NextRequest) {
 
   if (!session) {
     return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  }
+
+  const appAccess = await checkDriverAppAccess(session.vehicleNumber);
+  if (!appAccess.allowed) {
+    return NextResponse.json(
+      { message: appAccess.message, code: "APP_ACCESS_RESTRICTED" },
+      { status: 403 },
+    );
   }
 
   let body: AppointmentCreateBody;

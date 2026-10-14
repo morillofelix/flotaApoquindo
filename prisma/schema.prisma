@@ -382,6 +382,7 @@ model ShiftDefinition {
   patternId            String?
   pattern              ShiftPattern?           @relation(fields: [patternId], references: [id])
   dayRules             ShiftDayRule[]
+  appAccessWindows     ShiftAppAccessWindow[]
   assignments          DriverShiftAssignment[]
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
@@ -403,6 +404,25 @@ model ShiftDayRule {
   endTime           String          @default("")
   durationMinutes   Int             @default(0)
   defaultStatusCode String          @default("TRABAJA")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([shiftDefinitionId, weekday])
+  @@index([shiftDefinitionId])
+}
+
+/// Horario en que los conductores del turno pueden enviar solicitudes desde la app.
+/// Un turno sin filas no tiene restricción.
+model ShiftAppAccessWindow {
+  id                String          @id @default(uuid())
+  shiftDefinitionId String
+  shiftDefinition   ShiftDefinition @relation(fields: [shiftDefinitionId], references: [id], onDelete: Cascade)
+  /// ISO weekday: 1 = lunes … 7 = domingo.
+  weekday           Int
+  enabled           Boolean         @default(true)
+  startTime         String          @default("")
+  endTime           String          @default("")
+  updatedByEmail    String          @default("")
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
