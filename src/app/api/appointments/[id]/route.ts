@@ -63,6 +63,7 @@ type PatchBody = {
   rejectDriverApproval?: unknown;
   driverRejectionNote?: unknown;
   rejectionMessage?: unknown;
+  approvalMessage?: unknown;
 };
 
 const validStatuses: AppointmentStatus[] = [
@@ -584,6 +585,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     dateChangePending?: boolean;
     dateChangeMessage?: string;
     rejectionMessage?: string;
+    approvalMessage?: string;
   } = {};
 
   if (body.status !== undefined) {
@@ -615,6 +617,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       data.rejectionMessage = rejectionMessage;
     } else {
       data.rejectionMessage = "";
+    }
+
+    if (data.status === "aprobado") {
+      // Sin el campo en el body se conserva la observación ya guardada.
+      if (typeof body.approvalMessage === "string") {
+        const approvalMessage = body.approvalMessage.trim();
+
+        if (approvalMessage.length > 400) {
+          return NextResponse.json(
+            {
+              message:
+                "La observación de la aprobación no puede superar 400 caracteres.",
+            },
+            { status: 400 },
+          );
+        }
+
+        data.approvalMessage = approvalMessage;
+      }
+    } else {
+      data.approvalMessage = "";
     }
   }
 
@@ -970,7 +993,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         previousStatus: previousAppointment.status,
         nextStatus: savedAppointment.status,
         actor,
-        reason: savedAppointment.rejectionMessage,
+        reason:
+          savedAppointment.status === "aprobado"
+            ? savedAppointment.approvalMessage
+            : savedAppointment.rejectionMessage,
       });
 
       savedAppointment = { ...savedAppointment, statusAudit };

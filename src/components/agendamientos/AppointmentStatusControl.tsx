@@ -238,6 +238,9 @@ export default function AppointmentStatusControl({
   const rejectionNote = appointment.rejectionMessage.trim();
   const showRejectionNote =
     appointment.status === "rechazado" && rejectionNote.length > 0;
+  const approvalNote = appointment.approvalMessage?.trim() ?? "";
+  const showApprovalNote =
+    appointment.status === "aprobado" && approvalNote.length > 0;
 
   let control = (
     <select
@@ -305,6 +308,15 @@ export default function AppointmentStatusControl({
           eyebrow="Solicitud rechazada"
           title="Motivo del rechazo"
           ariaLabel="Ver motivo del rechazo"
+        />
+      ) : null}
+      {showApprovalNote ? (
+        <NotePeekButton
+          tone="emerald"
+          message={approvalNote}
+          eyebrow="Solicitud aprobada"
+          title="Observación de la aprobación"
+          ariaLabel="Ver observación de la aprobación"
         />
       ) : null}
     </div>

@@ -300,6 +300,7 @@ export type Appointment = {
   driverApprovalRejected: boolean;
   driverApprovalMessage: string;
   rejectionMessage: string;
+  approvalMessage: string;
   operationalClassificationLabel?: string;
   operationalClassificationShort?: string;
   createdAt: string;

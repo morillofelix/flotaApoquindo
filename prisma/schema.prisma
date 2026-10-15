@@ -39,6 +39,7 @@ model Appointment {
   driverApprovalRejected     Boolean  @default(false)
   driverApprovalMessage      String   @default("")
   rejectionMessage           String   @default("")
+  approvalMessage            String   @default("")
   observation                String   @default("")
   evidenceImageFileName      String   @default("")
   evidenceImageMimeType      String   @default("")

@@ -115,6 +115,7 @@ export function toAppointment(
     driverApprovalRejected: boolean;
     driverApprovalMessage: string;
     rejectionMessage?: string;
+    approvalMessage?: string;
     observation?: string;
     evidenceImageFileName?: string;
     evidenceImageData?: string | null;
@@ -225,6 +226,7 @@ export function toAppointment(
     driverApprovalRejected: value.driverApprovalRejected ?? false,
     driverApprovalMessage: value.driverApprovalMessage,
     rejectionMessage: value.rejectionMessage ?? "",
+    approvalMessage: value.approvalMessage ?? "",
     operationalClassificationLabel:
       snapshotLabel || classification?.label || "Clasificación pendiente de asignación",
     operationalClassificationShort:

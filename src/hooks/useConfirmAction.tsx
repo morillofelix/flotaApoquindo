@@ -155,6 +155,7 @@ export type PromptNoteOptions = {
   eyebrow?: string;
   fieldLabel?: string;
   required?: boolean;
+  tone?: "danger" | "success";
 };
 
 type PromptNoteState = PromptNoteOptions & {
@@ -201,6 +202,7 @@ export function useConfirmAction() {
         eyebrow: options.eyebrow,
         fieldLabel: options.fieldLabel,
         required: options.required,
+        tone: options.tone,
         resolve,
       });
     });
@@ -251,6 +253,32 @@ export function useConfirmAction() {
   };
 }
 
+const promptToneStyles = {
+  danger: {
+    panel: "border-red-200",
+    header: "border-red-100 bg-red-50",
+    eyebrow: "text-red-700",
+    title: "text-red-900",
+    detail: "border-red-100 bg-red-50 text-red-900",
+    fieldLabel: "text-red-900",
+    textarea: "border-red-200 focus:border-red-400 focus:ring-red-200",
+    counterError: "text-red-700",
+    submit: "bg-red-600 shadow-red-900/20 hover:bg-red-700",
+  },
+  success: {
+    panel: "border-emerald-200",
+    header: "border-emerald-100 bg-emerald-50",
+    eyebrow: "text-emerald-700",
+    title: "text-emerald-900",
+    detail: "border-emerald-100 bg-emerald-50 text-emerald-900",
+    fieldLabel: "text-emerald-900",
+    textarea:
+      "border-emerald-200 focus:border-emerald-400 focus:ring-emerald-200",
+    counterError: "text-emerald-700",
+    submit: "bg-emerald-600 shadow-emerald-900/20 hover:bg-emerald-700",
+  },
+} as const;
+
 function PromptNoteDialog({
   state,
   onConfirm,
@@ -266,6 +294,7 @@ function PromptNoteDialog({
   const trimmed = note.trim();
   const requiredMinLength = state.required ? Math.max(1, state.minLength ?? 1) : 0;
   const canSubmit = trimmed.length >= requiredMinLength;
+  const tone = promptToneStyles[state.tone ?? "danger"];
 
   useEffect(() => {
     if (!state.open) {
@@ -308,16 +337,16 @@ function PromptNoteDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-[22px] border border-red-200 bg-white shadow-2xl shadow-slate-900/25 sm:rounded-[24px]"
+        className={`w-full max-w-md overflow-hidden rounded-[22px] border bg-white shadow-2xl shadow-slate-900/25 sm:rounded-[24px] ${tone.panel}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-red-100 bg-red-50 px-4 py-3.5 sm:px-5 sm:py-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700 sm:text-xs">
+        <div className={`border-b px-4 py-3.5 sm:px-5 sm:py-4 ${tone.header}`}>
+          <p className={`text-[10px] font-semibold uppercase tracking-[0.16em] sm:text-xs ${tone.eyebrow}`}>
             {state.eyebrow ?? "Motivo del rechazo"}
           </p>
           <h2
             id="prompt-note-title"
-            className="mt-1.5 font-heading text-lg font-semibold leading-tight text-red-900 sm:mt-2 sm:text-xl"
+            className={`mt-1.5 font-heading text-lg font-semibold leading-tight sm:mt-2 sm:text-xl ${tone.title}`}
           >
             {state.title ?? "¿Por qué se rechaza?"}
           </h2>
@@ -329,13 +358,13 @@ function PromptNoteDialog({
           </p>
 
           {state.detail ? (
-            <p className="mt-3 rounded-2xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-900 sm:px-4 sm:py-3 sm:text-sm sm:leading-6">
+            <p className={`mt-3 rounded-2xl border px-3 py-2.5 text-xs leading-5 sm:px-4 sm:py-3 sm:text-sm sm:leading-6 ${tone.detail}`}>
               {state.detail}
             </p>
           ) : null}
 
           <label className="mt-4 flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-900 sm:text-[11px]">
+            <span className={`text-[10px] font-bold uppercase tracking-[0.1em] sm:text-[11px] ${tone.fieldLabel}`}>
               {state.fieldLabel ?? "Mensaje para el conductor (opcional)"}
             </span>
             <textarea
@@ -350,11 +379,11 @@ function PromptNoteDialog({
                 state.placeholder ??
                 "Ej: La fecha no está disponible. Solicite otro día."
               }
-              className="min-h-[6.5rem] w-full resize-none rounded-2xl border border-red-200 bg-white px-3 py-2.5 text-sm leading-6 text-[#0f2747] outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-200"
+              className={`min-h-[6.5rem] w-full resize-none rounded-2xl border bg-white px-3 py-2.5 text-sm leading-6 text-[#0f2747] outline-none transition focus:ring-2 ${tone.textarea}`}
             />
             <span
               className={`text-[10px] ${
-                canSubmit ? "text-slate-500" : "font-semibold text-red-700"
+                canSubmit ? "text-slate-500" : `font-semibold ${tone.counterError}`
               }`}
             >
               {state.required
@@ -379,7 +408,7 @@ function PromptNoteDialog({
                   onConfirm(trimmed);
                 }
               }}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-600 px-5 text-sm font-semibold text-white shadow-md shadow-red-900/20 transition hover:bg-red-700 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+              className={`inline-flex h-11 items-center justify-center rounded-2xl px-5 text-sm font-semibold text-white shadow-md transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 ${tone.submit}`}
             >
               {state.confirmLabel ?? "Rechazar solicitud"}
             </button>

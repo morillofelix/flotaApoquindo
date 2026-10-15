@@ -198,6 +198,7 @@ type AppointmentSubmission = Omit<
   | "driverApprovalRejected"
   | "driverApprovalMessage"
   | "rejectionMessage"
+  | "approvalMessage"
   | "createdAt"
   | "status"
 > & {

@@ -35,7 +35,8 @@ export type DecisionEmailPayload = Pick<
   | "phone"
   | "status"
   | "rejectionMessage"
->;
+> &
+  Partial<Pick<Appointment, "approvalMessage">>;
 
 export function isDecisionEmailPayload(
   value: unknown,
@@ -70,6 +71,8 @@ export function isDecisionEmailPayload(
     typeof payload.phone === "string" &&
     (payload.rejectionMessage === undefined ||
       typeof payload.rejectionMessage === "string") &&
+    (payload.approvalMessage === undefined ||
+      typeof payload.approvalMessage === "string") &&
     (payload.observation === undefined ||
       typeof payload.observation === "string") &&
     (payload.status === "aprobado" || payload.status === "rechazado") &&
@@ -161,6 +164,7 @@ function createEmailHtml(appointment: DecisionEmailPayload) {
   const permitDetail = getPermitDetail(appointment);
   const daySwapDetail = getDaySwapDetail(appointment);
   const rejectionMessage = appointment.rejectionMessage?.trim() ?? "";
+  const approvalMessage = appointment.approvalMessage?.trim() ?? "";
   const isApproved = appointment.status === "aprobado";
   const title = isApproved ? "Solicitud aprobada" : "Solicitud rechazada";
   const message = isApproved
@@ -190,6 +194,11 @@ function createEmailHtml(appointment: DecisionEmailPayload) {
       ${
         !isApproved && rejectionMessage
           ? `<p><strong>Motivo del rechazo:</strong> ${escapeHtml(rejectionMessage)}</p>`
+          : ""
+      }
+      ${
+        isApproved && approvalMessage
+          ? `<p><strong>Observación de la aprobación:</strong> ${escapeHtml(approvalMessage)}</p>`
           : ""
       }
       <p style="margin-top: 20px;">Guarde este correo como respaldo de la aprobación.</p>
@@ -235,6 +244,11 @@ function createEmailText(appointment: DecisionEmailPayload) {
 
   if (!isApproved && rejectionMessage) {
     lines.push(`Motivo del rechazo: ${rejectionMessage}`);
+  }
+
+  const approvalMessage = appointment.approvalMessage?.trim() ?? "";
+  if (isApproved && approvalMessage) {
+    lines.push(`Observación de la aprobación: ${approvalMessage}`);
   }
 
   lines.push(

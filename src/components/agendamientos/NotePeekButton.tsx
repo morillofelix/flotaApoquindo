@@ -18,6 +18,13 @@ const toneStyles = {
     action:
       "bg-amber-700 shadow-amber-900/15 hover:bg-amber-800",
   },
+  emerald: {
+    button:
+      "border-emerald-200 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50",
+    eyebrow: "text-emerald-700",
+    action:
+      "bg-emerald-600 shadow-emerald-900/15 hover:bg-emerald-700",
+  },
 } as const;
 
 type NotePeekButtonProps = {

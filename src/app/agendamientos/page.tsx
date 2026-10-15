@@ -331,7 +331,7 @@ function AppointmentsPageContent() {
   async function updateStatus(
     id: string,
     status: AppointmentStatus,
-    extra?: { rejectionMessage?: string },
+    extra?: { rejectionMessage?: string; approvalMessage?: string },
   ) {
     const previousAppointments = appointments;
     const currentAppointment = appointments.find(
@@ -348,6 +348,9 @@ function AppointmentsPageContent() {
       rejectionMessage:
         extra?.rejectionMessage ??
         (status === "rechazado" ? currentAppointment.rejectionMessage : ""),
+      approvalMessage:
+        extra?.approvalMessage ??
+        (status === "aprobado" ? currentAppointment.approvalMessage : ""),
     };
     const updatedAppointments = appointments.map((appointment) =>
       appointment.id === id ? updatedAppointment : appointment,
@@ -368,6 +371,9 @@ function AppointmentsPageContent() {
           status,
           ...(extra && "rejectionMessage" in extra
             ? { rejectionMessage: extra.rejectionMessage ?? "" }
+            : {}),
+          ...(extra && "approvalMessage" in extra
+            ? { approvalMessage: extra.approvalMessage ?? "" }
             : {}),
         }),
       });
@@ -490,6 +496,31 @@ function AppointmentsPageContent() {
 
       await updateStatus(appointment.id, nextStatus, {
         rejectionMessage: rejectionPrompt.note,
+      });
+      return;
+    }
+
+    if (nextStatus === "aprobado") {
+      const approvalPrompt = await promptNote({
+        title: "Aprobar solicitud",
+        eyebrow: "Observación de la aprobación",
+        message:
+          "Puedes dejar un mensaje para el conductor. No es obligatorio: también puedes aprobar sin texto.",
+        detail: `${getAppointmentTicketLabel(appointment)} — Móvil ${appointment.vehicleNumber}, ${appointment.driverName}.`,
+        placeholder: "Ej: Recuerde presentarse con su licencia vigente.",
+        confirmLabel: "Aprobar solicitud",
+        cancelLabel: "Volver",
+        minLength: 0,
+        maxLength: 400,
+        tone: "success",
+      });
+
+      if (!approvalPrompt) {
+        return;
+      }
+
+      await updateStatus(appointment.id, nextStatus, {
+        approvalMessage: approvalPrompt.note,
       });
       return;
     }
