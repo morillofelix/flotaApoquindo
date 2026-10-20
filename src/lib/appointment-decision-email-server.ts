@@ -3,6 +3,7 @@ import {
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import { getDriverPwaEmailBlock } from "@/lib/driver-pwa-email-block";
+import { formatPermitHoursRange } from "@/lib/permit-time-rules";
 import {
   createNotificaTransporter,
   getNotificaSmtpConfig,
@@ -134,9 +135,10 @@ function getPermitDetail(appointment: DecisionEmailPayload) {
     appointment.permitStartTime &&
     appointment.permitEndTime
   ) {
-    return `Por horas: ${formatDate(appointment.permitDate)}, ${
-      appointment.permitStartTime
-    } a ${appointment.permitEndTime}`;
+    return `Por horas: ${formatDate(appointment.permitDate)}, ${formatPermitHoursRange(
+      appointment.permitStartTime,
+      appointment.permitEndTime,
+    )}`;
   }
 
   return "";

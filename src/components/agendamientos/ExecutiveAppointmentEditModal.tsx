@@ -413,7 +413,7 @@ export default function ExecutiveAppointmentEditModal({
                 ? Boolean(permitDate) &&
                   Boolean(permitStartTime) &&
                   Boolean(permitEndTime) &&
-                  permitEndTime > permitStartTime
+                  permitEndTime !== permitStartTime
                 : false
             : usesDaySwap
               ? Boolean(swapFromDate) &&

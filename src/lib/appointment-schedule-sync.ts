@@ -151,16 +151,22 @@ async function findAppointmentDriver(
 
 function eventTimes(appointment: Appointment, date: Date) {
   if (appointment.permitType !== "horas") return { startAt: null, endAt: null };
-  const parse = (time: string) => {
+  const parse = (time: string, dayOffset = 0) => {
     const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
     if (!match) return null;
     const result = new Date(date);
+    if (dayOffset) {
+      result.setUTCDate(result.getUTCDate() + dayOffset);
+    }
     result.setUTCHours(Number(match[1]), Number(match[2]), 0, 0);
     return result;
   };
+  const start = appointment.permitStartTime.trim();
+  const end = appointment.permitEndTime.trim();
+  const overnight = Boolean(start && end && end < start);
   return {
-    startAt: parse(appointment.permitStartTime),
-    endAt: parse(appointment.permitEndTime),
+    startAt: parse(start),
+    endAt: parse(end, overnight ? 1 : 0),
   };
 }
 

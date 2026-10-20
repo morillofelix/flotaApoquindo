@@ -46,7 +46,9 @@ export type PlanningDayTooltipSource = {
 function formatHours(start?: string, end?: string) {
   const a = start?.trim() ?? "";
   const b = end?.trim() ?? "";
-  if (a && b) return `${a} – ${b}`;
+  if (a && b) {
+    return b < a ? `${a} – ${b} (+1)` : `${a} – ${b}`;
+  }
   return a || b;
 }
 

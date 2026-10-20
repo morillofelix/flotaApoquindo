@@ -21,6 +21,37 @@ function minutesToClock(totalMinutes: number) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+/** True cuando el rango cruza medianoche (ej. 16:00 → 01:00). */
+export function isOvernightPermitHours(
+  permitStartTime: string,
+  permitEndTime: string,
+) {
+  if (
+    !clockTimePattern.test(permitStartTime) ||
+    !clockTimePattern.test(permitEndTime)
+  ) {
+    return false;
+  }
+
+  return permitEndTime < permitStartTime;
+}
+
+/** Etiqueta militar del rango; si cruza medianoche indica +1 día. */
+export function formatPermitHoursRange(
+  permitStartTime: string,
+  permitEndTime: string,
+) {
+  const start = permitStartTime.trim();
+  const end = permitEndTime.trim();
+  if (!start || !end) {
+    return start || end;
+  }
+  if (isOvernightPermitHours(start, end)) {
+    return `${start} a ${end} (+1 día)`;
+  }
+  return `${start} a ${end}`;
+}
+
 /** Minimum selectable clock time for a permit date (Santiago). Empty if not today. */
 export function getPermitTimeMinForDate(permitDate: string, now = new Date()) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(permitDate)) {
@@ -71,15 +102,21 @@ export function validatePermitHoursRange(input: {
     return "Completa la fecha y el rango horario del permiso.";
   }
 
-  if (permitEndTime <= permitStartTime) {
-    return "La hora hasta debe ser posterior a la hora desde.";
+  if (permitEndTime === permitStartTime) {
+    return "La hora hasta debe ser distinta a la hora desde.";
   }
+
+  const overnight = isOvernightPermitHours(permitStartTime, permitEndTime);
 
   if (isPermitClockTimeInPast(permitDate, permitStartTime, now)) {
     return getPastPermitTimeMessage();
   }
 
-  if (isPermitClockTimeInPast(permitDate, permitEndTime, now)) {
+  // Si cruza medianoche, la hora hasta es del día siguiente: no se valida como "pasada" hoy.
+  if (
+    !overnight &&
+    isPermitClockTimeInPast(permitDate, permitEndTime, now)
+  ) {
     return getPastPermitTimeMessage();
   }
 

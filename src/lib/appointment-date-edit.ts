@@ -4,6 +4,7 @@ import {
   type AppointmentStatus,
 } from "@/lib/appointments";
 import { formatDate } from "@/lib/agendamientos-appointments";
+import { formatPermitHoursRange } from "@/lib/permit-time-rules";
 
 export const DATE_EDITABLE_STATUSES: AppointmentStatus[] = [
   "pendiente",
@@ -95,7 +96,7 @@ export function formatPermitHorasSummary(
   permitStartTime: string,
   permitEndTime: string,
 ) {
-  return `${formatDate(permitDate)}, ${permitStartTime} a ${permitEndTime}`;
+  return `${formatDate(permitDate)}, ${formatPermitHoursRange(permitStartTime, permitEndTime)}`;
 }
 
 function buildPermitHorasPatch(
@@ -115,7 +116,7 @@ function buildPermitHorasPatch(
     !isValidDateOnly(permitDate) ||
     !isValidClockTime(permitStartTime) ||
     !isValidClockTime(permitEndTime) ||
-    permitEndTime <= permitStartTime
+    permitEndTime === permitStartTime
   ) {
     return null;
   }

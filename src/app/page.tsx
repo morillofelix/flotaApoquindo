@@ -38,7 +38,9 @@ import {
   getPastPermitTimeMessage,
   getPermitTimeMinForDate,
   isPermitClockTimeInPast,
+  validatePermitHoursRange,
 } from "@/lib/permit-time-rules";
+import TimeSelectField from "@/components/TimeSelectField";
 import PublicAppointmentHistory, {
   type PublicAppointmentSummary,
 } from "@/components/PublicAppointmentHistory";
@@ -842,50 +844,54 @@ function AppointmentRequestForm({
       usesPermitDetails && values.permitType === "horas"
         ? validateField("permitDate", values.permitDate, today, reasons)
         : "";
-    const permitStartTime =
+    const permitHoursError =
       usesPermitDetails && values.permitType === "horas"
         ? (() => {
-            const base = validateField(
+            const startBase = validateField(
               "permitStartTime",
               values.permitStartTime,
               today,
               reasons,
             );
-            if (base) {
-              return base;
+            if (startBase) {
+              return { start: startBase, end: "" };
             }
-            if (
-              values.permitDate &&
-              values.permitStartTime &&
-              isPermitClockTimeInPast(values.permitDate, values.permitStartTime)
-            ) {
-              return getPastPermitTimeMessage();
-            }
-            return "";
-          })()
-        : "";
-    const permitEndTime =
-      usesPermitDetails && values.permitType === "horas"
-        ? (() => {
-            const base = validateField(
+            const endBase = validateField(
               "permitEndTime",
               values.permitEndTime,
               today,
               reasons,
             );
-            if (base) {
-              return base;
+            if (endBase) {
+              return { start: "", end: endBase };
             }
-            if (
-              values.permitDate &&
-              values.permitEndTime &&
-              isPermitClockTimeInPast(values.permitDate, values.permitEndTime)
-            ) {
-              return getPastPermitTimeMessage();
+            if (!values.permitDate) {
+              return { start: "", end: "" };
             }
-            return "";
+            const rangeError = validatePermitHoursRange({
+              permitDate: values.permitDate,
+              permitStartTime: values.permitStartTime,
+              permitEndTime: values.permitEndTime,
+            });
+            if (!rangeError) {
+              return { start: "", end: "" };
+            }
+            if (rangeError === getPastPermitTimeMessage()) {
+              if (
+                isPermitClockTimeInPast(
+                  values.permitDate,
+                  values.permitStartTime,
+                )
+              ) {
+                return { start: rangeError, end: "" };
+              }
+              return { start: "", end: rangeError };
+            }
+            return { start: "", end: rangeError };
           })()
-        : "";
+        : { start: "", end: "" };
+    const permitStartTime = permitHoursError.start;
+    const permitEndTime = permitHoursError.end;
     const appointmentDate = allowsExecutiveAssignment
       ? validateField("appointmentDate", values.appointmentDate, today, reasons)
       : "";
@@ -959,15 +965,7 @@ function AppointmentRequestForm({
           : permitEndDate,
       permitDate,
       permitStartTime,
-      permitEndTime:
-        !permitEndTime &&
-        usesPermitDetails &&
-        values.permitType === "horas" &&
-        values.permitStartTime &&
-        values.permitEndTime &&
-        values.permitEndTime <= values.permitStartTime
-          ? "La hora hasta debe ser posterior a la hora desde."
-          : permitEndTime,
+      permitEndTime,
       swapFromDate,
       swapToDate:
         !swapToDate &&
@@ -1570,18 +1568,16 @@ function AppointmentRequestForm({
                         <span className="text-sm font-semibold text-[#173b68]">
                           Hora desde
                         </span>
-                        <input
-                          type="time"
+                        <TimeSelectField
                           name="permitStartTime"
                           required
                           value={values.permitStartTime}
-                          min={getPermitTimeMinForDate(values.permitDate) || undefined}
-                          onFocus={scrollNativePickerIntoView}
+                          min={getPermitTimeMinForDate(values.permitDate)}
                           onBlur={() => markFieldAsTouched("permitStartTime")}
-                          onChange={(event) =>
-                            updateField("permitStartTime", event.target.value)
+                          onChange={(nextValue) =>
+                            updateField("permitStartTime", nextValue)
                           }
-                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitStartTime")}`}
+                          className={fieldStatus("permitStartTime")}
                         />
                         {touched.permitStartTime && errors.permitStartTime ? (
                           <span className="text-sm text-red-600">
@@ -1594,23 +1590,20 @@ function AppointmentRequestForm({
                         <span className="text-sm font-semibold text-[#173b68]">
                           Hora hasta
                         </span>
-                        <input
-                          type="time"
+                        <TimeSelectField
                           name="permitEndTime"
                           required
                           value={values.permitEndTime}
-                          min={
-                            values.permitStartTime ||
-                            getPermitTimeMinForDate(values.permitDate) ||
-                            undefined
-                          }
-                          onFocus={scrollNativePickerIntoView}
                           onBlur={() => markFieldAsTouched("permitEndTime")}
-                          onChange={(event) =>
-                            updateField("permitEndTime", event.target.value)
+                          onChange={(nextValue) =>
+                            updateField("permitEndTime", nextValue)
                           }
-                          className={`h-12 w-full min-w-0 scroll-mt-28 rounded-2xl ${formFieldBorderClass} bg-white px-3 text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 sm:px-4 ${fieldStatus("permitEndTime")}`}
+                          className={fieldStatus("permitEndTime")}
                         />
+                        <p className="text-[11px] leading-4 text-slate-500">
+                          Formato 24 horas. Si cruza medianoche (ej. 16:00 a
+                          01:00), la hora hasta es del día siguiente.
+                        </p>
                         {touched.permitEndTime && errors.permitEndTime ? (
                           <span className="text-sm text-red-600">
                             {errors.permitEndTime}

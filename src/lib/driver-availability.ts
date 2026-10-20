@@ -28,6 +28,10 @@ function minutes(value?: string) {
   return result >= 0 && result < 1440 ? result : null;
 }
 
+function normalizeRange(start: number, end: number) {
+  return end < start ? { start, end: end + 1440 } : { start, end };
+}
+
 function overlapsTimes(
   requestedStart: number | null,
   requestedEnd: number | null,
@@ -42,7 +46,11 @@ function overlapsTimes(
   ) {
     return true;
   }
-  return requestedStart < appointmentEnd && appointmentStart < requestedEnd;
+  const requested = normalizeRange(requestedStart, requestedEnd);
+  const appointment = normalizeRange(appointmentStart, appointmentEnd);
+  return (
+    requested.start < appointment.end && appointment.start < requested.end
+  );
 }
 
 export async function checkDriverAvailability(

@@ -303,7 +303,7 @@ function validateDatePatchForReason(
       !isValidDateOnly(permitDate) ||
       !isValidClockTime(permitStartTime) ||
       !isValidClockTime(permitEndTime) ||
-      permitEndTime <= permitStartTime
+      permitEndTime === permitStartTime
     ) {
       return "Ingresa una fecha y horario de permiso válidos.";
     }

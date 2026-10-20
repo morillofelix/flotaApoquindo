@@ -4,6 +4,7 @@ import {
   getAppointmentTicketLabel,
 } from "@/lib/appointments";
 import { adminFetchInit } from "@/lib/admin-fetch";
+import { formatPermitHoursRange } from "@/lib/permit-time-rules";
 
 export const statusLabels: Record<AppointmentStatus, string> = {
   pendiente: "Pendiente",
@@ -112,9 +113,10 @@ export function getPermitDetail(appointment: Appointment) {
     appointment.permitStartTime &&
     appointment.permitEndTime
   ) {
-    return `Por horas: ${formatDate(appointment.permitDate)}, ${
-      appointment.permitStartTime
-    } a ${appointment.permitEndTime}`;
+    return `Por horas: ${formatDate(appointment.permitDate)}, ${formatPermitHoursRange(
+      appointment.permitStartTime,
+      appointment.permitEndTime,
+    )}`;
   }
 
   return "";

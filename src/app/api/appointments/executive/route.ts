@@ -228,7 +228,7 @@ function validateExecutiveCreateBody(
       (!isValidAppointmentDate(permitDate) ||
         !isValidTime(permitStartTime) ||
         !isValidTime(permitEndTime) ||
-        permitEndTime <= permitStartTime)
+        permitEndTime === permitStartTime)
     ) {
       return null;
     }

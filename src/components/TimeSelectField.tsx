@@ -1,12 +1,12 @@
 "use client";
 
-import { scrollNativePickerIntoView } from "@/lib/form-scroll";
-
 type TimeSelectFieldProps = {
   name?: string;
   value: string;
   required?: boolean;
   className?: string;
+  /** Hora mínima inclusive en formato HH:MM (hora militar). */
+  min?: string;
   onBlur?: () => void;
   onChange: (value: string) => void;
 };
@@ -16,33 +16,42 @@ function pad2(value: number) {
 }
 
 function parseClock(value: string) {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
   if (!match) {
-    return { hour: "", minute: "" };
+    return { hour: "", minute: "", total: null as number | null };
   }
 
-  return { hour: match[1], minute: match[2] };
+  const hour = match[1]!;
+  const minute = match[2]!;
+  return {
+    hour,
+    minute,
+    total: Number(hour) * 60 + Number(minute),
+  };
 }
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => pad2(index));
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => pad2(index));
 
 const selectClassName =
-  "h-12 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
+  "h-12 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm tabular-nums text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 
 /**
- * Mobile-safe time picker using selects (avoids Android native dialog overflow).
- * Desktop keeps native type="time".
+ * Selector de hora siempre en formato militar (00–23), en móvil y escritorio.
+ * Evita el reloj nativo AM/PM del celular, que confunde rangos como 16:00 → 01:00.
  */
 export default function TimeSelectField({
   name,
   value,
   required = false,
   className = "",
+  min = "",
   onBlur,
   onChange,
 }: TimeSelectFieldProps) {
   const { hour, minute } = parseClock(value);
+  const minParsed = parseClock(min);
+  const minTotal = minParsed.total;
 
   function commit(nextHour: string, nextMinute: string) {
     if (!nextHour || !nextMinute) {
@@ -53,12 +62,22 @@ export default function TimeSelectField({
     onChange(`${nextHour}:${nextMinute}`);
   }
 
+  const visibleHours = HOUR_OPTIONS.filter((option) => {
+    if (minTotal === null) return true;
+    return Number(option) * 60 + 59 >= minTotal;
+  });
+
+  const visibleMinutes = MINUTE_OPTIONS.filter((option) => {
+    if (minTotal === null || !hour) return true;
+    return Number(hour) * 60 + Number(option) >= minTotal;
+  });
+
   return (
-    <>
-      <div className="grid grid-cols-2 gap-2 sm:hidden">
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="grid grid-cols-2 gap-2">
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-            Hora
+            Hora (00–23)
           </span>
           <select
             name={name ? `${name}-hour` : undefined}
@@ -69,7 +88,7 @@ export default function TimeSelectField({
             className={`${selectClassName} ${className}`}
           >
             <option value="">—</option>
-            {HOUR_OPTIONS.map((option) => (
+            {visibleHours.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -89,7 +108,7 @@ export default function TimeSelectField({
             className={`${selectClassName} ${className}`}
           >
             <option value="">—</option>
-            {MINUTE_OPTIONS.map((option) => (
+            {visibleMinutes.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -97,17 +116,11 @@ export default function TimeSelectField({
           </select>
         </label>
       </div>
-
-      <input
-        type="time"
-        name={name}
-        required={required}
-        value={value}
-        onFocus={scrollNativePickerIntoView}
-        onBlur={onBlur}
-        onChange={(event) => onChange(event.target.value)}
-        className={`hidden scroll-mt-28 sm:block ${selectClassName} sm:px-4 ${className}`}
-      />
-    </>
+      {value ? (
+        <p className="text-[11px] font-medium tabular-nums text-slate-500">
+          Seleccionado: {value} (hora militar)
+        </p>
+      ) : null}
+    </div>
   );
 }
