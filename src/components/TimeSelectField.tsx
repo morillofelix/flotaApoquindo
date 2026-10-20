@@ -1,5 +1,7 @@
 "use client";
 
+import { scrollNativePickerIntoView } from "@/lib/form-scroll";
+
 type TimeSelectFieldProps = {
   name?: string;
   value: string;
@@ -34,11 +36,11 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => pad2(index));
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => pad2(index));
 
 const selectClassName =
-  "h-12 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm tabular-nums text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
+  "h-12 w-full min-w-0 rounded-2xl border border-[#9fb8d9] bg-white px-3 text-sm text-[#0f2747] shadow-[0_1px_2px_rgba(15,39,71,0.05)] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15";
 
 /**
- * Selector de hora siempre en formato militar (00–23), en móvil y escritorio.
- * Evita el reloj nativo AM/PM del celular, que confunde rangos como 16:00 → 01:00.
+ * Desktop: input nativo type="time" (un solo campo).
+ * Móvil: selects 00–23 / minuto para evitar desborde del diálogo nativo en Android.
  */
 export default function TimeSelectField({
   name,
@@ -73,11 +75,11 @@ export default function TimeSelectField({
   });
 
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <div className="grid grid-cols-2 gap-2">
+    <>
+      <div className="grid grid-cols-2 gap-2 sm:hidden">
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-            Hora (00–23)
+            Hora
           </span>
           <select
             name={name ? `${name}-hour` : undefined}
@@ -116,11 +118,19 @@ export default function TimeSelectField({
           </select>
         </label>
       </div>
-      {value ? (
-        <p className="text-[11px] font-medium tabular-nums text-slate-500">
-          Seleccionado: {value} (hora militar)
-        </p>
-      ) : null}
-    </div>
+
+      <input
+        type="time"
+        name={name}
+        required={required}
+        lang="es-CL"
+        value={value}
+        min={min || undefined}
+        onFocus={scrollNativePickerIntoView}
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.target.value)}
+        className={`hidden scroll-mt-28 sm:block ${selectClassName} sm:px-4 ${className}`}
+      />
+    </>
   );
 }

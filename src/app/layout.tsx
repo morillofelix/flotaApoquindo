@@ -61,7 +61,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={cn(inter.variable, outfit.variable)}>
+    <html lang="es-CL" className={cn(inter.variable, outfit.variable)}>
       <body className="min-h-screen bg-surface-900 font-sans text-surface-200 antialiased">
         <PwaServiceWorkerRegister />
         {children}
