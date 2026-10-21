@@ -28,6 +28,10 @@ export type WizardDriver = {
   shiftId: string;
   shiftCode: string;
   shiftName: string;
+  /** Turno nocturno nuevo (NOC-1…), aunque el mes en pantalla siga cubierto por NOC. */
+  nightShiftId?: string;
+  nightShiftCode?: string;
+  nightShiftName?: string;
 };
 
 type Props = {
@@ -364,6 +368,19 @@ export default function MonthlyGenerateWizard({
     });
   }
 
+  function addByNightShift(nextShiftId: string) {
+    setShiftId(nextShiftId);
+    setSelectedVehicles((current) => {
+      const next = new Set(current);
+      for (const row of conductorDrivers) {
+        if (row.nightShiftId === nextShiftId || row.shiftId === nextShiftId) {
+          next.add(row.vehicleNumber);
+        }
+      }
+      return [...next];
+    });
+  }
+
   function canNext() {
     if (step === 1) return Boolean(shiftId);
     if (step === 2) return selectedVehicles.length > 0;
@@ -506,6 +523,13 @@ export default function MonthlyGenerateWizard({
         .map((d) => [d.groupId, d.groupName]),
     ),
   ];
+  const nightShifts = shifts
+    .filter((shift) => shift.isActive && /^NOC-\d+$/.test(shift.code))
+    .sort((left, right) => {
+      const leftNumber = Number(left.code.replace("NOC-", ""));
+      const rightNumber = Number(right.code.replace("NOC-", ""));
+      return leftNumber - rightNumber;
+    });
 
   return (
     <div
@@ -719,6 +743,24 @@ export default function MonthlyGenerateWizard({
                     ))}
                   </div>
                 ) : null}
+                {nightShifts.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {nightShifts.map((shift) => (
+                      <button
+                        key={shift.id}
+                        type="button"
+                        className={
+                          shiftId === shift.id
+                            ? buttonClass
+                            : ghostClass
+                        }
+                        onClick={() => addByNightShift(shift.id)}
+                      >
+                        {shift.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <input
                   value={vehicleSearch}
                   onChange={(e) => setVehicleSearch(e.target.value)}
@@ -784,7 +826,10 @@ export default function MonthlyGenerateWizard({
                       <strong>{row.vehicleNumber}</strong> · {row.fullName}
                       <span className="block text-slate-500">
                         {row.groupName || "Sin grupo"} ·{" "}
-                        {row.shiftName || "Sin turno"}
+                        {row.nightShiftName &&
+                        row.nightShiftName !== row.shiftName
+                          ? row.nightShiftName
+                          : row.shiftName || "Sin turno"}
                       </span>
                     </span>
                     <span>+</span>

@@ -341,9 +341,18 @@ export default function PlanificacionMensualPage() {
         string,
         NonNullable<typeof assignRes.assignments>[number]
       >();
+      const nightAssignByDriver = new Map<
+        string,
+        NonNullable<typeof assignRes.assignments>[number]
+      >();
       for (const item of assignRes.assignments ?? []) {
         const driverId = item.driverOwnerId ?? "";
-        if (!driverId || assignByDriver.has(driverId)) continue;
+        if (!driverId) continue;
+        const code = item.shiftDefinition?.code ?? "";
+        if (/^NOC-\d+$/.test(code) && !nightAssignByDriver.has(driverId)) {
+          nightAssignByDriver.set(driverId, item);
+        }
+        if (assignByDriver.has(driverId)) continue;
         const from = item.effectiveFrom ?? "";
         const to = item.effectiveTo ?? "";
         if (from && from > monthEnd) continue;
@@ -353,6 +362,7 @@ export default function PlanificacionMensualPage() {
       setWizardDrivers(
         owners.map((owner) => {
           const assign = assignByDriver.get(owner.id ?? "");
+          const nightAssign = nightAssignByDriver.get(owner.id ?? "");
           return {
             id: owner.id ?? owner.vehicleNumber,
             vehicleNumber: owner.vehicleNumber,
@@ -367,6 +377,12 @@ export default function PlanificacionMensualPage() {
               assign?.shiftDefinition?.id || assign?.shiftDefinitionId || "",
             shiftCode: assign?.shiftDefinition?.code || "",
             shiftName: assign?.shiftDefinition?.name || "",
+            nightShiftId:
+              nightAssign?.shiftDefinition?.id ||
+              nightAssign?.shiftDefinitionId ||
+              "",
+            nightShiftCode: nightAssign?.shiftDefinition?.code || "",
+            nightShiftName: nightAssign?.shiftDefinition?.name || "",
           };
         }),
       );
