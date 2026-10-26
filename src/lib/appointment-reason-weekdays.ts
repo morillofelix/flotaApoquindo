@@ -658,6 +658,7 @@ export function checkReasonRestrictedDates(
   input: ReasonDateRangeInput,
   ingressDate: string,
   holidayDates?: Set<string>,
+  unrestrictedDates?: Set<string>,
 ) {
   return checkReasonDateRules(
     restrictedWeekdays,
@@ -665,6 +666,7 @@ export function checkReasonRestrictedDates(
     input,
     ingressDate,
     holidayDates,
+    unrestrictedDates,
   );
 }
 
@@ -674,6 +676,7 @@ export function checkReasonDateRules(
   input: ReasonDateRangeInput,
   ingressDate: string,
   holidayDates?: Set<string>,
+  unrestrictedDates?: Set<string>,
 ) {
   const dates = getReasonDatesToCheck(input);
 
@@ -715,6 +718,12 @@ export function checkReasonDateRules(
         };
       }
 
+      continue;
+    }
+
+    // Feriado desactivado: ese día se puede solicitar aunque el motivo
+    // restrinja el día de la semana (viernes, sábado o domingo).
+    if (unrestrictedDates?.has(date)) {
       continue;
     }
 

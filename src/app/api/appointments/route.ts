@@ -16,6 +16,7 @@ import {
 import {
   checkDriverHolidayAdvance,
   getActiveHolidayDateSet,
+  getInactiveHolidayDateSet,
   toHolidayConfig,
 } from "@/lib/holidays";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
@@ -447,12 +448,12 @@ export async function POST(request: NextRequest) {
 
   const holidayRecords = reason
     ? await prisma.holiday.findMany({
-        where: { isActive: true },
         orderBy: { date: "asc" },
       })
     : [];
   const holidays = holidayRecords.map(toHolidayConfig);
   const holidayDateSet = getActiveHolidayDateSet(holidays);
+  const inactiveHolidayDates = getInactiveHolidayDateSet(holidays);
 
   if (reason) {
     const dateInput = {
@@ -490,6 +491,7 @@ export async function POST(request: NextRequest) {
       dateInput,
       ingressDate,
       holidayDateSet,
+      inactiveHolidayDates,
     );
 
     if (reasonDateCheck.blocked) {

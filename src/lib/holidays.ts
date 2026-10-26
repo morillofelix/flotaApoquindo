@@ -62,6 +62,15 @@ export function getActiveHolidayDateSet(holidays: HolidayConfig[]) {
   );
 }
 
+/** Feriados con el cheque apagado: ese día no restringe solicitudes en línea. */
+export function getInactiveHolidayDateSet(holidays: HolidayConfig[]) {
+  return new Set(
+    holidays
+      .filter((holiday) => !holiday.isActive)
+      .map((holiday) => holiday.date),
+  );
+}
+
 export function getActiveHolidayMap(holidays: HolidayConfig[]) {
   const map = new Map<string, HolidayConfig>();
 

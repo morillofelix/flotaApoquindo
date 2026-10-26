@@ -22,6 +22,7 @@ import {
   type HolidayConfig,
   checkHolidayRestrictedDates,
   getActiveHolidayDateSet,
+  getInactiveHolidayDateSet,
 } from "@/lib/holidays";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { displayVehicleNumber } from "@/lib/driver-owners";
@@ -127,6 +128,10 @@ export default function ExecutiveAppointmentEditModal({
     () => getActiveHolidayDateSet(holidays),
     [holidays],
   );
+  const inactiveHolidayDates = useMemo(
+    () => getInactiveHolidayDateSet(holidays),
+    [holidays],
+  );
 
   const allowsExecutiveAssignment = Boolean(
     appointment?.reasonAllowsExecutiveAssignment,
@@ -167,11 +172,13 @@ export default function ExecutiveAppointmentEditModal({
       dateInput,
       today,
       holidayDateSet,
+      inactiveHolidayDates,
     );
   }, [
     appointment,
     appointmentDate,
     holidayDateSet,
+    inactiveHolidayDates,
     holidays,
     permitDate,
     permitEndDate,

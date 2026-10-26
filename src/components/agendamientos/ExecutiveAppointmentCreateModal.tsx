@@ -30,6 +30,7 @@ import {
   type HolidayConfig,
   checkHolidayRestrictedDates,
   getActiveHolidayDateSet,
+  getInactiveHolidayDateSet,
 } from "@/lib/holidays";
 import { adminFetchInit } from "@/lib/admin-fetch";
 import { displayVehicleNumber } from "@/lib/driver-owners";
@@ -200,6 +201,10 @@ export default function ExecutiveAppointmentCreateModal({
     () => getActiveHolidayDateSet(holidays),
     [holidays],
   );
+  const inactiveHolidayDates = useMemo(
+    () => getInactiveHolidayDateSet(holidays),
+    [holidays],
+  );
   const reasonDateCheck = useMemo(() => {
     if (!selectedReasonConfig) {
       return { blocked: false, message: "" };
@@ -234,8 +239,9 @@ export default function ExecutiveAppointmentCreateModal({
       dateInput,
       today,
       holidayDateSet,
+      inactiveHolidayDates,
     );
-  }, [selectedReasonConfig, values, holidays, holidayDateSet, today]);
+  }, [selectedReasonConfig, values, holidays, holidayDateSet, inactiveHolidayDates, today]);
 
   const executiveLimitStatus = useMemo(() => {
     if (!allowsExecutiveAssignment || !values.assignedExecutive || !values.appointmentDate) {

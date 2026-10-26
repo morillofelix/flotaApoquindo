@@ -22,6 +22,7 @@ import {
   type HolidayConfig,
   checkDriverHolidayAdvance,
   getActiveHolidayDateSet,
+  getInactiveHolidayDateSet,
 } from "@/lib/holidays";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import DriverAccessLoginScreen, {
@@ -506,6 +507,10 @@ function AppointmentRequestForm({
     () => getActiveHolidayDateSet(holidays),
     [holidays],
   );
+  const inactiveHolidayDates = useMemo(
+    () => getInactiveHolidayDateSet(holidays),
+    [holidays],
+  );
   const reasonDateCheck = useMemo(() => {
     if (!selectedReasonConfig) {
       return { blocked: false, message: "" };
@@ -545,8 +550,9 @@ function AppointmentRequestForm({
       dateInput,
       ingressDate,
       holidayDateSet,
+      inactiveHolidayDates,
     );
-  }, [selectedReasonConfig, values, holidays, holidayDateSet]);
+  }, [selectedReasonConfig, values, holidays, holidayDateSet, inactiveHolidayDates]);
 
   useEffect(() => {
     if (!linkedVehicleNumber) {
@@ -804,22 +810,26 @@ function AppointmentRequestForm({
     void refreshReasons({ showSpinner: false });
   }, [refreshReasons]);
 
-  useEffect(() => {
-    fetch("/api/holidays", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar los feriados.");
-        }
+  const reloadHolidays = useCallback(async () => {
+    const response = await fetch("/api/holidays", { cache: "no-store" });
 
-        return response.json() as Promise<{ holidays?: HolidayConfig[] }>;
-      })
-      .then((data) => {
-        setHolidays(data.holidays ?? []);
-      })
-      .catch(() => {
-        setHolidays([]);
-      });
+    if (!response.ok) {
+      throw new Error("No se pudieron cargar los feriados.");
+    }
+
+    const data = (await response.json()) as { holidays?: HolidayConfig[] };
+    setHolidays(data.holidays ?? []);
   }, []);
+
+  const { refresh: refreshHolidays } = useAutoRefresh({
+    onRefresh: reloadHolidays,
+    intervalMs: 15_000,
+    enabled: true,
+  });
+
+  useEffect(() => {
+    void refreshHolidays({ showSpinner: false });
+  }, [refreshHolidays]);
 
   const errors = useMemo(() => {
     const vacationStartDate = usesDateRange
