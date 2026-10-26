@@ -125,6 +125,50 @@ function toStatusAudit(entry: {
   };
 }
 
+export async function loadAppointmentApprovers(appointmentIds: string[]) {
+  const result = new Map<string, { name: string; email: string }>();
+  const ids = [...new Set(appointmentIds.filter(Boolean))];
+  if (!ids.length) return result;
+
+  try {
+    const entries = await prisma.auditLog.findMany({
+      where: {
+        module: AUDIT_MODULE,
+        entityType: AUDIT_ENTITY,
+        action: "cambio-estado",
+        entityId: { in: ids },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { entityId: true, newValue: true, userEmail: true },
+    });
+
+    for (const entry of entries) {
+      if (result.has(entry.entityId)) continue;
+      let status = "";
+      let userName = "";
+      try {
+        const parsed = JSON.parse(entry.newValue) as {
+          status?: unknown;
+          userName?: unknown;
+        };
+        status = typeof parsed.status === "string" ? parsed.status : "";
+        userName = typeof parsed.userName === "string" ? parsed.userName : "";
+      } catch {
+        status = entry.newValue.trim();
+      }
+      if (status !== "aprobado") continue;
+      result.set(entry.entityId, {
+        name: userName.trim(),
+        email: entry.userEmail.trim(),
+      });
+    }
+  } catch (error) {
+    console.error("No se pudo cargar quién aprobó las solicitudes:", error);
+  }
+
+  return result;
+}
+
 export async function loadLatestAppointmentStatusAudits(
   appointmentIds?: string[],
 ): Promise<Map<string, AppointmentStatusAudit>> {

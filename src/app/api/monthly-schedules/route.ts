@@ -1,4 +1,5 @@
 import { requireAdminPermission } from "@/lib/admin-api-server";
+import { loadAppointmentApprovers } from "@/lib/appointment-audit-server";
 import { writeAuditLog } from "@/lib/audit-log";
 import { readAdminSession } from "@/lib/driver-auth";
 import { isValidPlanningMonth } from "@/lib/fleet-schedule";
@@ -60,6 +61,24 @@ function parseScope(body: Record<string, unknown>): GenerateScope {
     vehicleNumbers,
     shiftDefinitionId: asString(body.shiftDefinitionId) || undefined,
   };
+}
+
+async function loadModifierNames(emails: string[]) {
+  const names = new Map<string, string>();
+  if (!emails.length) return names;
+  const users = await prisma.accessUser.findMany({
+    where: {
+      OR: emails.map((email) => ({
+        email: { equals: email, mode: "insensitive" as const },
+      })),
+    },
+    select: { email: true, fullName: true },
+  });
+  for (const user of users) {
+    const fullName = user.fullName.trim();
+    if (fullName) names.set(user.email.trim().toLowerCase(), fullName);
+  }
+  return names;
 }
 
 function scopeFromSearchParams(request: NextRequest): GenerateScope {
@@ -192,6 +211,24 @@ export async function GET(request: NextRequest) {
     const byStatus: Record<string, number> = {};
     const driverIds = new Set<string>();
     let manualOverrides = 0;
+    const appointmentIds = [
+      ...new Set(
+        schedule.days
+          .map((day) => day.appointmentId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const modifierEmails = [
+      ...new Set(
+        schedule.days
+          .map((day) => day.modifiedByEmail.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const [approvers, modifierNames] = await Promise.all([
+      loadAppointmentApprovers(appointmentIds),
+      loadModifierNames(modifierEmails),
+    ]);
     const days = schedule.days.map((day) => {
       const code = day.effectiveStatus?.code ?? "SIN_ESTADO";
       byStatus[code] = (byStatus[code] ?? 0) + 1;
@@ -209,6 +246,8 @@ export async function GET(request: NextRequest) {
         observation: day.observation,
         changeOrigin: day.changeOrigin,
         isManualOverride: day.isManualOverride,
+        modifiedByEmail: day.modifiedByEmail,
+        modifiedByName: modifierNames.get(day.modifiedByEmail.trim().toLowerCase()) ?? "",
         startTime: day.startTime,
         endTime: day.endTime,
         appointment: day.appointment
@@ -218,6 +257,12 @@ export async function GET(request: NextRequest) {
               observation: day.appointment.observation,
               permitStartTime: day.appointment.permitStartTime,
               permitEndTime: day.appointment.permitEndTime,
+              approvedByName: day.appointmentId
+                ? (approvers.get(day.appointmentId)?.name ?? "")
+                : "",
+              approvedByEmail: day.appointmentId
+                ? (approvers.get(day.appointmentId)?.email ?? "")
+                : "",
             }
           : null,
         version: day.version,

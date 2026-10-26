@@ -6,6 +6,7 @@ type DataRefreshButtonProps = {
   onRefresh: () => void;
   isRefreshing?: boolean;
   lastUpdatedAt?: Date | null;
+  titleText?: string;
   className?: string;
   variant?: "default" | "toolbar" | "prominent";
 };
@@ -30,6 +31,7 @@ export default function DataRefreshButton({
   onRefresh,
   isRefreshing = false,
   lastUpdatedAt = null,
+  titleText,
   className = "",
   variant = "default",
 }: DataRefreshButtonProps) {
@@ -38,7 +40,7 @@ export default function DataRefreshButton({
       type="button"
       onClick={onRefresh}
       aria-label="Actualizar datos"
-      title={formatRefreshTooltip(lastUpdatedAt)}
+      title={titleText ?? formatRefreshTooltip(lastUpdatedAt)}
       className={`inline-flex shrink-0 items-center justify-center transition active:translate-y-px disabled:cursor-wait ${
         isRefreshing ? refreshingClassName[variant] : ""
       } ${variantClassName[variant]} ${className}`}

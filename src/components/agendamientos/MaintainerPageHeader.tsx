@@ -9,6 +9,7 @@ export default function MaintainerPageHeader({
   onRefresh,
   isRefreshing,
   lastUpdatedAt,
+  refreshTitle,
   refreshVariant = "toolbar",
 }: {
   title: string;
@@ -17,6 +18,7 @@ export default function MaintainerPageHeader({
   onRefresh?: () => void;
   isRefreshing?: boolean;
   lastUpdatedAt?: Date | null;
+  refreshTitle?: string;
   refreshVariant?: "default" | "toolbar" | "prominent";
 }) {
   return (
@@ -36,6 +38,7 @@ export default function MaintainerPageHeader({
               onRefresh={onRefresh}
               isRefreshing={isRefreshing}
               lastUpdatedAt={lastUpdatedAt}
+              titleText={refreshTitle}
               variant={refreshVariant}
             />
             <span

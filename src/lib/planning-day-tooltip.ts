@@ -33,6 +33,8 @@ export type PlanningDayTooltipSource = {
   observation?: string;
   changeOrigin?: string;
   isManualOverride?: boolean;
+  modifiedByName?: string;
+  modifiedByEmail?: string;
   driverBlock?: PlanningDriverBlockSummary | null;
   appointment?: {
     appointmentReason?: string;
@@ -40,8 +42,23 @@ export type PlanningDayTooltipSource = {
     observation?: string;
     permitStartTime?: string;
     permitEndTime?: string;
+    approvedByName?: string;
+    approvedByEmail?: string;
   } | null;
 };
+
+function personLabel(name?: string, email?: string) {
+  const personName = name?.trim() ?? "";
+  const personEmail = email?.trim() ?? "";
+  if (
+    personName &&
+    personEmail &&
+    personName.toLowerCase() !== personEmail.toLowerCase()
+  ) {
+    return `${personName} (${personEmail})`;
+  }
+  return personName || personEmail;
+}
 
 function formatHours(start?: string, end?: string) {
   const a = start?.trim() ?? "";
@@ -85,6 +102,8 @@ export function planningDayTooltip(day: PlanningDayTooltipSource): string {
     const permitHours = formatHours(appt.permitStartTime, appt.permitEndTime);
     if (permitHours) parts.push(permitHours);
     if (appt.observation?.trim()) parts.push(appt.observation.trim());
+    const approver = personLabel(appt.approvedByName, appt.approvedByEmail);
+    if (approver) parts.push(`Aprobado por ${approver}`);
   }
 
   if (code === "FERIADO") {
@@ -109,7 +128,8 @@ export function planningDayTooltip(day: PlanningDayTooltipSource): string {
   }
 
   if (day.isManualOverride) {
-    parts.push("Ajuste manual");
+    const editor = personLabel(day.modifiedByName, day.modifiedByEmail);
+    parts.push(editor ? `Ajuste manual por ${editor}` : "Ajuste manual");
   }
 
   return [...new Set(parts.filter(Boolean))].join(" · ");

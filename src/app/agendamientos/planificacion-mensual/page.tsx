@@ -19,6 +19,7 @@ import type { OperationalStatusConfig } from "@/lib/operational-status";
 import type { ShiftDefinitionConfig } from "@/lib/shift-definitions";
 import { downloadMonthlyPlanningExcel } from "@/lib/monthly-planning-excel-export";
 import { downloadMonthlyPlanningSpecialShiftExcel } from "@/lib/monthly-planning-special-shift-excel";
+import { formatManualRefreshTooltip } from "@/lib/data-refresh";
 import Link from "next/link";
 import { planningBlockDetailLabel, planningDayTooltip } from "@/lib/planning-day-tooltip";
 import {
@@ -54,6 +55,8 @@ type ScheduleDay = {
   observation: string;
   changeOrigin: string;
   isManualOverride: boolean;
+  modifiedByName?: string;
+  modifiedByEmail?: string;
   version: number;
   shift?: { code?: string; name?: string } | null;
   eventsCount: number;
@@ -65,6 +68,8 @@ type ScheduleDay = {
     observation: string;
     permitStartTime: string;
     permitEndTime: string;
+    approvedByName?: string;
+    approvedByEmail?: string;
   } | null;
   driverBlock?: {
     id: string;
@@ -224,6 +229,8 @@ export default function PlanificacionMensualPage() {
   );
   const [loading, setLoading] = useState(true);
   const [scheduleRefreshing, setScheduleRefreshing] = useState(false);
+  const [screenUpdatedAt, setScreenUpdatedAt] = useState<Date | null>(null);
+  const [refreshLabelNow, setRefreshLabelNow] = useState(() => new Date());
   const [wizardDriversLoading, setWizardDriversLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -280,6 +287,7 @@ export default function PlanificacionMensualPage() {
       try {
         const schedule = await loadMonthlySchedule(year, month);
         setData(schedule as SchedulePayload);
+        setScreenUpdatedAt(new Date());
       } catch (caught) {
         setError(
           caught instanceof Error
@@ -437,6 +445,11 @@ export default function PlanificacionMensualPage() {
   useEffect(() => {
     void reloadSchedule();
   }, [reloadSchedule]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRefreshLabelNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!generateOpen) return;
@@ -1037,9 +1050,6 @@ export default function PlanificacionMensualPage() {
     });
   }
 
-  const lastUpdatedAt = data?.schedule?.updatedAt
-    ? new Date(data.schedule.updatedAt)
-    : null;
   const isToday = (date: string) =>
     date ===
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -1056,7 +1066,7 @@ export default function PlanificacionMensualPage() {
           subtitle="Flota"
           onRefresh={() => void reload({ full: true })}
           isRefreshing={loading || scheduleRefreshing}
-          lastUpdatedAt={lastUpdatedAt}
+          refreshTitle={formatManualRefreshTooltip(screenUpdatedAt, refreshLabelNow)}
           refreshVariant="prominent"
         />
         <section className="relative z-40 mb-1.5 shrink-0 overflow-visible rounded-[18px] border border-[#b7cce4] bg-[#f8fbff] shadow-lg shadow-slate-300/15">
