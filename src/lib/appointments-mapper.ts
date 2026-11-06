@@ -35,6 +35,7 @@ export function toReasonConfig(
     usesServiceStartTime: boolean;
     serviceStartTime: string;
     usesDateRange: boolean;
+    minRangeDays?: number | null;
     usesPermitDetails: boolean;
     usesDaySwap?: boolean;
     requiresObservation?: boolean;
@@ -62,6 +63,10 @@ export function toReasonConfig(
     usesServiceStartTime: reason.usesServiceStartTime,
     serviceStartTime: reason.serviceStartTime,
     usesDateRange: reason.usesDateRange,
+    minRangeDays:
+      typeof reason.minRangeDays === "number" && reason.minRangeDays >= 1
+        ? reason.minRangeDays
+        : null,
     usesPermitDetails: reason.usesPermitDetails,
     usesDaySwap: Boolean(reason.usesDaySwap),
     requiresObservation: Boolean(reason.requiresObservation),

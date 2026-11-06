@@ -14,6 +14,7 @@ import {
   type WeekdayKey,
   type WeekdayBusinessAdvanceConfig,
 } from "@/lib/appointment-reason-weekdays";
+import { readMinRangeDays } from "@/lib/date-range-minimum";
 import { requireAdminPermission } from "@/lib/admin-api-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse, type NextRequest } from "next/server";
@@ -29,6 +30,7 @@ type ReasonBody = {
   usesServiceStartTime?: unknown;
   serviceStartTime?: unknown;
   usesDateRange?: unknown;
+  minRangeDays?: unknown;
   usesPermitDetails?: unknown;
   usesDaySwap?: unknown;
   requiresObservation?: unknown;
@@ -65,6 +67,7 @@ function toReason(
     usesServiceStartTime: boolean;
     serviceStartTime: string;
     usesDateRange: boolean;
+    minRangeDays?: number | null;
     usesPermitDetails: boolean;
     usesDaySwap?: boolean;
     requiresObservation?: boolean;
@@ -89,6 +92,10 @@ function toReason(
     usesServiceStartTime: value.usesServiceStartTime,
     serviceStartTime: value.serviceStartTime,
     usesDateRange: value.usesDateRange,
+    minRangeDays:
+      typeof value.minRangeDays === "number" && value.minRangeDays >= 1
+        ? value.minRangeDays
+        : null,
     usesPermitDetails: value.usesPermitDetails,
     usesDaySwap: Boolean(value.usesDaySwap),
     requiresObservation: Boolean(value.requiresObservation),
@@ -379,6 +386,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: scheduleValidationMessage }, { status: 400 });
   }
 
+  const usesDateRange = getBoolean(body.usesDateRange);
+  const minRange = readMinRangeDays(body.minRangeDays, usesDateRange);
+
+  if (minRange.error) {
+    return NextResponse.json({ message: minRange.error }, { status: 400 });
+  }
+
   const reason = await prisma.appointmentReason.create({
     data: {
       value,
@@ -388,7 +402,8 @@ export async function POST(request: NextRequest) {
       appointmentDurationMinutes: durationFields.appointmentDurationMinutes,
       usesServiceStartTime: durationFields.usesServiceStartTime,
       serviceStartTime: durationFields.serviceStartTime,
-      usesDateRange: getBoolean(body.usesDateRange),
+      usesDateRange,
+      minRangeDays: minRange.days,
       usesPermitDetails: getBoolean(body.usesPermitDetails),
       usesDaySwap: getBoolean(body.usesDaySwap),
       requiresObservation: getBoolean(body.requiresObservation),
@@ -460,6 +475,13 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: scheduleValidationMessage }, { status: 400 });
   }
 
+  const usesDateRange = getBoolean(body.usesDateRange);
+  const minRange = readMinRangeDays(body.minRangeDays, usesDateRange);
+
+  if (minRange.error) {
+    return NextResponse.json({ message: minRange.error }, { status: 400 });
+  }
+
   try {
     const reason = await prisma.appointmentReason.update({
       where: { id },
@@ -470,7 +492,8 @@ export async function PATCH(request: NextRequest) {
         appointmentDurationMinutes: durationFields.appointmentDurationMinutes,
         usesServiceStartTime: durationFields.usesServiceStartTime,
         serviceStartTime: durationFields.serviceStartTime,
-        usesDateRange: getBoolean(body.usesDateRange),
+        usesDateRange,
+        minRangeDays: minRange.days,
         usesPermitDetails: getBoolean(body.usesPermitDetails),
         usesDaySwap: getBoolean(body.usesDaySwap),
         requiresObservation: getBoolean(body.requiresObservation),

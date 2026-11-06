@@ -11,6 +11,10 @@ import {
 } from "@/lib/appointments";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
+  formatMinRangeDays,
+  minRangeDaysError,
+} from "@/lib/date-range-minimum";
+import {
   buildExecutiveDayAvailability,
   getExistingSlotsForExecutiveDay,
   suggestRangeFromFreeBlock,
@@ -410,7 +414,12 @@ export default function ExecutiveAppointmentEditModal({
         : usesDateRange
           ? Boolean(vacationStartDate) &&
             Boolean(vacationEndDate) &&
-            vacationEndDate >= vacationStartDate
+            vacationEndDate >= vacationStartDate &&
+            !minRangeDaysError(
+              vacationStartDate,
+              vacationEndDate,
+              selectedReasonConfig?.minRangeDays,
+            )
           : usesPermitDetails
             ? appointment.permitType === "dias"
               ? Boolean(permitStartDate) &&
@@ -741,6 +750,11 @@ export default function ExecutiveAppointmentEditModal({
 
             {usesDateRange ? (
               <>
+                {formatMinRangeDays(selectedReasonConfig?.minRangeDays) ? (
+                  <p className="text-xs font-semibold text-[#173b68] sm:col-span-2">
+                    {formatMinRangeDays(selectedReasonConfig?.minRangeDays)}.
+                  </p>
+                ) : null}
                 <label className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Fecha desde
@@ -770,6 +784,19 @@ export default function ExecutiveAppointmentEditModal({
                     }}
                     className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747]"
                   />
+                  {minRangeDaysError(
+                    vacationStartDate,
+                    vacationEndDate,
+                    selectedReasonConfig?.minRangeDays,
+                  ) ? (
+                    <span className="text-xs text-red-600">
+                      {minRangeDaysError(
+                        vacationStartDate,
+                        vacationEndDate,
+                        selectedReasonConfig?.minRangeDays,
+                      )}
+                    </span>
+                  ) : null}
                 </label>
               </>
             ) : null}

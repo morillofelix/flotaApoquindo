@@ -19,6 +19,10 @@ import {
 } from "@/lib/appointments";
 import { getExecutiveDailyLimitStatus } from "@/lib/executive-daily-limit";
 import {
+  formatMinRangeDays,
+  minRangeDaysError,
+} from "@/lib/date-range-minimum";
+import {
   buildExecutiveDayAvailability,
   getExistingSlotsForExecutiveDay,
   suggestRangeFromFreeBlock,
@@ -633,7 +637,12 @@ export default function ExecutiveAppointmentCreateModal({
     (!usesDateRange ||
       (Boolean(values.vacationStartDate) &&
         Boolean(values.vacationEndDate) &&
-        values.vacationEndDate >= values.vacationStartDate)) &&
+        values.vacationEndDate >= values.vacationStartDate &&
+        !minRangeDaysError(
+          values.vacationStartDate,
+          values.vacationEndDate,
+          selectedReasonConfig?.minRangeDays,
+        ))) &&
     (!usesDaySwap ||
       (Boolean(values.swapFromDate) &&
         Boolean(values.swapToDate) &&
@@ -1052,6 +1061,11 @@ export default function ExecutiveAppointmentCreateModal({
 
             {usesDateRange ? (
               <>
+                {formatMinRangeDays(selectedReasonConfig?.minRangeDays) ? (
+                  <p className="text-xs font-semibold text-[#173b68] sm:col-span-2">
+                    {formatMinRangeDays(selectedReasonConfig?.minRangeDays)}.
+                  </p>
+                ) : null}
                 <label className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-[#173b68]">
                     Fecha desde
@@ -1079,6 +1093,19 @@ export default function ExecutiveAppointmentCreateModal({
                     }
                     className="h-10 rounded-2xl border border-[#9fb8d9] bg-white px-4 text-sm text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15"
                   />
+                  {minRangeDaysError(
+                    values.vacationStartDate,
+                    values.vacationEndDate,
+                    selectedReasonConfig?.minRangeDays,
+                  ) ? (
+                    <span className="text-xs text-red-600">
+                      {minRangeDaysError(
+                        values.vacationStartDate,
+                        values.vacationEndDate,
+                        selectedReasonConfig?.minRangeDays,
+                      )}
+                    </span>
+                  ) : null}
                 </label>
               </>
             ) : null}

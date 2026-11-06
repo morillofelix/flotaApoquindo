@@ -73,6 +73,8 @@ model AppointmentReason {
   usesServiceStartTime       Boolean  @default(false)
   serviceStartTime           String   @default("")
   usesDateRange              Boolean  @default(false)
+  /// Mínimo de días calendario del rango, contando inicio y término. Vacío = sin mínimo.
+  minRangeDays               Int?
   usesPermitDetails          Boolean  @default(false)
   usesDaySwap                Boolean  @default(false)
   requiresObservation        Boolean  @default(false)

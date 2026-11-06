@@ -15,6 +15,7 @@ import {
   getReasonAppointmentDurationMinutes,
 } from "@/lib/appointment-scheduling";
 import { toAppointment, toReasonConfig } from "@/lib/appointments-mapper";
+import { minRangeDaysError } from "@/lib/date-range-minimum";
 import { parseClockTime } from "@/lib/executive-appointment-slot";
 import { validateExecutiveAssignmentForDate } from "@/lib/executive-assignment-server";
 import { requireAdminPermission, requireDriverSession } from "@/lib/admin-api-server";
@@ -267,6 +268,12 @@ function validateDatePatchForReason(
 
     if (!start || !end || !isValidDateOnly(start) || !isValidDateOnly(end) || end < start) {
       return "Ingresa un rango de vacaciones válido.";
+    }
+
+    const rangeError = minRangeDaysError(start, end, reason.minRangeDays);
+
+    if (rangeError) {
+      return rangeError;
     }
   }
 

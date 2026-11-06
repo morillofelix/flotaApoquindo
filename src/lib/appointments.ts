@@ -39,6 +39,8 @@ export type AppointmentReasonConfig = {
   usesServiceStartTime: boolean;
   serviceStartTime: string;
   usesDateRange: boolean;
+  /** Vacío: el rango de fechas no tiene mínimo. */
+  minRangeDays: number | null;
   usesPermitDetails: boolean;
   usesDaySwap: boolean;
   requiresObservation: boolean;
@@ -64,6 +66,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesServiceStartTime: false,
     serviceStartTime: "",
     usesDateRange: true,
+    minRangeDays: null,
     usesPermitDetails: false,
     usesDaySwap: false,
     requiresObservation: false,
@@ -86,6 +89,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesServiceStartTime: false,
     serviceStartTime: "",
     usesDateRange: true,
+    minRangeDays: null,
     usesPermitDetails: false,
     usesDaySwap: false,
     requiresObservation: false,
@@ -108,6 +112,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesServiceStartTime: false,
     serviceStartTime: "",
     usesDateRange: false,
+    minRangeDays: null,
     usesPermitDetails: true,
     usesDaySwap: false,
     requiresObservation: false,
@@ -130,6 +135,7 @@ export const defaultAppointmentReasons: AppointmentReasonConfig[] = [
     usesServiceStartTime: false,
     serviceStartTime: "",
     usesDateRange: false,
+    minRangeDays: null,
     usesPermitDetails: false,
     usesDaySwap: false,
     requiresObservation: false,

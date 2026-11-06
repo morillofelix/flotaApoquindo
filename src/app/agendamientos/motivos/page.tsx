@@ -16,6 +16,7 @@ import {
   loadAppointmentReasons,
 } from "@/lib/agendamientos-admin";
 import { adminFetchInit } from "@/lib/admin-fetch";
+import { formatMinRangeDays } from "@/lib/date-range-minimum";
 import { uiListRowClass } from "@/lib/ui-borders";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -29,6 +30,7 @@ type ReasonForm = {
   usesServiceStartTime: boolean;
   serviceStartTime: string;
   usesDateRange: boolean;
+  minRangeDays: string;
   usesPermitDetails: boolean;
   usesDaySwap: boolean;
   requiresObservation: boolean;
@@ -63,6 +65,7 @@ const emptyReasonForm: ReasonForm = {
   usesServiceStartTime: false,
   serviceStartTime: "09:00",
   usesDateRange: false,
+  minRangeDays: "",
   usesPermitDetails: false,
   usesDaySwap: false,
   requiresObservation: false,
@@ -166,6 +169,7 @@ export default function MotivosPage() {
       usesServiceStartTime: reason.usesServiceStartTime,
       serviceStartTime: reason.serviceStartTime || "09:00",
       usesDateRange: reason.usesDateRange,
+      minRangeDays: reason.minRangeDays ? String(reason.minRangeDays) : "",
       usesPermitDetails: reason.usesPermitDetails,
       usesDaySwap: Boolean(reason.usesDaySwap),
       requiresObservation: Boolean(reason.requiresObservation),
@@ -405,7 +409,11 @@ export default function MotivosPage() {
                               ? `Deriva · ${reason.appointmentDurationMinutes} min`
                               : "Deriva"
                             : "",
-                          reason.usesDateRange ? "Fechas" : "",
+                          reason.usesDateRange
+                            ? formatMinRangeDays(reason.minRangeDays)
+                              ? `Fechas · ${formatMinRangeDays(reason.minRangeDays).toLowerCase()}`
+                              : "Fechas"
+                            : "",
                           reason.usesPermitDetails ? "Horas/días" : "",
                           reason.usesDaySwap ? "Cambio de día" : "",
                           reason.requiresObservation ? "Observación" : "",
@@ -636,10 +644,19 @@ export default function MotivosPage() {
                               ...currentForm,
                               usesDaySwap: true,
                               usesDateRange: false,
+                              minRangeDays: "",
                               usesPermitDetails: false,
                               allowsExecutiveAssignment: false,
                               usesAppointmentDuration: false,
                               usesServiceStartTime: false,
+                            };
+                          }
+
+                          if (field === "usesDateRange" && !checked) {
+                            return {
+                              ...currentForm,
+                              usesDateRange: false,
+                              minRangeDays: "",
                             };
                           }
 
@@ -666,6 +683,34 @@ export default function MotivosPage() {
                   </label>
                 ))}
                 </div>
+
+                {reasonForm.usesDateRange ? (
+                  <div className="overflow-hidden rounded-2xl border border-[#9fb8d9] bg-white shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
+                    <label className="flex h-10 items-center justify-between gap-3 px-3 text-xs font-semibold text-[#173b68]">
+                      Mínimo días
+                      <input
+                        type="number"
+                        min={1}
+                        max={366}
+                        inputMode="numeric"
+                        value={reasonForm.minRangeDays}
+                        onChange={(event) =>
+                          setReasonForm((currentForm) => ({
+                            ...currentForm,
+                            minRangeDays: event.target.value
+                              .replace(/[^\d]/g, "")
+                              .slice(0, 3),
+                          }))
+                        }
+                        className="h-7 w-16 rounded-xl border border-[#9fb8d9] bg-white text-center text-sm font-semibold text-[#0f2747] outline-none transition focus:border-[#0b5cab] focus:ring-2 focus:ring-[#0b5cab]/15 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                    </label>
+                    <p className="border-t border-[#c5d8eb] px-3 py-2 text-[11px] font-normal leading-4 text-slate-500">
+                      Vacío: sin mínimo. Si escribes 4, el rango debe cubrir al
+                      menos 4 días, contando el día de inicio y el de término.
+                    </p>
+                  </div>
+                ) : null}
 
                 <label className="flex min-h-10 flex-col justify-center gap-1 rounded-2xl border border-[#9fb8d9] bg-white px-3 py-2 text-xs font-semibold text-[#173b68] shadow-[0_1px_2px_rgba(15,39,71,0.05)]">
                   <span className="flex items-center justify-between gap-3">

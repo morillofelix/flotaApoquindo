@@ -7,6 +7,7 @@ import {
   getSantiagoToday,
   checkReasonDateRules,
 } from "@/lib/appointment-reason-weekdays";
+import { minRangeDaysError } from "@/lib/date-range-minimum";
 import {
   checkHolidayRestrictedDates,
   getActiveHolidayDateSet,
@@ -403,6 +404,18 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  if (reason?.usesDateRange) {
+    const rangeError = minRangeDaysError(
+      appointment.vacationStartDate,
+      appointment.vacationEndDate,
+      reason.minRangeDays,
+    );
+
+    if (rangeError) {
+      return NextResponse.json({ message: rangeError }, { status: 400 });
+    }
   }
 
   if (appointment.permitType === "horas") {

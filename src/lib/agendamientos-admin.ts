@@ -286,6 +286,7 @@ export function downloadAppointmentReasonsExcel(
           <td>${escapeExcelHtml(reason.value)}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.allowsExecutiveAssignment))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesDateRange))}</td>
+          <td>${escapeExcelHtml(reason.minRangeDays ? String(reason.minRangeDays) : "")}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesPermitDetails))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.usesDaySwap))}</td>
           <td>${escapeExcelHtml(formatExcelBoolean(reason.requiresObservation))}</td>
@@ -313,6 +314,7 @@ export function downloadAppointmentReasonsExcel(
               <th>Código</th>
               <th>Deriva</th>
               <th>Rango fechas</th>
+              <th>Mínimo días</th>
               <th>Permiso horas/días</th>
               <th>Cambio de día</th>
               <th>Observación</th>

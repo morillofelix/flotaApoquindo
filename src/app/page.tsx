@@ -34,6 +34,10 @@ import { clearDriverSession, restoreDriverSession } from "@/lib/driver-auth-clie
 import { sessionFetchInit } from "@/lib/admin-fetch";
 import { normalizeVehicleNumber } from "@/lib/driver-owners";
 import { DRIVER_RESTRICTION_MESSAGE } from "@/lib/driver-restriction-message";
+import {
+  formatMinRangeDays,
+  minRangeDaysError,
+} from "@/lib/date-range-minimum";
 import { scrollNativePickerIntoView } from "@/lib/form-scroll";
 import {
   getPastPermitTimeMessage,
@@ -960,7 +964,13 @@ function AppointmentRequestForm({
         values.vacationEndDate &&
         values.vacationEndDate < values.vacationStartDate
           ? "La fecha hasta no puede ser anterior a la fecha desde."
-          : vacationEndDate,
+          : !vacationEndDate && usesDateRange
+            ? minRangeDaysError(
+                values.vacationStartDate,
+                values.vacationEndDate,
+                selectedReasonConfig?.minRangeDays,
+              ) || vacationEndDate
+            : vacationEndDate,
       permitType,
       permitStartDate,
       permitEndDate:
@@ -1413,6 +1423,11 @@ function AppointmentRequestForm({
 
             {usesDateRange ? (
               <div className={`grid min-w-0 gap-4 overflow-x-hidden rounded-2xl ${formPanelBorderClass} bg-[#f8fbff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:col-span-2 sm:grid-cols-2`}>
+                {formatMinRangeDays(selectedReasonConfig?.minRangeDays) ? (
+                  <p className="text-sm font-semibold text-[#173b68] sm:col-span-2">
+                    {formatMinRangeDays(selectedReasonConfig?.minRangeDays)}.
+                  </p>
+                ) : null}
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-[#173b68]">
                     Fecha desde
