@@ -11,7 +11,7 @@ import {
 
 const DEFAULT_NOTIFY_RECIPIENTS = [
   "fmorillo@transportesapoquindo.cl",
-  "maneva@transportesapoquindo.cl",
+  "mnavea@transportesapoquindo.cl",
   "administracion@transportesapoquindo.cl",
 ];
 
